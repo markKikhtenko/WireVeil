@@ -1,0 +1,46 @@
+name: Update subscriptions
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wireveil-subscription-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out WireVeil
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run offline tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build subscriptions
+        run: python scripts/build.py
+
+      - name: Commit real output changes
+        shell: bash
+        run: |
+          git add -- README.md subscription.txt vless.txt trojan.txt shadowsocks.txt vmess.txt hysteria.txt hysteria2.txt tuic.txt stats.json update-history.json
+          if git diff --cached --quiet; then
+            echo "No subscription changes to commit."
+            exit 0
+          fi
+          total="$(python -c 'import json; print(json.load(open("stats.json", encoding="utf-8"))["total_keys"])')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update WireVeil subscriptions (${total} keys)"
+          git push

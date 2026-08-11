@@ -1,0 +1,38 @@
+{
+  "updates": [
+    {
+      "utc": "2026-08-11T20:43:40Z",
+      "msk": "2026-08-11T23:43:40+03:00",
+      "total_keys": 3069,
+      "keys_by_protocol": {
+        "vless": 2901,
+        "trojan": 84,
+        "shadowsocks": 23,
+        "vmess": 8,
+        "hysteria": 0,
+        "hysteria2": 53,
+        "tuic": 0
+      },
+      "duplicates_removed": 1174,
+      "ru_excluded": 569,
+      "subscription_sha256": "07f68bec52026f506beb950c282fb8f9ba0cfa374eb7814c099de9cde6670984"
+    },
+    {
+      "utc": "2026-08-11T20:45:33Z",
+      "msk": "2026-08-11T23:45:33+03:00",
+      "total_keys": 3071,
+      "keys_by_protocol": {
+        "vless": 2903,
+        "trojan": 84,
+        "shadowsocks": 23,
+        "vmess": 8,
+        "hysteria": 0,
+        "hysteria2": 53,
+        "tuic": 0
+      },
+      "duplicates_removed": 1176,
+      "ru_excluded": 565,
+      "subscription_sha256": "36039e6e62d29aacda3c1d02a53b57832695e2fa4d5996c7e775a6202025e73e"
+    }
+  ]
+}

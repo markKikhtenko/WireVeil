@@ -1,0 +1,49 @@
+{
+  "sources": [
+    {
+      "id": "igareck-vless-blacklist",
+      "name": "igareck VLESS Black List",
+      "url": "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt",
+      "priority": 100,
+      "enabled": true,
+      "protocols": ["vless"],
+      "note": "Основной источник VLESS-конфигураций для обхода блок-листов."
+    },
+    {
+      "id": "igareck-mixed-blacklist",
+      "name": "igareck Black List Mixed",
+      "url": "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_SS%2BAll_RUS.txt",
+      "priority": 90,
+      "enabled": true,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Основной смешанный источник конфигураций для обхода блок-листов."
+    },
+    {
+      "id": "wlunlocker-blacklist",
+      "name": "WLUnlocker Blacklist",
+      "url": "https://raw.githubusercontent.com/wlunlocker/vpn-configs/main/blacklist_all.txt",
+      "priority": 80,
+      "enabled": true,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный смешанный источник конфигураций для блок-листов."
+    },
+    {
+      "id": "eavevpn-blacklist",
+      "name": "EaveVPN Black List",
+      "url": "https://raw.githubusercontent.com/Kirillo4ka/eavevpn-configs/main/BLACK_SS%2BAll.txt",
+      "priority": 70,
+      "enabled": true,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Резервный смешанный источник конфигураций для блок-листов."
+    },
+    {
+      "id": "void-vless",
+      "name": "V.O.I.D VLESS",
+      "url": "https://raw.githubusercontent.com/VOID-Anonymity/V.O.I.D-VPN_Bypass/refs/heads/main/url_work.txt",
+      "priority": 10,
+      "enabled": true,
+      "protocols": ["vless"],
+      "note": "Дополнительный источник: преимущественно белые списки, но может содержать пригодные конфигурации."
+    }
+  ]
+}
