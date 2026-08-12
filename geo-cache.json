@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-08-12T06:07:06Z",
+  "updated_at_utc": "2026-08-12T06:12:31Z",
   "ranges": [
     {
       "start": "2.26.0.0",
@@ -2589,6 +2589,12 @@
       "checked_at_utc": "2026-08-12T05:55:45Z"
     },
     {
+      "start": "104.143.1.128",
+      "end": "104.143.1.191",
+      "country": "AT",
+      "checked_at_utc": "2026-08-12T06:12:27Z"
+    },
+    {
       "start": "104.165.244.0",
       "end": "104.165.244.255",
       "country": null,
@@ -5053,6 +5059,24 @@
       "end": "222.167.212.255",
       "country": "FI",
       "checked_at_utc": "2026-08-12T06:04:42Z"
+    },
+    {
+      "start": "2407:30c0::",
+      "end": "2407:30c0:ffff:ffff:ffff:ffff:ffff:ffff",
+      "country": "AU",
+      "checked_at_utc": "2026-08-12T06:12:31Z"
+    },
+    {
+      "start": "2606:4700::",
+      "end": "2606:4700:ffff:ffff:ffff:ffff:ffff:ffff",
+      "country": null,
+      "checked_at_utc": "2026-08-12T06:12:27Z"
+    },
+    {
+      "start": "2a06:98c1::",
+      "end": "2a06:98c1:ffff:ffff:ffff:ffff:ffff:ffff",
+      "country": "GB",
+      "checked_at_utc": "2026-08-12T06:12:28Z"
     }
   ]
 }
