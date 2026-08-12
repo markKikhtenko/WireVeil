@@ -220,6 +220,23 @@
       "duplicates_removed": 1509,
       "ru_excluded": 565,
       "subscription_sha256": "f1fa9c26396af9d2ac7691a1403e35002cdec18f9638aad1d128f431378c67ee"
+    },
+    {
+      "utc": "2026-08-12T13:54:12Z",
+      "msk": "2026-08-12T16:54:12+03:00",
+      "total_keys": 3195,
+      "keys_by_protocol": {
+        "vless": 3031,
+        "trojan": 82,
+        "shadowsocks": 24,
+        "vmess": 4,
+        "hysteria": 0,
+        "hysteria2": 54,
+        "tuic": 0
+      },
+      "duplicates_removed": 1441,
+      "ru_excluded": 569,
+      "subscription_sha256": "b6384e85e9260e47f3c1f56a523ca3cf30b84d8662e5f23856ed4a850c058bae"
     }
   ]
 }
