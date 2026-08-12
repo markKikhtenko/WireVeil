@@ -24,6 +24,7 @@ import re
 import shutil
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES_PATH = ROOT / "sources.json"
 HISTORY_PATH = ROOT / "update-history.json"
 STATS_PATH = ROOT / "stats.json"
+GEO_CACHE_PATH = ROOT / "geo-cache.json"
 
 PROTOCOL_FILES = {
     "vless": "vless.txt",
@@ -81,6 +83,10 @@ DECORATIVE_QUERY_KEYS = {
     "emoji",
 }
 RIPE_DELEGATED_URL = "https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-latest"
+RDAP_IP_URL = "https://rdap.org/ip/{address}"
+IANA_RDAP_IPV4_URL = "https://data.iana.org/rdap/ipv4.json"
+IANA_RDAP_IPV6_URL = "https://data.iana.org/rdap/ipv6.json"
+GEO_CACHE_TTL = dt.timedelta(days=7)
 USER_AGENT = "WireVeil/1.0 (+https://github.com/)"
 
 
@@ -490,6 +496,33 @@ def fetch_url(
     raise BuildError(f"failed after {retries} attempts: {last_error}")
 
 
+def fetch_json_url(
+    url: str,
+    *,
+    timeout: float = 20.0,
+    retries: int = 3,
+    opener: Callable[..., object] = urllib.request.urlopen,
+) -> dict:
+    """Fetch a JSON object with bounded retries and RDAP-friendly headers."""
+    last_error: BaseException | None = None
+    for attempt in range(1, retries + 1):
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/rdap+json, application/json"},
+        )
+        try:
+            with opener(request, timeout=timeout) as response:  # type: ignore[attr-defined]
+                data = json.loads(response.read().decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("JSON root is not an object")
+            return data
+        except (OSError, UnicodeError, ValueError, urllib.error.URLError) as exc:
+            last_error = exc
+            if attempt < retries:
+                time.sleep(min(2 ** (attempt - 1), 4))
+    raise BuildError(f"failed after {retries} attempts: {last_error}")
+
+
 class RussianNetworkIndex:
     """Conservative lookup based on the current RIPE delegated registry."""
 
@@ -524,39 +557,307 @@ class RussianNetworkIndex:
         return any(address in network for network in networks)
 
 
+@dataclasses.dataclass(frozen=True)
+class GeoRange:
+    start: ipaddress._BaseAddress
+    end: ipaddress._BaseAddress
+    country: str
+    checked_at: dt.datetime
+
+    def contains(self, address: ipaddress._BaseAddress) -> bool:
+        return (
+            address.version == self.start.version
+            and int(self.start) <= int(address) <= int(self.end)
+        )
+
+    @property
+    def span(self) -> int:
+        return int(self.end) - int(self.start)
+
+
+class RdapBootstrap:
+    """Resolve an IP to its authoritative RIR RDAP endpoint via IANA data."""
+
+    def __init__(self, services: Sequence[tuple[ipaddress._BaseNetwork, str]]):
+        self.services = tuple(
+            sorted(services, key=lambda item: item[0].prefixlen, reverse=True)
+        )
+
+    @classmethod
+    def from_documents(cls, *documents: Mapping) -> "RdapBootstrap":
+        services: list[tuple[ipaddress._BaseNetwork, str]] = []
+        for document in documents:
+            for service in document.get("services", []):
+                if (
+                    not isinstance(service, list)
+                    or len(service) != 2
+                    or not isinstance(service[0], list)
+                    or not isinstance(service[1], list)
+                    or not service[1]
+                ):
+                    continue
+                base_url = str(service[1][0]).rstrip("/")
+                if not base_url.startswith("https://"):
+                    continue
+                for prefix in service[0]:
+                    try:
+                        services.append((ipaddress.ip_network(str(prefix), strict=False), base_url))
+                    except ValueError:
+                        continue
+        if not services:
+            raise BuildError("IANA RDAP bootstrap contains no usable services")
+        return cls(services)
+
+    def url_for(self, address: ipaddress._BaseAddress) -> str:
+        for network, base_url in self.services:
+            if address.version == network.version and address in network:
+                return f"{base_url}/ip/{urllib.parse.quote(str(address))}"
+        return RDAP_IP_URL.format(address=urllib.parse.quote(str(address)))
+
+
+class RdapGeoIndex:
+    """Exact country lookup using authoritative RDAP network assignments.
+
+    RIR delegated files describe top-level allocations and can miss a more
+    specific reassignment to Russia. RDAP returns the current network object for
+    the actual IP. Returned ranges are cached so an hourly build does not issue
+    one request per key.
+    """
+
+    def __init__(
+        self,
+        ranges: Sequence[GeoRange] = (),
+        *,
+        fetcher: Callable[[str], Mapping] | None = None,
+        url_for_address: Callable[[ipaddress._BaseAddress], str] | None = None,
+        now: Callable[[], dt.datetime] | None = None,
+        ttl: dt.timedelta = GEO_CACHE_TTL,
+    ):
+        self.ranges = list(ranges)
+        self.fetcher = fetcher or (lambda url: fetch_json_url(url))
+        self.url_for_address = url_for_address or (
+            lambda address: RDAP_IP_URL.format(address=urllib.parse.quote(str(address)))
+        )
+        self.now = now or (lambda: dt.datetime.now(dt.timezone.utc))
+        self.ttl = ttl
+        self.lock = threading.RLock()
+        self.inflight: dict[str, threading.Event] = {}
+        self.query_failures = 0
+        self.cache_hits = 0
+        self.queries = 0
+
+    @classmethod
+    def load(
+        cls,
+        path: Path,
+        *,
+        fetcher: Callable[[str], Mapping] | None = None,
+        url_for_address: Callable[[ipaddress._BaseAddress], str] | None = None,
+        now: Callable[[], dt.datetime] | None = None,
+        ttl: dt.timedelta = GEO_CACHE_TTL,
+    ) -> "RdapGeoIndex":
+        ranges: list[GeoRange] = []
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if data.get("schema_version") != 1 or not isinstance(data.get("ranges"), list):
+                    raise ValueError("unsupported cache schema")
+                for item in data["ranges"]:
+                    start = ipaddress.ip_address(item["start"])
+                    end = ipaddress.ip_address(item["end"])
+                    checked = dt.datetime.fromisoformat(
+                        str(item["checked_at_utc"]).replace("Z", "+00:00")
+                    )
+                    if start.version != end.version or int(start) > int(end):
+                        continue
+                    ranges.append(
+                        GeoRange(start, end, cls._normalize_country(item.get("country")), checked)
+                    )
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                warn(f"geo-cache.json is invalid and will be rebuilt: {exc}")
+                ranges = []
+        return cls(
+            ranges,
+            fetcher=fetcher,
+            url_for_address=url_for_address,
+            now=now,
+            ttl=ttl,
+        )
+
+    @staticmethod
+    def _normalize_country(value: object) -> str:
+        country = str(value or "").strip().upper()
+        return country if re.fullmatch(r"[A-Z]{2}", country) and country != "ZZ" else ""
+
+    def _fresh(self, item: GeoRange, current: dt.datetime) -> bool:
+        checked = item.checked_at
+        if checked.tzinfo is None:
+            checked = checked.replace(tzinfo=dt.timezone.utc)
+        return current - checked.astimezone(dt.timezone.utc) <= self.ttl
+
+    def _cached(self, address: ipaddress._BaseAddress) -> GeoRange | None:
+        current = self.now().astimezone(dt.timezone.utc)
+        matches = [
+            item for item in self.ranges if self._fresh(item, current) and item.contains(address)
+        ]
+        return min(matches, key=lambda item: item.span) if matches else None
+
+    @staticmethod
+    def _group_key(address: ipaddress._BaseAddress) -> str:
+        prefix = 24 if address.version == 4 else 48
+        return str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
+
+    @staticmethod
+    def _classification(country: str) -> str:
+        if country == "RU":
+            return "RU"
+        return "NON_RU" if country else "UNKNOWN"
+
+    def lookup(self, address: ipaddress._BaseAddress) -> str | None:
+        """Return exact RDAP classification, or None when RDAP is unavailable."""
+        group = self._group_key(address)
+        while True:
+            with self.lock:
+                cached = self._cached(address)
+                if cached is not None:
+                    self.cache_hits += 1
+                    return self._classification(cached.country)
+                event = self.inflight.get(group)
+                if event is None:
+                    event = threading.Event()
+                    self.inflight[group] = event
+                    leader = True
+                else:
+                    leader = False
+            if leader:
+                break
+            # A peer is resolving an address in the same coarse range. Its RDAP
+            # response normally covers us too; waiting avoids request bursts.
+            event.wait(timeout=60)
+            with self.lock:
+                if group not in self.inflight:
+                    continue
+            return None
+
+        try:
+            with self.lock:
+                self.queries += 1
+                query_number = self.queries
+            if query_number % 100 == 0:
+                print(f"RDAP progress: {query_number} network lookups", file=sys.stderr)
+            data = self.fetcher(self.url_for_address(address))
+            start = ipaddress.ip_address(str(data["startAddress"]))
+            end = ipaddress.ip_address(str(data["endAddress"]))
+            if (
+                start.version != address.version
+                or end.version != address.version
+                or not (int(start) <= int(address) <= int(end))
+            ):
+                raise ValueError("RDAP range does not contain the queried address")
+            item = GeoRange(
+                start=start,
+                end=end,
+                country=self._normalize_country(data.get("country")),
+                checked_at=self.now().astimezone(dt.timezone.utc),
+            )
+            with self.lock:
+                self.ranges = [
+                    old
+                    for old in self.ranges
+                    if not (old.start == item.start and old.end == item.end)
+                ]
+                self.ranges.append(item)
+            return self._classification(item.country)
+        except (BuildError, KeyError, OSError, TypeError, ValueError):
+            with self.lock:
+                self.query_failures += 1
+            return None
+        finally:
+            with self.lock:
+                self.inflight.pop(group, None)
+                event.set()
+
+    def save(self, path: Path) -> None:
+        current = self.now().astimezone(dt.timezone.utc)
+        with self.lock:
+            fresh = [item for item in self.ranges if self._fresh(item, current)]
+        fresh.sort(key=lambda item: (item.start.version, int(item.start), int(item.end)))
+        updated_at = max(
+            (item.checked_at.astimezone(dt.timezone.utc) for item in fresh),
+            default=current,
+        )
+        data = {
+            "schema_version": 1,
+            "updated_at_utc": updated_at.replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "ranges": [
+                {
+                    "start": str(item.start),
+                    "end": str(item.end),
+                    "country": item.country or None,
+                    "checked_at_utc": item.checked_at.astimezone(dt.timezone.utc)
+                    .replace(microsecond=0)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                }
+                for item in fresh
+            ],
+        }
+        content = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+        if path.exists() and path.read_text(encoding="utf-8") == content:
+            return
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(content, encoding="utf-8", newline="\n")
+        os.replace(temporary, path)
+
+
 class GeoClassifier:
     """Classify actual server endpoints; only positive RU matches are excluded."""
 
-    def __init__(self, russian_networks: RussianNetworkIndex | None):
+    def __init__(
+        self,
+        russian_networks: RussianNetworkIndex | None,
+        rdap: RdapGeoIndex | None = None,
+    ):
         self.russian_networks = russian_networks
+        self.rdap = rdap
         self.cache: dict[str, str] = {}
+        self.lock = threading.RLock()
 
     def classify(self, host: str) -> str:
-        if host in self.cache:
-            return self.cache[host]
-        if self.russian_networks is None:
-            result = "UNKNOWN"
-        else:
+        with self.lock:
+            if host in self.cache:
+                return self.cache[host]
+        try:
             try:
-                try:
-                    addresses = {ipaddress.ip_address(host)}
-                except ValueError:
-                    addresses = {
-                        ipaddress.ip_address(item[4][0])
-                        for item in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-                    }
-                matches = [self.russian_networks.contains(address) for address in addresses]
-                if matches and all(matches):
-                    result = "RU"
-                elif matches and not any(matches):
-                    result = "NON_RU"
+                addresses = {ipaddress.ip_address(host)}
+            except ValueError:
+                addresses = {
+                    ipaddress.ip_address(item[4][0])
+                    for item in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+                }
+            classifications: list[str] = []
+            for address in addresses:
+                exact = self.rdap.lookup(address) if self.rdap is not None else None
+                if exact is not None:
+                    classifications.append(exact)
+                elif self.russian_networks is not None and self.russian_networks.contains(address):
+                    classifications.append("RU")
                 else:
-                    # Split-horizon/CDN answers are not positive proof of a
-                    # Russian endpoint, so the key remains in the subscription.
-                    result = "UNKNOWN"
-            except (OSError, ValueError):
+                    # A non-RU top-level allocation is not proof: a smaller
+                    # network inside it may have been reassigned to Russia.
+                    classifications.append("UNKNOWN")
+            if classifications and all(value == "RU" for value in classifications):
+                result = "RU"
+            elif classifications and all(value == "NON_RU" for value in classifications):
+                result = "NON_RU"
+            else:
                 result = "UNKNOWN"
-        self.cache[host] = result
+        except (OSError, ValueError):
+            result = "UNKNOWN"
+        with self.lock:
+            self.cache[host] = result
         return result
 
 
@@ -1035,7 +1336,7 @@ def build(
     min_keys: int = 100,
     timeout: float = 20.0,
     retries: int = 3,
-    workers: int = 24,
+    workers: int = 12,
 ) -> dict:
     sources = load_sources(sources_path or root / "sources.json")
     source_fetcher = fetcher or (lambda url: fetch_url(url, timeout=timeout, retries=retries))
@@ -1044,20 +1345,36 @@ def build(
         raise BuildError("no valid keys were collected")
     unique, duplicates = deduplicate(candidates)
 
+    rdap: RdapGeoIndex | None = None
     if classifier is None:
         try:
-            delegated = fetch_url(RIPE_DELEGATED_URL, timeout=timeout, retries=retries)
-            geo = GeoClassifier(RussianNetworkIndex.from_text(delegated))
+            rdap_bootstrap = RdapBootstrap.from_documents(
+                fetch_json_url(IANA_RDAP_IPV4_URL, timeout=timeout, retries=retries),
+                fetch_json_url(IANA_RDAP_IPV6_URL, timeout=timeout, retries=retries),
+            )
+            rdap_url_for = rdap_bootstrap.url_for
         except BuildError as exc:
-            warn(f"RU network data unavailable: {exc}; all endpoints kept as UNKNOWN")
-            geo = GeoClassifier(None)
+            warn(f"IANA RDAP bootstrap unavailable: {exc}; using rdap.org fallback")
+            rdap_url_for = None
+        rdap = RdapGeoIndex.load(
+            root / "geo-cache.json",
+            fetcher=lambda url: fetch_json_url(url, timeout=timeout, retries=retries),
+            url_for_address=rdap_url_for,
+        )
+        try:
+            delegated = fetch_url(RIPE_DELEGATED_URL, timeout=timeout, retries=retries)
+            russian_networks = RussianNetworkIndex.from_text(delegated)
+        except BuildError as exc:
+            warn(f"RIPE delegated data unavailable: {exc}; RDAP remains authoritative")
+            russian_networks = None
+        geo = GeoClassifier(russian_networks, rdap)
         classifier = geo.classify
     filtered, geo_counts = filter_geography(unique, classifier, workers=workers)
 
     protocol_lines: dict[str, list[str]] = {protocol: [] for protocol in PROTOCOL_FILES}
     for candidate in filtered:
         protocol_lines[candidate.parsed.protocol].append(candidate.parsed.original)
-    return publish_build(
+    stats = publish_build(
         protocol_lines,
         source_stats=source_stats,
         recognized=recognized,
@@ -1067,6 +1384,17 @@ def build(
         root=root,
         min_keys=min_keys,
     )
+    if rdap is not None:
+        rdap.save(root / "geo-cache.json")
+        print(
+            f"RDAP: {rdap.queries} queries, {rdap.cache_hits} range-cache hits, "
+            f"{rdap.query_failures} failures"
+        )
+        if rdap.query_failures:
+            warn(
+                f"{rdap.query_failures} RDAP lookups failed; affected endpoints were kept as UNKNOWN"
+            )
+    return stats
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -1074,7 +1402,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sources", type=Path, default=SOURCES_PATH)
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--retries", type=int, default=3)
-    parser.add_argument("--workers", type=int, default=24)
+    parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--min-keys", type=int, default=100)
     return parser.parse_args(argv)
 

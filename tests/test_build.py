@@ -1,5 +1,6 @@
 import base64
 import datetime as dt
+import ipaddress
 import json
 import tempfile
 import unittest
@@ -193,11 +194,101 @@ class GeographyTests(unittest.TestCase):
             "ripencc|RU|ipv6|2001:db8::|32|20200101|assigned\n"
         )
         index = build.RussianNetworkIndex.from_text(text)
-        import ipaddress
-
         self.assertTrue(index.contains(ipaddress.ip_address("203.0.113.9")))
         self.assertTrue(index.contains(ipaddress.ip_address("2001:db8::1")))
         self.assertFalse(index.contains(ipaddress.ip_address("198.51.100.9")))
+
+    def test_rdap_detects_ru_reassignment_inside_foreign_parent(self):
+        calls = []
+
+        def rdap_fetcher(url):
+            calls.append(url)
+            return {
+                "startAddress": "104.171.133.0",
+                "endAddress": "104.171.133.255",
+                "country": "RU",
+            }
+
+        now = lambda: dt.datetime(2026, 8, 12, tzinfo=dt.timezone.utc)
+        rdap = build.RdapGeoIndex(fetcher=rdap_fetcher, now=now)
+        delegated = build.RussianNetworkIndex([], [])
+        classifier = build.GeoClassifier(delegated, rdap)
+
+        self.assertEqual("RU", classifier.classify("104.171.133.53"))
+        self.assertEqual("RU", classifier.classify("104.171.133.99"))
+        self.assertEqual(1, len(calls), "the returned /24 must satisfy the second lookup")
+
+    def test_iana_bootstrap_selects_authoritative_service(self):
+        bootstrap = build.RdapBootstrap.from_documents(
+            {
+                "services": [
+                    [["104.0.0.0/8"], ["https://rdap.arin.example/registry"]],
+                    [["2001:db8::/32"], ["https://rdap.ripe.example"]],
+                ]
+            }
+        )
+        self.assertEqual(
+            "https://rdap.arin.example/registry/ip/104.171.133.53",
+            bootstrap.url_for(ipaddress.ip_address("104.171.133.53")),
+        )
+        self.assertEqual(
+            "https://rdap.ripe.example/ip/2001%3Adb8%3A%3A1",
+            bootstrap.url_for(ipaddress.ip_address("2001:db8::1")),
+        )
+
+    def test_rdap_non_ru_and_missing_country(self):
+        responses = {
+            "198.51.100.7": {
+                "startAddress": "198.51.100.0",
+                "endAddress": "198.51.100.127",
+                "country": "DE",
+            },
+            "198.51.100.200": {
+                "startAddress": "198.51.100.128",
+                "endAddress": "198.51.100.255",
+            },
+        }
+
+        def fetcher(url):
+            return responses[url.rsplit("/", 1)[-1]]
+
+        rdap = build.RdapGeoIndex(fetcher=fetcher)
+        self.assertEqual("NON_RU", rdap.lookup(ipaddress.ip_address("198.51.100.7")))
+        self.assertEqual("UNKNOWN", rdap.lookup(ipaddress.ip_address("198.51.100.200")))
+
+    def test_rdap_failure_falls_back_only_to_confirmed_delegated_ru(self):
+        def unavailable(_url):
+            raise build.BuildError("offline")
+
+        delegated = build.RussianNetworkIndex(
+            [ipaddress.ip_network("203.0.113.0/24")], []
+        )
+        classifier = build.GeoClassifier(delegated, build.RdapGeoIndex(fetcher=unavailable))
+        self.assertEqual("RU", classifier.classify("203.0.113.9"))
+        self.assertEqual("UNKNOWN", classifier.classify("198.51.100.9"))
+
+    def test_rdap_cache_round_trip(self):
+        fixed_now = dt.datetime(2026, 8, 12, 1, 2, 3, tzinfo=dt.timezone.utc)
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "geo-cache.json"
+            original = build.RdapGeoIndex(
+                [
+                    build.GeoRange(
+                        ipaddress.ip_address("104.171.133.0"),
+                        ipaddress.ip_address("104.171.133.255"),
+                        "RU",
+                        fixed_now,
+                    )
+                ],
+                now=lambda: fixed_now,
+            )
+            original.save(path)
+            loaded = build.RdapGeoIndex.load(
+                path,
+                fetcher=lambda _url: self.fail("fresh cache should prevent network access"),
+                now=lambda: fixed_now,
+            )
+            self.assertEqual("RU", loaded.lookup(ipaddress.ip_address("104.171.133.53")))
 
 
 class PublicationTests(unittest.TestCase):
