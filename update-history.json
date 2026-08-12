@@ -101,6 +101,23 @@
       "duplicates_removed": 1734,
       "ru_excluded": 601,
       "subscription_sha256": "47f116de03e37b23f505a5763b5f3f460f3c98a8ee0a3f9ec1576889c0c66cc2"
+    },
+    {
+      "utc": "2026-08-12T03:02:01Z",
+      "msk": "2026-08-12T06:02:01+03:00",
+      "total_keys": 3736,
+      "keys_by_protocol": {
+        "vless": 3555,
+        "trojan": 83,
+        "shadowsocks": 25,
+        "vmess": 11,
+        "hysteria": 0,
+        "hysteria2": 62,
+        "tuic": 0
+      },
+      "duplicates_removed": 2390,
+      "ru_excluded": 585,
+      "subscription_sha256": "ae7c6b167a44a51d96df48c1e1119bd8e0b952c75e16324f513152c571e60c02"
     }
   ]
 }
