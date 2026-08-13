@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-13T05:14:56Z",
-    "msk": "2026-08-13T08:14:56+03:00"
+    "utc": "2026-08-13T06:52:45Z",
+    "msk": "2026-08-13T09:52:45+03:00"
   },
   "sources": [
     {
@@ -46,8 +46,8 @@
       "status": "ok",
       "lines": 72,
       "recognized": 66,
-      "valid": 62,
-      "rejected": 4
+      "valid": 63,
+      "rejected": 3
     },
     {
       "id": "void-vless",
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 5140,
-      "recognized": 5140,
-      "valid": 3282,
-      "rejected": 1858
+      "lines": 4509,
+      "recognized": 4509,
+      "valid": 2769,
+      "rejected": 1740
     }
   ],
-  "recognized_keys": 8062,
-  "valid_keys_before_deduplication": 5993,
-  "rejected_keys": 2069,
-  "duplicates_removed": 1907,
-  "total_keys": 3455,
+  "recognized_keys": 7431,
+  "valid_keys_before_deduplication": 5481,
+  "rejected_keys": 1950,
+  "duplicates_removed": 1827,
+  "total_keys": 3038,
   "keys_by_protocol": {
-    "vless": 3271,
+    "vless": 2854,
     "trojan": 84,
     "shadowsocks": 25,
     "vmess": 14,
@@ -76,21 +76,21 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 631,
-    "unknown_kept": 1021,
-    "non_ru_kept": 2434
+    "ru_excluded": 616,
+    "unknown_kept": 1016,
+    "non_ru_kept": 2022
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 3455,
-      "bytes": 854202,
-      "sha256": "208978c8dd6259fc0442e774c311d220f552ddf10a093d055813124a2edd2205"
+      "keys": 3038,
+      "bytes": 720228,
+      "sha256": "769bcf198c3c5f80c9765a751628c1723bf82bfe24391798af372e1cbb8f1d1e"
     },
     "vless.txt": {
-      "keys": 3271,
-      "bytes": 812132,
-      "sha256": "558718d8c4538d0689f05c1e429eb58424264422e182df78ce9716bb5083419b"
+      "keys": 2854,
+      "bytes": 678158,
+      "sha256": "414aa383fac6e3420e77dc3867671953038e4b31329c2aa5d337edce769364ab"
     },
     "trojan.txt": {
       "keys": 84,
