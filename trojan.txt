@@ -16,6 +16,7 @@ trojan://EFUWQ5XSyYC8%2FiD044lN91hV7fIiyJW4HrKFj3D7g1s%3D@65.109.208.236:38724?s
 trojan://Telegram_healer_config@6m1rgyieclmrx9hef1.z6-0hlnubjibwzpa85.workers.dev:443?path=/tr/GaQvfFwT5sWgVxHig8YaXjtiuQPZNI?ed=2560&security=tls&alpn=http/1.1&insecure=0&host=6m1rgyieclmrx9hef1.z6-0hlnubjibwzpa85.workers.dev&fp=chrome&type=ws&allowInsecure=0&sni=6m1rGyIEclMRx9HeF1.Z6-0hlNUbJIBwZPa85.wOrKerS.DEV#🇹🇷
 trojan://y3b03zx3tznhyo538p4c@86.106.84.195:53261?allowInsecure=1&type=tcp&security=tls&encryption=none&fp=android&sni=speedtest.tinkoff.ru#%F0%9F%87%A8%F0%9F%87%AD%20Switzerland%2C%20Sch%C3%B6tz%20%7C%20%5BBL%5D
 trojan://y3b03zx3tznhyo538p4c@86.106.84.195:53261/?type=tcp&security=tls&sni=speedtest.tinkoff.ru&allowInsecure=1&fp=chrome#.%F0%96%A5%94%20%DD%81%20%CB%96%D6%B4%F0%9F%9B%B8%E0%BC%84%CB%96%C2%B0.%20%7C%20%5BBL%5D
+trojan://y3b03zx3tznhyo538p4c@86.106.84.195:53261/?type=tcp&security=tls&sni=speedtest.tinkoff.ru&allowInsecure=1&fp=edge#%F0%9F%87%A8%F0%9F%87%AD%20Switzerland%2C%20Sch%C3%B6tz%20%7C%20%5BBL%5D
 trojan://IQ68037294@adapting-ghost.rooster465.autos:443?security=tls&sni=adapting-ghost.rooster465.autos#🇦🇪
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@at-lb-rtt.netzrun.at:5222?security=tls&sni=at-lb-rtt.netzrun.at&fp=firefox#🇦🇹
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@be-lb-rtt.netzrun.at:5222?security=tls&sni=be-lb-rtt.netzrun.at&fp=firefox#🇦🇹
