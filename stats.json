@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-15T09:47:20Z",
-    "msk": "2026-08-15T12:47:20+03:00"
+    "utc": "2026-08-15T10:44:56Z",
+    "msk": "2026-08-15T13:44:56+03:00"
   },
   "sources": [
     {
@@ -44,9 +44,9 @@
       "priority": 70,
       "enabled": true,
       "status": "ok",
-      "lines": 57,
-      "recognized": 51,
-      "valid": 50,
+      "lines": 55,
+      "recognized": 49,
+      "valid": 48,
       "rejected": 1
     },
     {
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 5659,
-      "recognized": 5659,
-      "valid": 3717,
-      "rejected": 1942
+      "lines": 6672,
+      "recognized": 6672,
+      "valid": 4058,
+      "rejected": 2614
     }
   ],
-  "recognized_keys": 8689,
-  "valid_keys_before_deduplication": 6528,
-  "rejected_keys": 2161,
-  "duplicates_removed": 2250,
-  "total_keys": 3566,
+  "recognized_keys": 9700,
+  "valid_keys_before_deduplication": 6867,
+  "rejected_keys": 2833,
+  "duplicates_removed": 2560,
+  "total_keys": 3595,
   "keys_by_protocol": {
-    "vless": 3365,
+    "vless": 3394,
     "trojan": 66,
     "shadowsocks": 48,
     "vmess": 4,
@@ -77,20 +77,20 @@
   },
   "geography": {
     "ru_excluded": 712,
-    "unknown_kept": 983,
-    "non_ru_kept": 2583
+    "unknown_kept": 988,
+    "non_ru_kept": 2607
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 3566,
-      "bytes": 869317,
-      "sha256": "8fc1688eb516bd44c532179df99c6317f48c3584964a0947625f054fe77dfad0"
+      "keys": 3595,
+      "bytes": 876080,
+      "sha256": "7943b9d499daff2ba829f4221c4cd5a0a5bb9474f91ac457b108e6592d0223c6"
     },
     "vless.txt": {
-      "keys": 3365,
-      "bytes": 833385,
-      "sha256": "9b42f66d91ad2163abe4a8a338c7ce53d70dc5bdcde07ee48ce8a9e98073c2b3"
+      "keys": 3394,
+      "bytes": 840148,
+      "sha256": "5f4cd947c19f2f4e372c182c83893de9d7bf6e7158b47b053c7326959b1bfb31"
     },
     "trojan.txt": {
       "keys": 66,
