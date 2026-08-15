@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-08-15T04:54:17Z",
+  "updated_at_utc": "2026-08-15T05:47:33Z",
   "ranges": [
     {
       "start": "2.26.0.0",
@@ -1885,6 +1885,12 @@
       "end": "54.217.255.255",
       "country": null,
       "checked_at_utc": "2026-08-12T06:01:16Z"
+    },
+    {
+      "start": "54.238.0.0",
+      "end": "54.238.255.255",
+      "country": null,
+      "checked_at_utc": "2026-08-15T05:47:28Z"
     },
     {
       "start": "54.255.0.0",
@@ -7141,6 +7147,12 @@
       "end": "194.76.18.127",
       "country": "KZ",
       "checked_at_utc": "2026-08-12T06:04:40Z"
+    },
+    {
+      "start": "194.87.10.0",
+      "end": "194.87.10.255",
+      "country": "SG",
+      "checked_at_utc": "2026-08-15T05:47:33Z"
     },
     {
       "start": "194.87.30.0",
