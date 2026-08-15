@@ -59,6 +59,7 @@ trojan://NQ26071394@tops-marlin.rooster465.autos:443?security=tls&sni=tops-marli
 trojan://FH72359861@touching-turtle.rooster465.autos:443?security=tls#🇦🇪
 trojan://AE62539071@unbiased-garfish.rooster465.autos:443?security=tls#🇦🇪
 trojan://ON38567014@vast-turkey.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=vast-turkey.rooster465.autos&fp=chrome#🇦🇪
+trojan://93a9d63a-03b8-4167-92bd-3fa932af1c91@visa.com.sg:443/?type=ws&host=px8r9i1b4k.bpusfaster2.top&path=/images&security=tls&sni=px8r9i1b4k.bpusfaster2.top&fp=chrome#🇸🇬
 trojan://ND91608427@willing-beagle.rooster465.autos:443?type=tcp&security=tls&sni=willing-beagle.rooster465.autos&allowInsecure=1#🇦🇪
 trojan://OD90375861@wired-tick.rooster465.autos:443?security=tls&sni=wired-tick.rooster465.autos&type=tcp&path=/#🇦🇪
 trojan://OD90375861@wired-tick.rooster465.autos:443?security=tls#🇦🇪
