@@ -59,7 +59,6 @@ hysteria2://gf1:gfhysteria2024@5.129.235.85:443/?insecure=1&sni=www.linux.com#%F
 hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?insecure=1&sni=css.rbxcdn.com&type=tcp&allowInsecure=1&upmbps=10&downmbps=50#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?insecure=1&sni=google.com&type=tcp&allowInsecure=1&upmbps=10&downmbps=50#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?insecure=1&sni=t.me&type=tcp&allowInsecure=1&upmbps=10&downmbps=50#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
-hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?insecure=1&sni=css.rbxcdn.com#🇳🇱
 hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?insecure=1&sni=speedtest.tinkoff.ru#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://owefv0_92Z540k2F_nx83245_J9130oS_tY@5.180.27.221:8080?sni=borat-hopp.bumbleshrimp.com#%F0%9F%87%AE%F0%9F%87%B3%20India%2C%20New%20Delhi%20%7C%20%5BBL%5D
 hysteria2://owefv0_92Z540k2F_nx83245_J9130oS_tY@5.180.27.221:8443?sni=borat-hopp.bumbleshrimp.com#%F0%9F%87%B0%F0%9F%87%BF%20Kazakhstan%2C%20Almaty%20%7C%20%5BBL%5D
