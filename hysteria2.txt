@@ -11,7 +11,6 @@ hysteria2://0wdsa_nJXEWRj9jz9J9xMgtx_n7gzfK_m8@139.28.168.55:8080?sni=grape-honk
 hysteria2://0wdsa_nJXEWRj9jz9J9xMgtx_n7gzfK_m8@139.28.168.55:8443?sni=grape-honk.yyuyy.com#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20New%20York%20%7C%20%5BBL%5D
 hysteria2://08794874-93d0-4cf2-b9d6-1f2774cdffeb@144.31.1.28:2086?sni=panel.vlessbotkey.ru#%F0%9F%87%B5%F0%9F%87%B1%20Poland%2C%20Warsaw%20%7C%20%5BBL%5D
 hysteria2://hysteria2_fastlane_9r63hua9f:KR0ayzwokB6pZySqiZ15Erm6cQHR7C4E@144.31.135.204:1935?sni=nl2.h.fastlanehosting.ru#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%28Amsterdam-Centrum%29%20%7C%20%5BBL%5D
-hysteria2://042a1881-44e4-4781-bd40-bf75164faf4f@144.31.234.58:443/?insecure=1&sni=nl1.noesissite.ru#🇳🇱
 hysteria2://042a1881-44e4-4781-bd40-bf75164faf4f@144.31.234.58:443/?Telegram=%40GozargahAzad%2C%40GozargahAzad%2C%40GozargahAzad%2C%40GozargahAzad%2C%40GozargahAzad%2C%40GozargahAzad%2C%40GozargahAzad&insecure=1&sni=nl1.noesissite.ru#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://08794874-93d0-4cf2-b9d6-1f2774cdffeb@144.31.5.9:2102?sni=panel.vlessbotkey.ru#%F0%9F%87%B5%F0%9F%87%B1%20Poland%2C%20Warsaw%20%7C%20%5BBL%5D
 hysteria2://042a1881-44e4-4781-bd40-bf75164faf4f@150.241.102.127:443?insecure=1&freeinternet=kizyak_vpn1786685918561#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Draper%20%7C%20%5BBL%5D
