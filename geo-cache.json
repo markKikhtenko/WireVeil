@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-08-16T21:40:14Z",
+  "updated_at_utc": "2026-08-16T22:43:04Z",
   "ranges": [
     {
       "start": "2.26.0.0",
@@ -3457,6 +3457,12 @@
       "end": "84.17.59.111",
       "country": "IT",
       "checked_at_utc": "2026-08-12T23:07:26Z"
+    },
+    {
+      "start": "84.21.189.0",
+      "end": "84.21.189.255",
+      "country": "DE",
+      "checked_at_utc": "2026-08-16T22:43:04Z"
     },
     {
       "start": "84.32.51.0",

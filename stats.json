@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-16T21:40:18Z",
-    "msk": "2026-08-17T00:40:18+03:00"
+    "utc": "2026-08-16T22:43:15Z",
+    "msk": "2026-08-17T01:43:15+03:00"
   },
   "sources": [
     {
@@ -33,10 +33,10 @@
       "priority": 80,
       "enabled": true,
       "status": "ok",
-      "lines": 2919,
-      "recognized": 2915,
-      "valid": 2648,
-      "rejected": 267
+      "lines": 2930,
+      "recognized": 2926,
+      "valid": 2656,
+      "rejected": 270
     },
     {
       "id": "eavevpn-blacklist",
@@ -46,8 +46,8 @@
       "status": "ok",
       "lines": 69,
       "recognized": 63,
-      "valid": 55,
-      "rejected": 8
+      "valid": 56,
+      "rejected": 7
     },
     {
       "id": "void-vless",
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 6973,
-      "recognized": 6973,
-      "valid": 4549,
-      "rejected": 2424
+      "lines": 7474,
+      "recognized": 7474,
+      "valid": 4753,
+      "rejected": 2721
     }
   ],
-  "recognized_keys": 10277,
-  "valid_keys_before_deduplication": 7562,
-  "rejected_keys": 2715,
-  "duplicates_removed": 2944,
-  "total_keys": 3796,
+  "recognized_keys": 10789,
+  "valid_keys_before_deduplication": 7775,
+  "rejected_keys": 3014,
+  "duplicates_removed": 3180,
+  "total_keys": 3775,
   "keys_by_protocol": {
-    "vless": 3552,
+    "vless": 3531,
     "trojan": 69,
     "shadowsocks": 30,
     "vmess": 1,
@@ -76,21 +76,21 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 822,
-    "unknown_kept": 1008,
-    "non_ru_kept": 2788
+    "ru_excluded": 820,
+    "unknown_kept": 1007,
+    "non_ru_kept": 2768
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 3796,
-      "bytes": 908161,
-      "sha256": "a4605a2d716f739202dea495787291d6329556c5e860081f8bdfb40cf3f5c888"
+      "keys": 3775,
+      "bytes": 902359,
+      "sha256": "edf93298b2cb019ed64c440c0b2a5f46fdb0a7e0d2818288f61e4f5ace07eb94"
     },
     "vless.txt": {
-      "keys": 3552,
-      "bytes": 866441,
-      "sha256": "255d86d3a7b1c9ab165f7b7d653b4c78d9a3b3f849e5d890d230a8bd5bf21223"
+      "keys": 3531,
+      "bytes": 860639,
+      "sha256": "908dbbfd4157aab2e6c62cfd98e061e66229d120d28cdec6f279caaebb4eaaf4"
     },
     "trojan.txt": {
       "keys": 69,
