@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-18T21:43:49Z",
-    "msk": "2026-08-19T00:43:49+03:00"
+    "utc": "2026-08-18T22:46:40Z",
+    "msk": "2026-08-19T01:46:40+03:00"
   },
   "sources": [
     {
@@ -35,8 +35,8 @@
       "status": "ok",
       "lines": 3250,
       "recognized": 3246,
-      "valid": 2943,
-      "rejected": 303
+      "valid": 2945,
+      "rejected": 301
     },
     {
       "id": "eavevpn-blacklist",
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 4457,
-      "recognized": 4457,
-      "valid": 3344,
-      "rejected": 1113
+      "lines": 4692,
+      "recognized": 4692,
+      "valid": 3394,
+      "rejected": 1298
     }
   ],
-  "recognized_keys": 7957,
-  "valid_keys_before_deduplication": 6539,
-  "rejected_keys": 1418,
-  "duplicates_removed": 1780,
-  "total_keys": 4017,
+  "recognized_keys": 8192,
+  "valid_keys_before_deduplication": 6591,
+  "rejected_keys": 1601,
+  "duplicates_removed": 1828,
+  "total_keys": 4019,
   "keys_by_protocol": {
-    "vless": 3858,
+    "vless": 3860,
     "trojan": 70,
     "shadowsocks": 27,
     "vmess": 3,
@@ -76,21 +76,21 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 742,
-    "unknown_kept": 1173,
-    "non_ru_kept": 2844
+    "ru_excluded": 744,
+    "unknown_kept": 1170,
+    "non_ru_kept": 2849
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 4017,
-      "bytes": 957795,
-      "sha256": "d9fab3853edbb12eeac9baab228327e0730cb0890c87b997002572355a19dbc1"
+      "keys": 4019,
+      "bytes": 956923,
+      "sha256": "c5891666b4b8febcb59497d3b4d67fc2e4df384baca5daded2842a4a474c1dcf"
     },
     "vless.txt": {
-      "keys": 3858,
-      "bytes": 931747,
-      "sha256": "b1dc5ac5fca4b98c4fa140ea594f58ae862d24bcdeef63aaf0f7313dc798eb2f"
+      "keys": 3860,
+      "bytes": 930875,
+      "sha256": "7680fe30f962744f3d672e2d0b142b98c270b5d010e2046b026afe3cfe7e444c"
     },
     "trojan.txt": {
       "keys": 70,
