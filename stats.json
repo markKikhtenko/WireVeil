@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-18T22:46:40Z",
-    "msk": "2026-08-19T01:46:40+03:00"
+    "utc": "2026-08-18T23:42:55Z",
+    "msk": "2026-08-19T02:42:55+03:00"
   },
   "sources": [
     {
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 4692,
-      "recognized": 4692,
-      "valid": 3394,
-      "rejected": 1298
+      "lines": 4672,
+      "recognized": 4672,
+      "valid": 3227,
+      "rejected": 1445
     }
   ],
-  "recognized_keys": 8192,
-  "valid_keys_before_deduplication": 6591,
-  "rejected_keys": 1601,
-  "duplicates_removed": 1828,
-  "total_keys": 4019,
+  "recognized_keys": 8172,
+  "valid_keys_before_deduplication": 6424,
+  "rejected_keys": 1748,
+  "duplicates_removed": 1656,
+  "total_keys": 4032,
   "keys_by_protocol": {
-    "vless": 3860,
+    "vless": 3873,
     "trojan": 70,
     "shadowsocks": 27,
     "vmess": 3,
@@ -76,21 +76,21 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 744,
-    "unknown_kept": 1170,
-    "non_ru_kept": 2849
+    "ru_excluded": 736,
+    "unknown_kept": 1178,
+    "non_ru_kept": 2854
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 4019,
-      "bytes": 956923,
-      "sha256": "c5891666b4b8febcb59497d3b4d67fc2e4df384baca5daded2842a4a474c1dcf"
+      "keys": 4032,
+      "bytes": 960186,
+      "sha256": "53d0725456136eb43d3104dd3ad388efd7e18220d61f4ee44529dccef2b13908"
     },
     "vless.txt": {
-      "keys": 3860,
-      "bytes": 930875,
-      "sha256": "7680fe30f962744f3d672e2d0b142b98c270b5d010e2046b026afe3cfe7e444c"
+      "keys": 3873,
+      "bytes": 934138,
+      "sha256": "ceae2ea44ca2d9e5130de7adeff89e1eec1e4d85d420ac935e330bc5c78b0344"
     },
     "trojan.txt": {
       "keys": 70,
