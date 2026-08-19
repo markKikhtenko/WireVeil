@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-19T16:53:10Z",
-    "msk": "2026-08-19T19:53:10+03:00"
+    "utc": "2026-08-19T17:47:15Z",
+    "msk": "2026-08-19T20:47:15+03:00"
   },
   "sources": [
     {
@@ -44,10 +44,10 @@
       "priority": 70,
       "enabled": true,
       "status": "ok",
-      "lines": 33,
-      "recognized": 27,
+      "lines": 32,
+      "recognized": 26,
       "valid": 25,
-      "rejected": 2
+      "rejected": 1
     },
     {
       "id": "void-vless",
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 5128,
-      "recognized": 5128,
-      "valid": 3604,
-      "rejected": 1524
+      "lines": 5025,
+      "recognized": 5025,
+      "valid": 3514,
+      "rejected": 1511
     }
   ],
-  "recognized_keys": 8721,
-  "valid_keys_before_deduplication": 6881,
-  "rejected_keys": 1840,
-  "duplicates_removed": 2058,
-  "total_keys": 4047,
+  "recognized_keys": 8617,
+  "valid_keys_before_deduplication": 6791,
+  "rejected_keys": 1826,
+  "duplicates_removed": 1985,
+  "total_keys": 4048,
   "keys_by_protocol": {
-    "vless": 3907,
+    "vless": 3908,
     "trojan": 76,
     "shadowsocks": 27,
     "vmess": 2,
@@ -76,21 +76,21 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 776,
-    "unknown_kept": 1152,
-    "non_ru_kept": 2895
+    "ru_excluded": 758,
+    "unknown_kept": 1151,
+    "non_ru_kept": 2897
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 4047,
-      "bytes": 971505,
-      "sha256": "ff86dd227c319c6a899f46770152792594c439d4c2a1bfc407acd938af060126"
+      "keys": 4048,
+      "bytes": 971655,
+      "sha256": "dc13b15209c5074a8e49d7b9a42110f23c97c24d96e0db8dd6aeec74b4c50c5d"
     },
     "vless.txt": {
-      "keys": 3907,
-      "bytes": 949380,
-      "sha256": "7d9d6a9d7bb7d997f6f5b2029ecfb1a565c399b5b88fe4827a18ee853f2de53a"
+      "keys": 3908,
+      "bytes": 949530,
+      "sha256": "d354332565fded0652fcd105d0db91c5bc313a7965a4e4a7cee101590013df95"
     },
     "trojan.txt": {
       "keys": 76,
