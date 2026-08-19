@@ -15,6 +15,8 @@ trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@at-lb-rtt.netzrun.at:5222?security=tls
 trojan://FH72359861@balanced-heron.rooster465.autos:443?security=tls&amp;headerType=&amp;type=tcp&amp;sni=balanced-heron.rooster465.autos#🇦🇪
 trojan://FH72359861@balanced-heron.rooster465.autos:443?security=tls&headerType=&type=tcp&sni=balanced-heron.rooster465.autos#🇦🇪
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@be-lb-rtt.netzrun.at:5222?security=tls&sni=be-lb-rtt.netzrun.at&fp=firefox#🇦🇹
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@by.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=storage.yandex.net&pbk=rX5HLJDZV3q1t1AcSpMroIrfHNoBdlBv7jgKuEhbeg8&sid=89e500f580b8be97&fp=chrome#%F0%9F%87%A7%F0%9F%87%BE%20Belarus%2C%20Minsk%20%7C%20%5BBL%5D
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@by.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=storage.yandex.net&pbk=rX5HLJDZV3q1t1AcSpMroIrfHNoBdlBv7jgKuEhbeg8&sid=89e500f580b8be97&fp=safari#%F0%9F%87%A7%F0%9F%87%BE%20Belarus%2C%20Minsk%20%7C%20%5BBL%5D
 trojan://PQ05174892@concise-bass.rooster465.autos:443?type=tcp&security=tls&sni=concise-bass.rooster465.autos&fp=chrome#🇦🇪
 trojan://FH72359861@cunning-grub.rooster465.autos:443?security=tls#🇦🇪
 trojan://FH72359861@darling-mongrel.rooster465.autos:443?security=tls&sni=darling-mongrel.rooster465.autos#🇦🇪
@@ -25,13 +27,13 @@ trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-129-kz.netzrun.at:5222?security=tls
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-74-ge.netzrun.at:5222?security=tls&sni=dc-74-ge.netzrun.at&fp=firefox#🇦🇹
 trojan://UO36402987@definite-ladybird.rooster465.autos:443?security=tls&insecure=0&headerType=none&type=tcp&allowInsecure=0#🇦🇪
 trojan://UO36402987@definite-ladybird.rooster465.autos:443?security=tls&sni=definite-ladybird.rooster465.autos#🇦🇪
+trojan://M7v%25w11Se%2A@dggg.wsone.icu:443?type=tcp&security=tls&encryption=none&sni=dggg.wsone.icu&fp=chrome#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
+trojan://M7v%25w11Se%2A@dggg.wsone.icu:443?type=tcp&security=tls&encryption=none&sni=dggg.wsone.icu&fp=edge#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
 trojan://ON38567014@endless-crappie.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=endless-crappie.rooster465.autos&fp=chrome#🇦🇪
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fi2.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=cloud.mail.ru&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sid=7df51a98b9d98a7a&fp=chrome#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fi2.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=cloud.mail.ru&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sid=7df51a98b9d98a7a&fp=firefox#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fi2.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=cloud.mail.ru&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sid=7df51a98b9d98a7a&fp=chrome#🇷🇺
 trojan://OD90375861@fit-calf.rooster465.autos:443?security=tls&sni=fit-calf.rooster465.autos&type=tcp&headerType=none&path=/&allow_insecure=0#🇦🇪
 trojan://ON38567014@fit-calf.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=fit-calf.rooster465.autos&fp=chrome#🇦🇪
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fr.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F&fp=firefox#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%5BBL%5D
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fr.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F&fp=qq#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%5BBL%5D
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fr.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&fp=firefox&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F#🇷🇺
 trojan://NQ26071394@fun-labrador.rooster465.autos:443?security=tls&sni=fun-labrador.rooster465.autos&fp=chrome&insecure=0&allowInsecure=0&type=tcp&headerType=none#🇦🇪
 trojan://NQ26071394@funky-opossum.rooster465.autos:443?security=tls&sni=funky-opossum.rooster465.autos&fp=chrome&insecure=0&allowInsecure=0&type=tcp&headerType=none#🇦🇪
 trojan://AE62539071@funny-hen.rooster465.autos:443?security=tls#🇦🇪
@@ -50,6 +52,10 @@ trojan://SEYnpOitNLndBhDtkZyeAShl@nl-vk.tkbvpcompany.site:443?security=tls&sni=n
 trojan://SEYnpOitNLndBhDtkZyeAShl@nl-vk.tkbvpcompany.site:443?security=tls&sni=nl-vk.tkbvpcompany.site#🇳🇱
 trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@nl.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&fp=firefox&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F#🇷🇺
 trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@pl.techdatacloud.org:2053?type=tcp&security=reality&pbk=uiFSTSOSNKBLju8qnTOyZdM1WyTwOFVr3-RXUYk9nEM&fp=firefox&sni=cloud.mail.ru&sid=23572794d5ffc9fd&spx=%2F#🇷🇺
+trojan://M7v%25w11Se%2A@qfdfsg.wsone.icu:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=qfdfsg.wsone.icu&fp=firefox#%F0%9F%87%AE%F0%9F%87%A9%20Indonesia%2C%20Jakarta%20%7C%20%5BBL%5D
+trojan://M7v%25w11Se%2A@qfdfsg.wsone.icu:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=qfdfsg.wsone.icu&fp=ios#%F0%9F%87%AE%F0%9F%87%A9%20Indonesia%2C%20Jakarta%20%7C%20%5BBL%5D
+trojan://74e37bfc-205e-200c-cc51-d8da9c731d43@rvg-production-c349.up.railway.app:443?security=tls&sni=rvg-production-c349.up.railway.app&alpn=h2%2Chttp%2F1.1&type=xhttp&host=rvg-production-c349.up.railway.app&path=%2Ftxhttp-siz10%2Fstream-up%2F74e37bfc-205e-200c-cc51-d8da9c731d43&mode=stream-up&fp=chrome#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%28Amsterdam-Zuidoost%29%20%7C%20%5BBL%5D
+trojan://74e37bfc-205e-200c-cc51-d8da9c731d43@rvg-production-c349.up.railway.app:443?security=tls&sni=rvg-production-c349.up.railway.app&alpn=h2%2Chttp%2F1.1&type=xhttp&host=rvg-production-c349.up.railway.app&path=%2Ftxhttp-siz10%2Fstream-up%2F74e37bfc-205e-200c-cc51-d8da9c731d43&mode=stream-up&fp=ios#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%28Amsterdam-Zuidoost%29%20%7C%20%5BBL%5D
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@se-01.netzrun.at:5222?security=tls&sni=se-01.netzrun.at&fp=firefox#🇸🇪
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@se.netzrun.at:5222?security=tls&sni=se.netzrun.at&fp=firefox#🇸🇪
 trojan://XG59623478@singular-lark.rooster465.autos:443?security=tls&sni=singular-lark.rooster465.autos#🇦🇪
@@ -61,8 +67,7 @@ trojan://NQ26071394@thankful-piranha.rooster465.autos:443?security=tls&sni=thank
 trojan://NQ26071394@tops-marlin.rooster465.autos:443?security=tls&sni=tops-marlin.rooster465.autos&fp=chrome&insecure=0&allowInsecure=0&type=tcp&headerType=none#🇦🇪
 trojan://FH72359861@touching-turtle.rooster465.autos:443?security=tls#🇦🇪
 trojan://AE62539071@unbiased-garfish.rooster465.autos:443?security=tls#🇦🇪
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@us3.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F&fp=edge#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Secaucus%20%7C%20%5BBL%5D
-trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@us3.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F&fp=firefox#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Secaucus%20%7C%20%5BBL%5D
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@us3.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&fp=firefox&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F#🇷🇺
 trojan://88b4b7e4-3e6a-4861-9806-1366ba3c1a61@v1in2.stableq.top:24408?type=tcp&security=tls&sni=v1in2.stableq.top&fp=chrome#🇦🇪
 trojan://ON38567014@vast-turkey.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=vast-turkey.rooster465.autos&fp=chrome#🇦🇪
 trojan://9c71e3bf-d79c-41ad-ba08-1028aff0eaa5@visa.com.sg:443?host=px8r9i1b4k.bpusfaster2.top&path=%2Fimages&security=tls&sni=px8r9i1b4k.bpusfaster2.top&type=ws#🇸🇬
