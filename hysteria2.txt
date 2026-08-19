@@ -47,7 +47,6 @@ hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@grid-5649.internet-booster.com:
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@hub-5491.internet-booster.com:443?sni=hub-5491.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@hub-7009.internet-booster.com:443?sni=hub-7009.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@hub-8590.internet-booster.com:443?sni=hub-8590.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
-hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-switzerlandgopota.unlimited-access.ru:443?sni=hy2-switzerlandgopota.unlimited-access.ru&fp=chrome&alpn=h3#🇷🇺
 hysteria2://7c5566a7-4b55-4659-975f-06507d32fd3f@ltu-01.node.lumixnet.com:443?sni=ltu-01.node.lumixnet.com&security=tls&fm=%7B%7D#%F0%9F%87%B1%F0%9F%87%B9%20Lithuania%2C%20Vilnius%20%7C%20%5BBL%5D
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@mesh-2217.internet-booster.com:443?sni=mesh-2217.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@mesh-6468.internet-booster.com:443?sni=mesh-6468.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
