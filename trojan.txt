@@ -23,8 +23,10 @@ trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-109-se.netzrun.at:5222?security=tls
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-114-ee.netzrun.at:5222?security=tls&sni=dc-114-ee.netzrun.at&fp=firefox#🇦🇹
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-129-kz.netzrun.at:5222?security=tls&sni=dc-129-kz.netzrun.at&fp=firefox#🇰🇿
 trojan://SrELvzRC7y7gMcypgQ8VSSSxzj354XEf@dc-74-ge.netzrun.at:5222?security=tls&sni=dc-74-ge.netzrun.at&fp=firefox#🇦🇹
+trojan://UO36402987@definite-ladybird.rooster465.autos:443?security=tls&insecure=0&headerType=none&type=tcp&allowInsecure=0#🇦🇪
 trojan://UO36402987@definite-ladybird.rooster465.autos:443?security=tls&sni=definite-ladybird.rooster465.autos#🇦🇪
 trojan://ON38567014@endless-crappie.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=endless-crappie.rooster465.autos&fp=chrome#🇦🇪
+trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fi2.techdatacloud.org:8443?type=tcp&security=reality&encryption=none&sni=cloud.mail.ru&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&sid=7df51a98b9d98a7a&fp=chrome#🇷🇺
 trojan://OD90375861@fit-calf.rooster465.autos:443?security=tls&sni=fit-calf.rooster465.autos&type=tcp&headerType=none&path=/&allow_insecure=0#🇦🇪
 trojan://ON38567014@fit-calf.rooster465.autos:443?allowInsecure=1&insecure=1&type=tcp&security=tls&sni=fit-calf.rooster465.autos&fp=chrome#🇦🇪
 trojan://5e19b3c8-c1dc-4163-95e2-895319c15d6c@fr.techdatacloud.org:8443?type=tcp&security=reality&pbk=rX_EsbUNJAUJH4HUKyqAzxQx-4zoDj3vhmXj6q2tazQ&fp=firefox&sni=cloud.mail.ru&sid=7df51a98b9d98a7a&spx=%2F#🇷🇺
