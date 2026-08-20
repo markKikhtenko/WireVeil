@@ -12,7 +12,6 @@ hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@222.167.212.81:8443?sni=hopp-leg
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.137:8443?sni=grape-turbo-fr.roxa.org#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.138:8080?sni=grape-turbo-fr.roxa.org#%F0%9F%87%B7%F0%9F%87%B8%20Serbia%2C%20Belgrade%20%7C%20%5BBL%5D
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.138:8443?sni=grape-turbo-fr.roxa.org#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
-hysteria2://gf1%3Agfhysteria2024@66.94.121.46:443?security=tls&insecure=1&sni=66.94.121.46#🌐
 hysteria2://gf1%3Agfhysteria2024@66.94.121.46:443?insecure=1#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://VB92_Ka9qwef143K_L23K1hz3_bF_Hz62uT_Bn1_sC@82.39.214.83:8080?sni=hopp-us.yyuyy.com#%F0%9F%87%B5%F0%9F%87%A6%20Panama%2C%20Panama%20City%20%7C%20%5BBL%5D
 hysteria2://VB92_Ka9qwef143K_L23K1hz3_bF_Hz62uT_Bn1_sC@82.39.214.83:8443?sni=hopp-us.yyuyy.com#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20New%20York%20%7C%20%5BBL%5D
@@ -21,7 +20,6 @@ hysteria2://ef18d810-719c-4bf1-83c6-615d01f217eb@f3.crsmaps.com:443?security=tls
 hysteria2://579f0893-e6f9-4036-86a1-7c10aa2d24ea@frn.skysafe.online:443?sni=frn.skysafe.online#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Yvrac%20%7C%20%5BBL%5D
 hysteria2://1427eb10-7529-4d38-a6a2-01b337868b37@hk2.xiaoliyu.cyou:4433?insecure=1&sni=127.0.0.1#%F0%9F%87%AD%F0%9F%87%B0%20Hong%20Kong%2C%20Hong%20Kong%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://1427eb10-7529-4d38-a6a2-01b337868b37@hk2.xiaoliyu.cyou:4433?insecure=1&sni=hk2.xiaoliyu.cyou#%F0%9F%87%AD%F0%9F%87%B0%20Hong%20Kong%2C%20Hong%20Kong%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
-hysteria2://ef18d810-719c-4bf1-83c6-615d01f217eb@jp.cryptoofarm.com:443?security=tls&fm=%7B%7D&sni=jp.cryptoofarm.com#🇯🇵
 hysteria2://3b8c82ed-fe66-472d-915e-034ccb57103f@kz.frkn.org:443?insecure=false&up-mbps=0#%F0%9F%87%B0%F0%9F%87%BF%20Kazakhstan%2C%20Almaty%20%7C%20%5BBL%5D
 hysteria2://3b8c82ed-fe66-472d-915e-034ccb57103f@kz.frkn.org:443?sni=kz.frkn.org#%F0%9F%87%B0%F0%9F%87%BF%20Kazakhstan%2C%20Almaty%20%7C%20%5BBL%5D
 hysteria2://22d891f5-ad85-4824-b0b8-e30cf3d37eb5@mg2.mangshe.xyz:2056?insecure=1&fp=edge#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Los%20Angeles%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
@@ -31,7 +29,6 @@ hysteria2://ef18d810-719c-4bf1-83c6-615d01f217eb@ni.cryptoofarm.com:443?security
 hysteria2://Krab9Hyst2_Rk7pQ2xL@nl.vpn.legendaah.xyz:36723?insecure=1&sni=nl.vpn.legendaah.xyz#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@nl01ntrhy01.tcp-reset-club.net:443?insecure=1&sni=nl01ntrhy01.tcp-reset-club.net&alpn=h3#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%28Amsterdam-Zuidoost%29%20%7C%20%5BBL%5D
 hysteria2://16ab4d4a-fd81-4535-9b7b-346677226ce8@olp.crsmaps.com:443?sni=olp.crsmaps.com&insecure=0&allowInsecure=0#%F0%9F%87%A7%F0%9F%87%B7%20Brazil%2C%20Aparecida%20de%20Goi%C3%A2nia%20%7C%20%5BBL%5D
-hysteria2://16ab4d4a-fd81-4535-9b7b-346677226ce8@olp.crsmaps.com:443/?security=tls&fp=firefox&alpn=h3&sni=olp.crsmaps.com#🇧🇷
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@rou0001ntrhy01.tcp-reset-club.net:443?insecure=1&sni=rou0001ntrhy01.tcp-reset-club.net&alpn=h3#%F0%9F%87%B7%F0%9F%87%B4%20Romania%2C%20Bucharest%20%7C%20%5BBL%5D
 hysteria2://ce91dfcc-c596-4b5a-b738-25344bd610e6@tissues-halls.tun.ply.gg:32926?insecure=1&sni=tissues-halls.tun.ply.gg#%F0%9F%87%A8%F0%9F%87%A6%20Canada%2C%20Toronto%20%7C%20%5BBL%5D
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@usa0003rlbhy01.tcp-reset-club.net:443?insecure=1&sni=usa0003rlbhy01.tcp-reset-club.net&alpn=h3#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Piscataway%20%7C%20%5BBL%5D
