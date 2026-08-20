@@ -23,7 +23,6 @@ hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.138:8080?sni=grape
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.138:8443?sni=grape-turbo-fr.roxa.org#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://github.com%2FAlvin9999-newpac%2Ffanqiang@62.210.7.139:60111?insecure=1&sni=bing.com#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://gf1%3Agfhysteria2024@66.94.121.46:443?security=tls&insecure=1&sni=66.94.121.46#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
-hysteria2://gf1%3Agfhysteria2024@66.94.121.46:443?insecure=1#🌐
 hysteria2://Jz40_mIJ934vK0_k9D3jz92_Vx48q_GHa1_sz0@85.204.107.169:8080?sni=grape-zet-ro-turbo.bumbleshrimp.com#%F0%9F%87%A6%F0%9F%87%AA%20United%20Arab%20Emirates%2C%20Abu%20Dhabi%20%28Al%20Ras%20Al%20Akhdar%29%20%7C%20%5BBL%5D
 hysteria2://Jz40_mIJ934vK0_k9D3jz92_Vx48q_GHa1_sz0@85.204.107.169:8443?sni=grape-zet-ro-turbo.bumbleshrimp.com#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%5BBL%5D
 hysteria2://Oz_Kx9342gefwJ89x3_M9z32kzf9KJq003_s@86.107.178.75:8443?sni=grape-zet-turbo-nl.yyuyy.com#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
@@ -43,7 +42,6 @@ hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@hub-8590.internet-booster.com:4
 hysteria2://ef18d810-719c-4bf1-83c6-615d01f217eb@jp.cryptoofarm.com:443?security=tls&fm=%7B%7D&sni=jp.cryptoofarm.com#%F0%9F%87%AF%F0%9F%87%B5%20Japan%2C%20Shibuya%20City%20%7C%20%5BBL%5D
 hysteria2://3b8c82ed-fe66-472d-915e-034ccb57103f@kz.frkn.org:443?insecure=false&up-mbps=0#%F0%9F%87%B0%F0%9F%87%BF%20Kazakhstan%2C%20Almaty%20%7C%20%5BBL%5D
 hysteria2://3b8c82ed-fe66-472d-915e-034ccb57103f@kz.frkn.org:443?sni=kz.frkn.org#%F0%9F%87%B0%F0%9F%87%BF%20Kazakhstan%2C%20Almaty%20%7C%20%5BBL%5D
-hysteria2://7c5566a7-4b55-4659-975f-06507d32fd3f@ltu-01.node.lumixnet.com:443?sni=ltu-01.node.lumixnet.com&security=tls&fm=%7B%7D#🇱🇹
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@mesh-2217.internet-booster.com:443?sni=mesh-2217.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://efd400cd-98e1-4a9b-a98c-6f4a3b7cce7f@mesh-6793.internet-booster.com:443?sni=mesh-6793.internet-booster.com#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://Krab9Hyst2_Rk7pQ2xL@nl.vpn.legendaah.xyz:36723?insecure=1&sni=nl.vpn.legendaah.xyz#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
