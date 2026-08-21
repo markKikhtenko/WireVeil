@@ -7,17 +7,17 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-08-21T14:48:50+03:00** (UTC: 2026-08-21T11:48:50Z).
+Последнее успешное обновление: **2026-08-21T16:23:56+03:00** (UTC: 2026-08-21T13:23:56Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 4224 | 997.2 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 4038 | 964.0 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 97 | 19.6 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 32 | 3.8 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 1 | 338 B |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 4149 | 960.9 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 3987 | 935.6 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 92 | 14.4 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 31 | 3.5 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 1 | 409 B |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 56 | 9.5 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 38 | 7.0 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 0 | 0 B |
 <!-- WIREVEIL_STATS_END -->
 
