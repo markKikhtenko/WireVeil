@@ -7,12 +7,12 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-08-21T17:59:43+03:00** (UTC: 2026-08-21T14:59:43Z).
+Последнее успешное обновление: **2026-08-21T18:55:16+03:00** (UTC: 2026-08-21T15:55:16Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 4090 | 947.6 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 3928 | 922.2 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 4155 | 973.3 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 3993 | 948.0 KiB |
 | Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 92 | 14.4 KiB |
 | Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 31 | 3.5 KiB |
 | VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 1 | 409 B |
