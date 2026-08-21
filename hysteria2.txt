@@ -1,7 +1,6 @@
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.226:8080?sni=hopp-legend-se.roxa.org#%F0%9F%87%AC%F0%9F%87%A7%20United%20Kingdom%2C%20London%20%7C%20%5BBL%5D
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.226:8443?sni=hopp-legend-se.roxa.org#%F0%9F%87%B5%F0%9F%87%B1%20Poland%2C%20Warsaw%20%7C%20%5BBL%5D
 hysteria2://54d2f622-fd71-4f5f-8813-832b68f4ca3b@104.165.205.40:8443?sni=speedtestmark.com#%F0%9F%87%B1%F0%9F%87%BB%20Latvia%2C%20Riga%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
-hysteria2://7e8825a4-86ac-486f-a06c-0917ced9dfcd@138.124.17.62:443?sni=wlh.moonshard.org&fp=firefox#🇫🇮
 hysteria2://0wdsa_nJXEWRj9jz9J9xMgtx_n7gzfK_m8@139.28.168.54:8080?sni=grape-honk.yyuyy.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Seoul%20%28Toegye-ro%29%20%7C%20%5BBL%5D
 hysteria2://0wdsa_nJXEWRj9jz9J9xMgtx_n7gzfK_m8@139.28.168.54:9080?sni=grape-honk.yyuyy.com#%F0%9F%87%A8%F0%9F%87%B3%20China%2C%20Lijia%20%7C%20%5BBL%5D
 hysteria2://0wdsa_nJXEWRj9jz9J9xMgtx_n7gzfK_m8@139.28.168.55:8080?sni=grape-honk.yyuyy.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Seoul%20%28Toegye-ro%29%20%7C%20%5BBL%5D
@@ -33,10 +32,8 @@ hysteria2://Jz40_mIJ934vK0_k9D3jz92_Vx48q_GHa1_sz0@85.204.107.171:8080?sni=hopp-
 hysteria2://Jz40_mIJ934vK0_k9D3jz92_Vx48q_GHa1_sz0@85.204.107.171:8443?sni=hopp-romania-new.roxa.org#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%5BBL%5D
 hysteria2://Oz_Kx9342gefwJ89x3_M9z32kzf9KJq003_s@86.107.178.76:8443?sni=hopp-netherland-new.dynuddns.net#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://Oz_Kx9342gefwJ89x3_M9z32kzf9KJq003_s@86.107.178.78:8443?sni=hopp-netherland-new.dynuddns.net#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
-hysteria2://7e8825a4-86ac-486f-a06c-0917ced9dfcd@93.152.220.40:443?sni=wlh.moonshard.org&fp=qq#🇧🇬
 hysteria2://54d2f622-fd71-4f5f-8813-832b68f4ca3b@95.85.248.120:8443?sni=speedtestmark.com#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Eygelshoven%20%7C%20%5BBL%5D
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@bg185.mechvpn.online:443?alpn=h3&sni=bg185.mechvpn.online#%F0%9F%87%A7%F0%9F%87%AC%20Bulgaria%2C%20Sofia%20%7C%20%5BBL%5D
-hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@de87.mechvpn.online:443?alpn=h3&sni=de87.mechvpn.online&fp=qq#🇩🇪
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@de87.mechvpn.online:443?alpn=h3&sni=de87.mechvpn.online#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
 hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-wien.unlimited-access.ru:8443?sni=hy2-wien.unlimited-access.ru&fp=chrome&alpn=h3#%F0%9F%87%A6%F0%9F%87%B9%20Austria%2C%20Vienna%20%7C%20%5BBL%5D
 hysteria2://8569e507-8ef7-481d-9108-6bc7f040c2ff@newos.klzvezdi.ru:9443?sni=newos.klzvezdi.ru#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%28Innenstadt%20I%29%20%7C%20%5BBL%5D
