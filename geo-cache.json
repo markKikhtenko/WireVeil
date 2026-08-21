@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-08-21T09:04:47Z",
+  "updated_at_utc": "2026-08-21T09:57:20Z",
   "ranges": [
     {
       "start": "1.162.0.0",
@@ -2817,6 +2817,12 @@
       "checked_at_utc": "2026-08-19T07:12:42Z"
     },
     {
+      "start": "62.84.102.0",
+      "end": "62.84.102.255",
+      "country": "NL",
+      "checked_at_utc": "2026-08-21T09:57:18Z"
+    },
+    {
       "start": "62.109.0.0",
       "end": "62.109.7.255",
       "country": "RU",
@@ -3253,6 +3259,12 @@
       "end": "72.56.240.255",
       "country": "RU",
       "checked_at_utc": "2026-08-19T22:47:03Z"
+    },
+    {
+      "start": "72.56.243.0",
+      "end": "72.56.243.255",
+      "country": "RU",
+      "checked_at_utc": "2026-08-21T09:57:18Z"
     },
     {
       "start": "72.56.244.0",
@@ -3715,6 +3727,12 @@
       "end": "81.12.92.255",
       "country": "IR",
       "checked_at_utc": "2026-08-21T02:03:16Z"
+    },
+    {
+      "start": "81.17.23.64",
+      "end": "81.17.23.95",
+      "country": "CH",
+      "checked_at_utc": "2026-08-21T09:57:19Z"
     },
     {
       "start": "81.19.135.0",
@@ -8031,6 +8049,12 @@
       "checked_at_utc": "2026-08-20T08:01:52Z"
     },
     {
+      "start": "167.233.128.0",
+      "end": "167.233.143.255",
+      "country": "DE",
+      "checked_at_utc": "2026-08-21T09:57:20Z"
+    },
+    {
       "start": "168.138.0.0",
       "end": "168.138.255.255",
       "country": null,
@@ -11221,6 +11245,12 @@
       "end": "2a02:27ac:7fff:ffff:ffff:ffff:ffff:ffff",
       "country": "LV",
       "checked_at_utc": "2026-08-20T13:24:21Z"
+    },
+    {
+      "start": "2a02:29b8:dc01::",
+      "end": "2a02:29b8:dc01:ffff:ffff:ffff:ffff:ffff",
+      "country": "CH",
+      "checked_at_utc": "2026-08-21T09:57:19Z"
     },
     {
       "start": "2a04:4e42::",
