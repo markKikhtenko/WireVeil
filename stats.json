@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-22T17:42:18Z",
-    "msk": "2026-08-22T20:42:18+03:00"
+    "utc": "2026-08-22T18:54:28Z",
+    "msk": "2026-08-22T21:54:28+03:00"
   },
   "sources": [
     {
@@ -33,9 +33,9 @@
       "priority": 80,
       "enabled": true,
       "status": "ok",
-      "lines": 3351,
-      "recognized": 3347,
-      "valid": 3122,
+      "lines": 3327,
+      "recognized": 3323,
+      "valid": 3098,
       "rejected": 225
     },
     {
@@ -55,20 +55,20 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 5107,
-      "recognized": 5107,
-      "valid": 3603,
-      "rejected": 1504
+      "lines": 4825,
+      "recognized": 4825,
+      "valid": 3557,
+      "rejected": 1268
     }
   ],
-  "recognized_keys": 8648,
-  "valid_keys_before_deduplication": 6907,
-  "rejected_keys": 1741,
-  "duplicates_removed": 1968,
-  "total_keys": 4315,
+  "recognized_keys": 8342,
+  "valid_keys_before_deduplication": 6837,
+  "rejected_keys": 1505,
+  "duplicates_removed": 1922,
+  "total_keys": 4296,
   "keys_by_protocol": {
-    "vless": 4112,
-    "trojan": 137,
+    "vless": 4131,
+    "trojan": 99,
     "shadowsocks": 32,
     "vmess": 3,
     "hysteria": 0,
@@ -76,26 +76,26 @@
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 624,
-    "unknown_kept": 1238,
-    "non_ru_kept": 3077
+    "ru_excluded": 619,
+    "unknown_kept": 1228,
+    "non_ru_kept": 3068
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 4315,
-      "bytes": 1034945,
-      "sha256": "a7708fba687f3c0e67e0cb1bad923b1f5501b057dc8f4c446ea39dd9aada60b9"
+      "keys": 4296,
+      "bytes": 1034485,
+      "sha256": "47111193221e75147b9870e13b47ea6f65952bd15a2909799b55f8a09869f012"
     },
     "vless.txt": {
-      "keys": 4112,
-      "bytes": 991819,
-      "sha256": "b5af8dc37e5915c83de542c343e4a0290165ca4aad1518453336139ed058faf2"
+      "keys": 4131,
+      "bytes": 1005091,
+      "sha256": "580f906586f69a79ce5b64ff4d5c5e5d001e218e8ceb1892da528be2a721d395"
     },
     "trojan.txt": {
-      "keys": 137,
-      "bytes": 32538,
-      "sha256": "9abf22a6e172864d722bb7eba254da222dad3c9faffa8c76aa526a5d0f74fb69"
+      "keys": 99,
+      "bytes": 18806,
+      "sha256": "8e5bd482ab7fba005024092f4a95bfba1c6a058904a28da899717272d39f9634"
     },
     "shadowsocks.txt": {
       "keys": 32,
