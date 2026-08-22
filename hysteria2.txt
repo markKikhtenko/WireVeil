@@ -23,7 +23,6 @@ hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.140:8443?sni=grape
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@54.179.153.191:443?sni=t.me&insecure=1#%F0%9F%87%B8%F0%9F%87%AC%20Singapore%2C%20Singapore%20%7C%20%5BBL%5D
 hysteria2://github.com%2FAlvin9999-newpac%2Ffanqiang@62.210.7.139:60111?insecure=1&sni=bing.com#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://github.com%2FAlvin9999-newpac%2Ffanqiang@62.210.7.139:60111?insecure=1&sni=speedtest.tinkoff.ru#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
-hysteria2://gf1:gfhysteria2024@66.94.121.46:443?insecure=1#🌐
 hysteria2://gf1%3Agfhysteria2024@66.94.121.46:443?security=tls&insecure=1&sni=66.94.121.46#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://VB92_Ka9qwef143K_L23K1hz3_bF_Hz62uT_Bn1_sC@82.39.214.98:8080?sni=hopp-us.yyuyy.com#%F0%9F%87%B5%F0%9F%87%A6%20Panama%2C%20Panama%20City%20%7C%20%5BBL%5D
 hysteria2://VB92_Ka9qwef143K_L23K1hz3_bF_Hz62uT_Bn1_sC@82.39.214.98:8443?sni=hopp-us.yyuyy.com#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20New%20York%20%7C%20%5BBL%5D
@@ -32,7 +31,6 @@ hysteria2://Jz40_mIJ934vK0_k9D3jz92_Vx48q_GHa1_sz0@85.204.107.171:8443?sni=hopp-
 hysteria2://Oz_Kx9342gefwJ89x3_M9z32kzf9KJq003_s@86.107.178.76:8443?sni=hopp-netherland-new.dynuddns.net#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@bg185.mechvpn.online:443?sni=bg185.mechvpn.online#%F0%9F%87%A7%F0%9F%87%AC%20Bulgaria%2C%20Sofia%20%7C%20%5BBL%5D
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@che01plrhy01.tcp-reset-club.net:443/?sni=che01plrhy01.tcp-reset-club.net#%F0%9F%87%A8%F0%9F%87%AD%20Switzerland%2C%20Bern%20%7C%20%5BBL%5D
-hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@de87.mechvpn.online:443?alpn=h3&sni=de87.mechvpn.online#🇩🇪
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@de87.mechvpn.online:443?sni=de87.mechvpn.online&fp=qq#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
 hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-wien.unlimited-access.ru:8443?sni=hy2-wien.unlimited-access.ru&fp=chrome#%F0%9F%87%A6%F0%9F%87%B9%20Austria%2C%20Vienna%20%7C%20%5BBL%5D
 hysteria2://a6cf4b28-ba72-4e8c-90f8-6a884107ab3c@it.whit3.net:443?sni=it.whit3.net#%F0%9F%87%A7%F0%9F%87%AC%20Bulgaria%2C%20Sofia%20%7C%20%5BBL%5D
@@ -41,7 +39,6 @@ hysteria2://a6cf4b28-ba72-4e8c-90f8-6a884107ab3c@ndge4.whit3.net:443?sni=ndge4.w
 hysteria2://a6cf4b28-ba72-4e8c-90f8-6a884107ab3c@ndsw1.whit3.net:443?sni=ndsw1.whit3.net#%F0%9F%87%B8%F0%9F%87%AA%20Sweden%2C%20Stockholm%20%7C%20%5BBL%5D
 hysteria2://a6cf4b28-ba72-4e8c-90f8-6a884107ab3c@netnet.whit3.net:443?sni=netnet.whit3.net#%F0%9F%87%AB%F0%9F%87%B7%20France%2C%20Paris%20%7C%20%5BBL%5D
 hysteria2://Krab9Hyst2_Rk7pQ2xL@nl.vpn.legendaah.xyz:36723?insecure=1&sni=nl.vpn.legendaah.xyz#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
-hysteria2://3703ccc0-ae74-49bd-b9d7-0897192bf8c4@node.embrofree.org:443?sni=node.embrofree.org&security=tls#🇧🇷
 hysteria2://a6cf4b28-ba72-4e8c-90f8-6a884107ab3c@nodenl.whit3.net:443?sni=nodenl.whit3.net#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@pl94.mechvpn.online:443?alpn=h3&sni=pl94.mechvpn.online#%F0%9F%87%A6%F0%9F%87%AA%20United%20Arab%20Emirates%2C%20Warisan%20%7C%20%5BBL%5D
 hysteria2://53c76647-14d1-4df5-99cb-be99ad2e6bd9@pl94.mechvpn.online:443?sni=pl94.mechvpn.online&fp=firefox#%F0%9F%87%A6%F0%9F%87%AA%20United%20Arab%20Emirates%2C%20Warisan%20%7C%20%5BBL%5D
