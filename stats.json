@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-25T19:51:38Z",
-    "msk": "2026-08-25T22:51:38+03:00"
+    "utc": "2026-08-25T20:51:57Z",
+    "msk": "2026-08-25T23:51:57+03:00"
   },
   "sources": [
     {
@@ -44,9 +44,9 @@
       "priority": 70,
       "enabled": true,
       "status": "ok",
-      "lines": 21,
-      "recognized": 15,
-      "valid": 14,
+      "lines": 18,
+      "recognized": 12,
+      "valid": 11,
       "rejected": 1
     },
     {
@@ -55,19 +55,19 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 5311,
-      "recognized": 5311,
-      "valid": 3669,
-      "rejected": 1642
+      "lines": 4707,
+      "recognized": 4707,
+      "valid": 3626,
+      "rejected": 1081
     }
   ],
-  "recognized_keys": 9501,
-  "valid_keys_before_deduplication": 7625,
-  "rejected_keys": 1876,
-  "duplicates_removed": 2131,
-  "total_keys": 4927,
+  "recognized_keys": 8894,
+  "valid_keys_before_deduplication": 7579,
+  "rejected_keys": 1315,
+  "duplicates_removed": 2081,
+  "total_keys": 4931,
   "keys_by_protocol": {
-    "vless": 4713,
+    "vless": 4717,
     "trojan": 96,
     "shadowsocks": 35,
     "vmess": 5,
@@ -77,20 +77,20 @@
   },
   "geography": {
     "ru_excluded": 567,
-    "unknown_kept": 1425,
-    "non_ru_kept": 3502
+    "unknown_kept": 1420,
+    "non_ru_kept": 3511
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 4927,
-      "bytes": 1180973,
-      "sha256": "631fad1be129910e70b25d9cde32b34b11af9ee3d3e798284386f03650a9dc33"
+      "keys": 4931,
+      "bytes": 1190110,
+      "sha256": "7516b8d7cfd60b2c6362211a850cb32156688fc71554d85cd26a040846a7e6f4"
     },
     "vless.txt": {
-      "keys": 4713,
-      "bytes": 1141442,
-      "sha256": "5f93ae6994efe7d3e72ebcaafc28f198929599080db4c39fda6441ae9422c67d"
+      "keys": 4717,
+      "bytes": 1150579,
+      "sha256": "9ce3c80ef544f51ab77c9121a139b0f4b6384f7dcb2bb37f071da6e117148ca0"
     },
     "trojan.txt": {
       "keys": 96,
