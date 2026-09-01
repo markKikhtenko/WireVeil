@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-08-31T23:57:05Z",
-    "msk": "2026-09-01T02:57:05+03:00"
+    "utc": "2026-09-01T05:22:33Z",
+    "msk": "2026-09-01T08:22:33+03:00"
   },
   "sources": [
     {
@@ -11,10 +11,10 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 96,
-      "recognized": 90,
-      "valid": 80,
-      "rejected": 10
+      "lines": 151,
+      "recognized": 145,
+      "valid": 137,
+      "rejected": 8
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -22,10 +22,10 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 83,
-      "recognized": 69,
-      "valid": 47,
-      "rejected": 22
+      "lines": 78,
+      "recognized": 64,
+      "valid": 64,
+      "rejected": 0
     },
     {
       "id": "wlunlocker-blacklist",
@@ -33,10 +33,10 @@
       "priority": 80,
       "enabled": true,
       "status": "ok",
-      "lines": 4302,
-      "recognized": 4298,
-      "valid": 4050,
-      "rejected": 248
+      "lines": 4405,
+      "recognized": 4401,
+      "valid": 4146,
+      "rejected": 255
     },
     {
       "id": "eavevpn-blacklist",
@@ -55,57 +55,57 @@
       "priority": 10,
       "enabled": true,
       "status": "ok",
-      "lines": 4522,
-      "recognized": 4522,
-      "valid": 3884,
-      "rejected": 638
+      "lines": 4727,
+      "recognized": 4727,
+      "valid": 3918,
+      "rejected": 809
     }
   ],
-  "recognized_keys": 9028,
-  "valid_keys_before_deduplication": 8110,
-  "rejected_keys": 918,
-  "duplicates_removed": 2377,
-  "total_keys": 5170,
+  "recognized_keys": 9386,
+  "valid_keys_before_deduplication": 8314,
+  "rejected_keys": 1072,
+  "duplicates_removed": 2471,
+  "total_keys": 5231,
   "keys_by_protocol": {
-    "vless": 5009,
-    "trojan": 89,
-    "shadowsocks": 38,
-    "vmess": 9,
+    "vless": 5051,
+    "trojan": 97,
+    "shadowsocks": 37,
+    "vmess": 13,
     "hysteria": 0,
-    "hysteria2": 25,
+    "hysteria2": 33,
     "tuic": 0
   },
   "geography": {
-    "ru_excluded": 563,
-    "unknown_kept": 1494,
-    "non_ru_kept": 3676
+    "ru_excluded": 612,
+    "unknown_kept": 1535,
+    "non_ru_kept": 3696
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 5170,
-      "bytes": 1230976,
-      "sha256": "159092112fe3571fbfe2563e61501b5f5b154a2e42f39efaa6fd3f9fa7bd390d"
+      "keys": 5231,
+      "bytes": 1249558,
+      "sha256": "d60764c14f53eed00c393b4554323b087662259dbf2c312946a2b0c4d8f35f45"
     },
     "vless.txt": {
-      "keys": 5009,
-      "bytes": 1204516,
-      "sha256": "06e0be0a6522882af90b2c901b223da37dc5d2d6bfdfa827464bb69b9d1f5864"
+      "keys": 5051,
+      "bytes": 1218856,
+      "sha256": "209709700ee804c28b56d154dc26444fb2f477f9ab1fc670efe9c2225fbd0b2a"
     },
     "trojan.txt": {
-      "keys": 89,
-      "bytes": 13777,
-      "sha256": "4aea15b91f1d7d9e74a1c696f8e514ee0cc46855b3e7e9472797421f2beb7eef"
+      "keys": 97,
+      "bytes": 15726,
+      "sha256": "114d1b68fab6d002f00e4273596d913e69f1fa2ac8ef330a4126569c25797c76"
     },
     "shadowsocks.txt": {
-      "keys": 38,
-      "bytes": 4515,
-      "sha256": "2fa13de7de25f0e4779fee8763ba28d2b73083fd328d8893c261b51d64eb3726"
+      "keys": 37,
+      "bytes": 4245,
+      "sha256": "0a906f5d65a692d556b508cb253a494fa86a0257b2f57318de2723afba47d167"
     },
     "vmess.txt": {
-      "keys": 9,
-      "bytes": 3401,
-      "sha256": "5f352907d3333ef3505aca364360044bcee40622318b2647af19d5c0e32acd6e"
+      "keys": 13,
+      "bytes": 4633,
+      "sha256": "b997f6d8c8b2fb7bc03abdb76319ee5d7ba2a38d24af20d50eeb71042163cebf"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -113,9 +113,9 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 25,
-      "bytes": 4767,
-      "sha256": "93cfef152aa38a281c1ed544afc0b8d4b80fa06542779aa58da6267baf28b1b7"
+      "keys": 33,
+      "bytes": 6098,
+      "sha256": "88c6bd44619b6371a64f13d3d6e7468a9725491b607da9562bf5b7d2a811e94e"
     },
     "tuic.txt": {
       "keys": 0,
