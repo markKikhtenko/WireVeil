@@ -61,8 +61,9 @@ SCHEME_PROTOCOL = {
     "tuic": "tuic",
 }
 SUPPORTED_SCHEMES = tuple(SCHEME_PROTOCOL)
+SCHEME_PATTERN = r"(?:vless|trojan|ss|vmess|hysteria2|hysteria|hy2|tuic)"
 URI_RE = re.compile(
-    r"(?i)(?:vless|trojan|ss|vmess|hysteria|hy2|hysteria2|tuic)://[^\s<>\"']+"
+    rf"(?i){SCHEME_PATTERN}://.*?(?={SCHEME_PATTERN}://|[\s<>\"']|$)"
 )
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -72,7 +73,12 @@ DOMAIN_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 SHORT_ID_RE = re.compile(r"^[0-9a-fA-F]{0,16}$")
 BASE64_RE = re.compile(r"^[A-Za-z0-9+/=_\-\s]+$")
 NETWORKS = {"tcp", "ws", "grpc", "xhttp", "http", "h2", "kcp", "quic"}
-VLESS_NETWORKS = {"tcp", "ws", "grpc", "xhttp", "http", "h2"}
+VLESS_NETWORKS = {"tcp", "ws", "grpc", "xhttp", "httpupgrade", "http", "h2"}
+NETWORK_ALIASES = {
+    "raw": "tcp",
+    "websocket": "ws",
+    "splithttp": "xhttp",
+}
 DECORATIVE_QUERY_KEYS = {
     "name",
     "remark",
@@ -255,6 +261,11 @@ def _userinfo(parsed: urllib.parse.SplitResult) -> tuple[str, str]:
     return username, password
 
 
+def _transport(query: Mapping[str, Sequence[str]]) -> str:
+    value = (_first(query, "type", "network") or "tcp").lower()
+    return NETWORK_ALIASES.get(value, value)
+
+
 def parse_vless(uri: str) -> ParsedURI:
     parsed = _split(uri)
     server, port = _host_port(parsed)
@@ -262,10 +273,12 @@ def parse_vless(uri: str) -> ParsedURI:
     if not _valid_uuid(user):
         raise ValidationError("VLESS requires a valid UUID")
     query = _query(parsed)
-    network = (_first(query, "type", "network") or "tcp").lower()
+    network = _transport(query)
     if network not in VLESS_NETWORKS:
         raise ValidationError("unsupported VLESS transport")
     security = (_first(query, "security") or "none").lower()
+    if security == "false":
+        security = "none"
     if security not in {"none", "tls", "reality", "xtls"}:
         raise ValidationError("unsupported VLESS security")
     flow = _first(query, "flow").lower()
@@ -308,7 +321,7 @@ def parse_trojan(uri: str) -> ParsedURI:
     if not password:
         raise ValidationError("Trojan requires a password")
     query = _query(parsed)
-    network = (_first(query, "type", "network") or "tcp").lower()
+    network = _transport(query)
     if network not in VLESS_NETWORKS:
         raise ValidationError("unsupported Trojan transport")
     identity = (
@@ -915,6 +928,8 @@ def collect_candidates(
             record["warning"] = str(exc)
             warn(f"{source['name']}: {exc}; source skipped")
             source_stats.append(record)
+            if source.get("required", False):
+                raise BuildError(f"required source {source['id']} is unavailable") from exc
             continue
         record["status"] = "ok"
         record["lines"] = len(text.splitlines())
@@ -1178,6 +1193,7 @@ def publish_build(
     geo_counts: Mapping[str, int],
     root: Path = ROOT,
     min_keys: int = 100,
+    max_keys: int = 1000,
     now: dt.datetime | None = None,
 ) -> dict:
     """Stage, validate, and atomically replace every published artifact."""
@@ -1200,6 +1216,10 @@ def publish_build(
     if len(subscription) < min_keys:
         raise BuildError(
             f"safety threshold failed: {len(subscription)} unique keys, minimum is {min_keys}"
+        )
+    if len(subscription) > max_keys:
+        raise BuildError(
+            f"quality threshold failed: {len(subscription)} unique keys, maximum is {max_keys}"
         )
 
     # A successful fetch with identical subscriptions is a no-op. This keeps
@@ -1337,6 +1357,7 @@ def build(
     timeout: float = 20.0,
     retries: int = 3,
     workers: int = 12,
+    max_keys: int = 1000,
 ) -> dict:
     sources = load_sources(sources_path or root / "sources.json")
     source_fetcher = fetcher or (lambda url: fetch_url(url, timeout=timeout, retries=retries))
@@ -1370,7 +1391,6 @@ def build(
         geo = GeoClassifier(russian_networks, rdap)
         classifier = geo.classify
     filtered, geo_counts = filter_geography(unique, classifier, workers=workers)
-
     protocol_lines: dict[str, list[str]] = {protocol: [] for protocol in PROTOCOL_FILES}
     for candidate in filtered:
         protocol_lines[candidate.parsed.protocol].append(candidate.parsed.original)
@@ -1383,6 +1403,7 @@ def build(
         geo_counts=geo_counts,
         root=root,
         min_keys=min_keys,
+        max_keys=max_keys,
     )
     if rdap is not None:
         rdap.save(root / "geo-cache.json")
@@ -1404,6 +1425,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--min-keys", type=int, default=100)
+    parser.add_argument("--max-keys", type=int, default=1000)
     return parser.parse_args(argv)
 
 
@@ -1417,6 +1439,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             retries=args.retries,
             workers=args.workers,
             min_keys=args.min_keys,
+            max_keys=args.max_keys,
         )
     except (BuildError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)

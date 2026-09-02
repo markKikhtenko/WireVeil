@@ -57,7 +57,16 @@ class ProtocolParsingTests(unittest.TestCase):
                 self.assertEqual(uri, parsed.original)
 
     def test_vless_reality_and_transports(self):
-        for network in ("tcp", "ws", "grpc", "xhttp", "h2", "http"):
+        for network in (
+            "tcp",
+            "raw",
+            "ws",
+            "grpc",
+            "xhttp",
+            "httpupgrade",
+            "h2",
+            "http",
+        ):
             uri = (
                 f"vless://{UUID1}@edge.example.com:443?security=reality&type={network}"
                 f"&pbk={b64('01234567890123456789012345678901', urlsafe=True)}"
@@ -65,6 +74,11 @@ class ProtocolParsingTests(unittest.TestCase):
             )
             with self.subTest(network=network):
                 self.assertEqual("vless", build.parse_uri(uri).protocol)
+
+    def test_vless_accepts_false_as_no_transport_security(self):
+        uri = f"vless://{UUID1}@edge.example.com:80?security=false&type=ws"
+        parsed = build.parse_uri(uri)
+        self.assertEqual("none", parsed.identity[5])
 
     def test_hysteria2_accepts_both_schemes(self):
         first = build.parse_uri("hy2://secret@edge.example.com:443")
@@ -116,6 +130,11 @@ class ExtractionTests(unittest.TestCase):
         uri = f"vless://{UUID1}@edge.example.com:443?security=tls"
         self.assertEqual([], build.extract_uris(b64(b64(uri))))
 
+    def test_concatenated_uris_are_split_at_the_next_scheme(self):
+        first = f"vless://{UUID1}@edge.example.com:443?security=tls#first"
+        second = "hy2://secret@hy.example.com:443#second"
+        self.assertEqual([first, second], build.extract_uris(first + second))
+
 
 class DeduplicationTests(unittest.TestCase):
     def candidate(self, uri: str, priority: int, source: str, order: int = 0):
@@ -150,6 +169,11 @@ class DeduplicationTests(unittest.TestCase):
         one = vmess_uri(ps="first")
         two = vmess_uri(ps="second")
         self.assertEqual(build.parse_uri(one).identity, build.parse_uri(two).identity)
+
+    def test_raw_and_tcp_transport_names_are_semantically_equal(self):
+        tcp = f"vless://{UUID1}@edge.example.com:443?security=tls&type=tcp"
+        raw = f"vless://{UUID1}@edge.example.com:443?security=tls&type=raw"
+        self.assertEqual(build.parse_uri(tcp).identity, build.parse_uri(raw).identity)
 
 
 class GeographyTests(unittest.TestCase):
@@ -438,6 +462,80 @@ class OfflineIntegrationTests(unittest.TestCase):
             self.assertEqual(1, stats["total_keys"])
             statuses = {item["id"]: item["status"] for item in stats["sources"]}
             self.assertEqual({"good": "ok", "down": "unavailable"}, statuses)
+
+    def test_required_source_failure_aborts_the_build(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "README.md").write_text(
+                "# Test\n" + build.README_START + "\nold\n" + build.README_END + "\n",
+                encoding="utf-8",
+            )
+            sources = {
+                "sources": [
+                    {
+                        "id": "required-down",
+                        "name": "Required Down",
+                        "url": "memory://down",
+                        "priority": 100,
+                        "enabled": True,
+                        "required": True,
+                        "protocols": ["vless"],
+                        "note": "test",
+                    }
+                ]
+            }
+            source_path = root / "sources.json"
+            source_path.write_text(json.dumps(sources), encoding="utf-8")
+
+            with self.assertRaisesRegex(build.BuildError, "required source"):
+                build.build(
+                    root=root,
+                    sources_path=source_path,
+                    fetcher=lambda _url: (_ for _ in ()).throw(build.BuildError("offline")),
+                    classifier=lambda _host: "UNKNOWN",
+                    min_keys=1,
+                    workers=1,
+                )
+
+    def test_build_rejects_an_unbounded_result(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "README.md").write_text(
+                "# Test\n" + build.README_START + "\nold\n" + build.README_END + "\n",
+                encoding="utf-8",
+            )
+            sources = {
+                "sources": [
+                    {
+                        "id": "large",
+                        "name": "Large",
+                        "url": "memory://large",
+                        "priority": 100,
+                        "enabled": True,
+                        "protocols": ["vless"],
+                        "note": "test",
+                    }
+                ]
+            }
+            source_path = root / "sources.json"
+            source_path.write_text(json.dumps(sources), encoding="utf-8")
+            payload = "\n".join(
+                [
+                    f"vless://{UUID1}@one.example.com:443?security=tls",
+                    f"vless://{UUID2}@two.example.com:443?security=tls",
+                ]
+            )
+
+            with self.assertRaisesRegex(build.BuildError, "maximum is 1"):
+                build.build(
+                    root=root,
+                    sources_path=source_path,
+                    fetcher=lambda _url: payload,
+                    classifier=lambda _host: "UNKNOWN",
+                    min_keys=1,
+                    max_keys=1,
+                    workers=1,
+                )
 
 
 if __name__ == "__main__":
