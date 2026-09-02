@@ -1,23 +1,6 @@
 {
   "updates": [
     {
-      "utc": "2026-08-29T21:49:53Z",
-      "msk": "2026-08-30T00:49:53+03:00",
-      "total_keys": 5216,
-      "keys_by_protocol": {
-        "vless": 5084,
-        "trojan": 78,
-        "shadowsocks": 38,
-        "vmess": 6,
-        "hysteria": 0,
-        "hysteria2": 10,
-        "tuic": 0
-      },
-      "duplicates_removed": 1845,
-      "ru_excluded": 544,
-      "subscription_sha256": "abc37fd4f1c3b615dbd6b3c25ec34788f57074580f6f53e391a8103a87ec007b"
-    },
-    {
       "utc": "2026-08-30T00:28:19Z",
       "msk": "2026-08-30T03:28:19+03:00",
       "total_keys": 5162,
@@ -339,6 +322,23 @@
       "duplicates_removed": 92,
       "ru_excluded": 0,
       "subscription_sha256": "ac82599b7e355044b145a4bdfbb9681bdf2def9c3b081814735b623725a66d2f"
+    },
+    {
+      "utc": "2026-09-02T21:53:43Z",
+      "msk": "2026-09-03T00:53:43+03:00",
+      "total_keys": 400,
+      "keys_by_protocol": {
+        "vless": 162,
+        "trojan": 13,
+        "shadowsocks": 170,
+        "vmess": 13,
+        "hysteria": 0,
+        "hysteria2": 42,
+        "tuic": 0
+      },
+      "duplicates_removed": 24,
+      "ru_excluded": 3,
+      "subscription_sha256": "c2aae82a805c28682b3db0ea097c9bf3f284daa82e53edc59b3d4854d5d15c3b"
     }
   ]
 }
