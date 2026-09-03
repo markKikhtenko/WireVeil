@@ -1,57 +1,6 @@
 {
   "updates": [
     {
-      "utc": "2026-08-30T00:28:19Z",
-      "msk": "2026-08-30T03:28:19+03:00",
-      "total_keys": 5162,
-      "keys_by_protocol": {
-        "vless": 5025,
-        "trojan": 83,
-        "shadowsocks": 38,
-        "vmess": 5,
-        "hysteria": 0,
-        "hysteria2": 11,
-        "tuic": 0
-      },
-      "duplicates_removed": 2111,
-      "ru_excluded": 554,
-      "subscription_sha256": "33a3c06512ea0d26ff75b250f4474b38d6d3aeae4c59a8ceac2ba3144e37dab9"
-    },
-    {
-      "utc": "2026-08-30T06:52:02Z",
-      "msk": "2026-08-30T09:52:02+03:00",
-      "total_keys": 5179,
-      "keys_by_protocol": {
-        "vless": 5041,
-        "trojan": 84,
-        "shadowsocks": 38,
-        "vmess": 7,
-        "hysteria": 0,
-        "hysteria2": 9,
-        "tuic": 0
-      },
-      "duplicates_removed": 2422,
-      "ru_excluded": 529,
-      "subscription_sha256": "0fbcd4d54e2e439303898c2d3cd9deda8c0d62456f23324f9dfaec337d046395"
-    },
-    {
-      "utc": "2026-08-30T13:02:23Z",
-      "msk": "2026-08-30T16:02:23+03:00",
-      "total_keys": 5139,
-      "keys_by_protocol": {
-        "vless": 4994,
-        "trojan": 81,
-        "shadowsocks": 39,
-        "vmess": 1,
-        "hysteria": 0,
-        "hysteria2": 24,
-        "tuic": 0
-      },
-      "duplicates_removed": 1973,
-      "ru_excluded": 521,
-      "subscription_sha256": "fea5afadcd8b4dd0b723f5a3c2231bb1458a0c83a30c1ba727821c440da15734"
-    },
-    {
       "utc": "2026-08-30T17:38:56Z",
       "msk": "2026-08-30T20:38:56+03:00",
       "total_keys": 5143,
@@ -373,6 +322,23 @@
       "duplicates_removed": 858,
       "ru_excluded": 65,
       "subscription_sha256": "031dbf3e5e4c6a8cb5358520489882ff348aa86d872b763ec4cb4b33bde4dd67"
+    },
+    {
+      "utc": "2026-09-03T05:58:02Z",
+      "msk": "2026-09-03T08:58:02+03:00",
+      "total_keys": 1000,
+      "keys_by_protocol": {
+        "vless": 178,
+        "trojan": 178,
+        "shadowsocks": 178,
+        "vmess": 112,
+        "hysteria": 0,
+        "hysteria2": 177,
+        "tuic": 177
+      },
+      "duplicates_removed": 829,
+      "ru_excluded": 62,
+      "subscription_sha256": "e0a3fa19555186b499ddb091424042707cf602fb63422aecf649b1f33a82205a"
     }
   ]
 }
