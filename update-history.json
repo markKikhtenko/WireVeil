@@ -324,6 +324,40 @@
       "subscription_sha256": "ac82599b7e355044b145a4bdfbb9681bdf2def9c3b081814735b623725a66d2f"
     },
     {
+      "utc": "2026-09-02T21:53:43Z",
+      "msk": "2026-09-03T00:53:43+03:00",
+      "total_keys": 400,
+      "keys_by_protocol": {
+        "vless": 162,
+        "trojan": 13,
+        "shadowsocks": 170,
+        "vmess": 13,
+        "hysteria": 0,
+        "hysteria2": 42,
+        "tuic": 0
+      },
+      "duplicates_removed": 24,
+      "ru_excluded": 3,
+      "subscription_sha256": "c2aae82a805c28682b3db0ea097c9bf3f284daa82e53edc59b3d4854d5d15c3b"
+    },
+    {
+      "utc": "2026-09-03T00:23:18Z",
+      "msk": "2026-09-03T03:23:18+03:00",
+      "total_keys": 395,
+      "keys_by_protocol": {
+        "vless": 153,
+        "trojan": 26,
+        "shadowsocks": 165,
+        "vmess": 17,
+        "hysteria": 0,
+        "hysteria2": 34,
+        "tuic": 0
+      },
+      "duplicates_removed": 97,
+      "ru_excluded": 6,
+      "subscription_sha256": "664b0ea8da4f8ca739b39674346e7ee3611936b6e864425371c09e08192fe8ca"
+    },
+    {
       "utc": "2026-09-03T05:23:13Z",
       "msk": "2026-09-03T08:23:13+03:00",
       "total_keys": 1000,
