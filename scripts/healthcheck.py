@@ -636,14 +636,30 @@ def run_probes(
 
 
 def _mix_active(results: Sequence[ProbeResult]) -> list[ProbeResult]:
+    endpoint_winners: dict[tuple[str, str, int], ProbeResult] = {}
+    active = sorted(
+        (result for result in results if result.active),
+        key=lambda item: (
+            item.delay_ms if item.delay_ms is not None else sys.maxsize,
+            item.target.index,
+        ),
+    )
+    for result in active:
+        parsed = build.parse_uri(result.target.uri)
+        endpoint_winners.setdefault(build.endpoint_identity(parsed), result)
+
     groups: dict[str, list[ProbeResult]] = {
         protocol: [] for protocol in build.PROTOCOL_FILES
     }
-    for result in results:
-        if result.active:
-            groups[result.target.protocol].append(result)
+    for result in endpoint_winners.values():
+        groups[result.target.protocol].append(result)
     for group in groups.values():
-        group.sort(key=lambda item: (item.delay_ms or sys.maxsize, item.target.index))
+        group.sort(
+            key=lambda item: (
+                item.delay_ms if item.delay_ms is not None else sys.maxsize,
+                item.target.index,
+            )
+        )
     active_protocols = [protocol for protocol in build.PROTOCOL_FILES if groups[protocol]]
     offsets = {protocol: 0 for protocol in active_protocols}
     mixed: list[ProbeResult] = []
@@ -675,8 +691,10 @@ def _update_readme(template: str, stats: dict) -> str:
         f"{README_START}\n"
         f"Последняя проверка реального подключения: **{stats['checked_at']['msk']}** "
         f"(UTC: {stats['checked_at']['utc']}). Проверено через "
-        f"`{stats['engine']['version']}`: **{stats['active_keys']} из "
-        f"{stats['candidate_keys']}** ключей передали HTTPS-трафик.\n\n"
+        f"`{stats['engine']['version']}`: **"
+        f"{stats['passing_keys_before_endpoint_deduplication']} из "
+        f"{stats['candidate_keys']}** конфигураций передали HTTPS-трафик; после "
+        f"endpoint-дедупликации опубликовано **{stats['active_keys']}**.\n\n"
         "| Подписка | RAW-ссылка | Ключей | Размер |\n"
         "|---|---|---:|---:|\n"
         "| Только активные и проверенные | "
@@ -726,6 +744,8 @@ def publish_results(
         result.error or "unknown" for result in results if not result.active
     )
     tested_count = len(results)
+    passing_count = sum(result.active for result in results)
+    endpoint_duplicates = passing_count - len(active_lines)
     stats = {
         "schema_version": 1,
         "checked_at": {
@@ -736,8 +756,10 @@ def publish_results(
         "probe_urls": list(probe_urls),
         "candidate_keys": len(candidate_lines),
         "tested_keys": tested_count,
+        "passing_keys_before_endpoint_deduplication": passing_count,
         "active_keys": len(active_lines),
-        "inactive_keys": tested_count - len(active_lines),
+        "active_endpoint_duplicates_removed": endpoint_duplicates,
+        "inactive_keys": tested_count - passing_count,
         "inactive_reasons": dict(inactive_reasons.most_common(20)),
         "unsupported_keys": sum(unsupported.values()),
         "unsupported_by_protocol": dict(sorted(unsupported.items())),

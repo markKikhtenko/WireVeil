@@ -984,6 +984,29 @@ def deduplicate(candidates: Sequence[Candidate]) -> tuple[list[Candidate], int]:
     return result, len(candidates) - len(result)
 
 
+def endpoint_identity(parsed: ParsedURI) -> tuple[str, str, int]:
+    """Return the identity exposed by clients in their server lists."""
+    return parsed.protocol, parsed.server, parsed.port
+
+
+def deduplicate_endpoints(
+    candidates: Sequence[Candidate],
+) -> tuple[list[Candidate], int]:
+    """Keep one deterministic, highest-priority config per visible endpoint."""
+    winners: dict[tuple[str, str, int], Candidate] = {}
+    ordered = sorted(
+        candidates,
+        key=lambda item: (-item.priority, item.source_order, item.item_order, item.parsed.original),
+    )
+    for candidate in ordered:
+        winners.setdefault(endpoint_identity(candidate.parsed), candidate)
+    result = sorted(
+        winners.values(),
+        key=lambda item: (item.parsed.protocol, item.parsed.server, item.parsed.port),
+    )
+    return result, len(candidates) - len(result)
+
+
 def select_mixed(
     candidates: Sequence[Candidate],
     target_keys: int,
@@ -1269,6 +1292,8 @@ def publish_build(
     recognized: int,
     rejected: int,
     duplicates: int,
+    semantic_duplicates: int | None = None,
+    endpoint_duplicates: int = 0,
     geo_counts: Mapping[str, int],
     eligible_keys: int | None = None,
     mix_target: int | None = None,
@@ -1356,6 +1381,9 @@ def publish_build(
         total_by_protocol = {
             protocol: len(effective[protocol]) for protocol in PROTOCOL_FILES
         }
+        semantic_duplicates = (
+            duplicates if semantic_duplicates is None else semantic_duplicates
+        )
         stats = {
             "schema_version": 1,
             "built_at": {"utc": utc_time, "msk": msk_time},
@@ -1366,6 +1394,8 @@ def publish_build(
             ),
             "rejected_keys": rejected,
             "duplicates_removed": duplicates,
+            "semantic_duplicates_removed": semantic_duplicates,
+            "endpoint_duplicates_removed": endpoint_duplicates,
             "eligible_keys_before_mix": (
                 int(eligible_keys) if eligible_keys is not None else len(subscription)
             ),
@@ -1451,7 +1481,9 @@ def build(
     candidates, source_stats, recognized, rejected = collect_candidates(sources, source_fetcher)
     if not candidates:
         raise BuildError("no valid keys were collected")
-    unique, duplicates = deduplicate(candidates)
+    semantic_unique, semantic_duplicates = deduplicate(candidates)
+    unique, endpoint_duplicates = deduplicate_endpoints(semantic_unique)
+    duplicates = semantic_duplicates + endpoint_duplicates
 
     rdap: RdapGeoIndex | None = None
     if classifier is None:
@@ -1492,6 +1524,8 @@ def build(
         recognized=recognized,
         rejected=rejected,
         duplicates=duplicates,
+        semantic_duplicates=semantic_duplicates,
+        endpoint_duplicates=endpoint_duplicates,
         geo_counts=geo_counts,
         eligible_keys=eligible_keys,
         mix_target=target_keys,

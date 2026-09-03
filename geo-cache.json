@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-09-03T10:22:31Z",
+  "updated_at_utc": "2026-09-03T10:32:45Z",
   "ranges": [
     {
       "start": "1.1.1.0",
@@ -10183,6 +10183,12 @@
       "end": "173.230.159.255",
       "country": null,
       "checked_at_utc": "2026-08-28T18:51:30Z"
+    },
+    {
+      "start": "173.234.156.0",
+      "end": "173.234.159.255",
+      "country": null,
+      "checked_at_utc": "2026-09-03T10:32:45Z"
     },
     {
       "start": "173.244.32.0",

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from scripts import build, healthcheck
-from tests.test_build import UUID1, vmess_uri
+from tests.test_build import UUID1, UUID2, vmess_uri
 
 
 class ConversionTests(unittest.TestCase):
@@ -116,6 +116,39 @@ class PublicationTests(unittest.TestCase):
                     min_active=1,
                 )
             self.assertEqual("working\n", (root / "active.txt").read_text(encoding="utf-8"))
+
+    def test_active_output_keeps_fastest_result_per_endpoint(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "README.md").write_text(
+                healthcheck.README_START + "\nold\n" + healthcheck.README_END + "\n",
+                encoding="utf-8",
+            )
+            slow_uri = f"vless://{UUID1}@same.example.com:443?security=tls"
+            fast_uri = f"vless://{UUID2}@same.example.com:443?security=tls"
+            results = []
+            for index, uri, delay in ((0, slow_uri, 90), (1, fast_uri, 20)):
+                target = healthcheck.ProbeTarget(
+                    index, f"wv-{index:04d}", uri, "vless", {"type": "vless"}
+                )
+                results.append(healthcheck.ProbeResult(target, True, delay))
+
+            stats = healthcheck.publish_results(
+                results,
+                candidate_lines=[slow_uri, fast_uri],
+                conversion_unsupported={},
+                runtime_rejected={},
+                engine_version="sing-box version test",
+                probe_urls=["https://example.com/generate_204"],
+                root=root,
+                min_active=1,
+            )
+
+            self.assertEqual([fast_uri], build.validate_txt(root / "active.txt"))
+            self.assertEqual(2, stats["passing_keys_before_endpoint_deduplication"])
+            self.assertEqual(1, stats["active_endpoint_duplicates_removed"])
+            self.assertEqual(1, stats["active_keys"])
+            self.assertEqual(0, stats["inactive_keys"])
 
 
 if __name__ == "__main__":

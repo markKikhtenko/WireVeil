@@ -165,6 +165,22 @@ class DeduplicationTests(unittest.TestCase):
         self.assertEqual(0, duplicates)
         self.assertEqual(set(uris), {item.parsed.original for item in unique})
 
+    def test_endpoint_deduplication_keeps_one_highest_priority_candidate(self):
+        low = f"vless://{UUID1}@edge.example.com:443?security=tls&type=ws&path=%2Flow"
+        high = f"vless://{UUID2}@edge.example.com:443?security=tls&type=ws&path=%2Fhigh"
+        other_port = f"vless://{UUID1}@edge.example.com:8443?security=tls"
+
+        unique, duplicates = build.deduplicate_endpoints(
+            [
+                self.candidate(low, 10, "low", 1),
+                self.candidate(high, 100, "high", 0),
+                self.candidate(other_port, 10, "other", 2),
+            ]
+        )
+
+        self.assertEqual(1, duplicates)
+        self.assertEqual({high, other_port}, {item.parsed.original for item in unique})
+
     def test_vmess_display_name_is_decorative(self):
         one = vmess_uri(ps="first")
         two = vmess_uri(ps="second")
