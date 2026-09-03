@@ -50,6 +50,14 @@ PROTOCOL_FILES = {
     "hysteria2": "hysteria2.txt",
     "tuic": "tuic.txt",
 }
+MIX_REQUIRED_PROTOCOLS = (
+    "vless",
+    "trojan",
+    "shadowsocks",
+    "vmess",
+    "hysteria2",
+    "tuic",
+)
 SCHEME_PROTOCOL = {
     "vless": "vless",
     "trojan": "trojan",
@@ -976,6 +984,64 @@ def deduplicate(candidates: Sequence[Candidate]) -> tuple[list[Candidate], int]:
     return result, len(candidates) - len(result)
 
 
+def select_mixed(
+    candidates: Sequence[Candidate],
+    target_keys: int,
+    required_protocols: Sequence[str] = (),
+) -> list[Candidate]:
+    """Select an exact, deterministic and protocol-balanced subset."""
+    if target_keys < 1:
+        raise BuildError("mix target must be a positive integer")
+
+    unknown = set(required_protocols) - set(PROTOCOL_FILES)
+    if unknown:
+        raise BuildError(f"mix requires unknown protocols: {sorted(unknown)}")
+
+    groups: dict[str, list[Candidate]] = {protocol: [] for protocol in PROTOCOL_FILES}
+    for candidate in candidates:
+        groups[candidate.parsed.protocol].append(candidate)
+    missing = [protocol for protocol in required_protocols if not groups[protocol]]
+    if missing:
+        raise BuildError(f"mix is missing required protocols: {', '.join(missing)}")
+    if len(candidates) < target_keys:
+        raise BuildError(
+            f"mix target failed: {len(candidates)} unique keys available, "
+            f"target is {target_keys}"
+        )
+
+    for group in groups.values():
+        group.sort(
+            key=lambda item: (
+                -item.priority,
+                item.source_order,
+                item.item_order,
+                item.parsed.original,
+            )
+        )
+
+    active = [protocol for protocol in PROTOCOL_FILES if groups[protocol]]
+    offsets = {protocol: 0 for protocol in active}
+    selected: list[Candidate] = []
+    while len(selected) < target_keys:
+        added = False
+        for protocol in active:
+            offset = offsets[protocol]
+            if offset >= len(groups[protocol]):
+                continue
+            selected.append(groups[protocol][offset])
+            offsets[protocol] += 1
+            added = True
+            if len(selected) == target_keys:
+                break
+        if not added:  # Defensive: the size check above should make this unreachable.
+            break
+    if len(selected) != target_keys:
+        raise BuildError(
+            f"mix target failed: selected {len(selected)} keys, target is {target_keys}"
+        )
+    return selected
+
+
 def filter_geography(
     candidates: Sequence[Candidate], classifier: Callable[[str], str], workers: int = 24
 ) -> tuple[list[Candidate], Counter]:
@@ -1191,6 +1257,8 @@ def publish_build(
     rejected: int,
     duplicates: int,
     geo_counts: Mapping[str, int],
+    eligible_keys: int | None = None,
+    mix_target: int | None = None,
     root: Path = ROOT,
     min_keys: int = 100,
     max_keys: int = 1000,
@@ -1285,6 +1353,10 @@ def publish_build(
             ),
             "rejected_keys": rejected,
             "duplicates_removed": duplicates,
+            "eligible_keys_before_mix": (
+                int(eligible_keys) if eligible_keys is not None else len(subscription)
+            ),
+            "mix_target": mix_target,
             "total_keys": len(subscription),
             "keys_by_protocol": total_by_protocol,
             "geography": {
@@ -1358,6 +1430,8 @@ def build(
     retries: int = 3,
     workers: int = 12,
     max_keys: int = 1000,
+    target_keys: int | None = None,
+    required_protocols: Sequence[str] = (),
 ) -> dict:
     sources = load_sources(sources_path or root / "sources.json")
     source_fetcher = fetcher or (lambda url: fetch_url(url, timeout=timeout, retries=retries))
@@ -1391,6 +1465,9 @@ def build(
         geo = GeoClassifier(russian_networks, rdap)
         classifier = geo.classify
     filtered, geo_counts = filter_geography(unique, classifier, workers=workers)
+    eligible_keys = len(filtered)
+    if target_keys is not None:
+        filtered = select_mixed(filtered, target_keys, required_protocols)
     protocol_lines: dict[str, list[str]] = {protocol: [] for protocol in PROTOCOL_FILES}
     for candidate in filtered:
         protocol_lines[candidate.parsed.protocol].append(candidate.parsed.original)
@@ -1401,6 +1478,8 @@ def build(
         rejected=rejected,
         duplicates=duplicates,
         geo_counts=geo_counts,
+        eligible_keys=eligible_keys,
+        mix_target=target_keys,
         root=root,
         min_keys=min_keys,
         max_keys=max_keys,
@@ -1426,6 +1505,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--min-keys", type=int, default=100)
     parser.add_argument("--max-keys", type=int, default=1000)
+    parser.add_argument("--target-keys", type=int, default=1000)
     return parser.parse_args(argv)
 
 
@@ -1440,6 +1520,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             workers=args.workers,
             min_keys=args.min_keys,
             max_keys=args.max_keys,
+            target_keys=args.target_keys,
+            required_protocols=MIX_REQUIRED_PROTOCOLS,
         )
     except (BuildError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)

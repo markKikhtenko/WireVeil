@@ -175,6 +175,50 @@ class DeduplicationTests(unittest.TestCase):
         raw = f"vless://{UUID1}@edge.example.com:443?security=tls&type=raw"
         self.assertEqual(build.parse_uri(tcp).identity, build.parse_uri(raw).identity)
 
+    def test_mixer_is_exact_balanced_and_keeps_higher_priority_first(self):
+        candidates = []
+        for index in range(5):
+            candidates.append(
+                self.candidate(
+                    f"vless://{UUID1}@vless{index}.example.com:443?security=tls",
+                    100 - index,
+                    f"vless-{index}",
+                    index,
+                )
+            )
+        for index in range(2):
+            candidates.append(
+                self.candidate(
+                    f"trojan://secret@trojan{index}.example.com:443",
+                    100 - index,
+                    f"trojan-{index}",
+                    index,
+                )
+            )
+        candidates.append(
+            self.candidate("ss://aes-256-gcm:secret@ss.example.com:8388", 100, "ss")
+        )
+
+        mixed = build.select_mixed(
+            candidates, 6, ("vless", "trojan", "shadowsocks")
+        )
+
+        self.assertEqual(6, len(mixed))
+        self.assertEqual(
+            Counter({"vless": 3, "trojan": 2, "shadowsocks": 1}),
+            Counter(item.parsed.protocol for item in mixed),
+        )
+        self.assertEqual("vless0.example.com", mixed[0].parsed.server)
+
+    def test_mixer_rejects_a_missing_required_protocol(self):
+        candidates = [
+            self.candidate(
+                f"vless://{UUID1}@edge.example.com:443?security=tls", 100, "vless"
+            )
+        ]
+        with self.assertRaisesRegex(build.BuildError, "missing required protocols: tuic"):
+            build.select_mixed(candidates, 1, ("vless", "tuic"))
+
 
 class GeographyTests(unittest.TestCase):
     def candidates(self):

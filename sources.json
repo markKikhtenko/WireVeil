@@ -39,6 +39,26 @@
       "required": true,
       "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
       "note": "Компактная проверенная Shadowsocks/Hysteria2-подписка для обычного режима чёрных списков."
+    },
+    {
+      "id": "morpheus-tuic",
+      "name": "morpheusadam TUIC",
+      "url": "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/tuic.txt",
+      "priority": 55,
+      "enabled": true,
+      "required": true,
+      "protocols": ["tuic"],
+      "note": "Ежедневно проверяемый резерв TUIC для полноценного протокольного микса."
+    },
+    {
+      "id": "argh94-all-config",
+      "name": "Argh94 All Config",
+      "url": "https://raw.githubusercontent.com/Argh94/Proxy-List/main/All_Config.txt",
+      "priority": 50,
+      "enabled": true,
+      "required": true,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Широкий резерв всех актуальных URI-протоколов, используемый после источников для России."
     }
   ]
 }
