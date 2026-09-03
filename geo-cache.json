@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at_utc": "2026-09-03T10:39:20Z",
+  "updated_at_utc": "2026-09-03T11:27:44Z",
   "ranges": [
     {
       "start": "1.1.1.0",
@@ -2439,6 +2439,12 @@
       "checked_at_utc": "2026-08-31T20:13:19Z"
     },
     {
+      "start": "45.88.42.0",
+      "end": "45.88.42.255",
+      "country": "SG",
+      "checked_at_utc": "2026-09-03T11:27:44Z"
+    },
+    {
       "start": "45.89.60.0",
       "end": "45.89.60.255",
       "country": "AL",
@@ -2683,6 +2689,12 @@
       "end": "45.146.82.255",
       "country": "US",
       "checked_at_utc": "2026-09-03T05:23:13Z"
+    },
+    {
+      "start": "45.146.163.0",
+      "end": "45.146.163.255",
+      "country": "HK",
+      "checked_at_utc": "2026-09-03T11:27:38Z"
     },
     {
       "start": "45.147.200.0",
@@ -3655,6 +3667,12 @@
       "end": "61.231.255.255",
       "country": "TW",
       "checked_at_utc": "2026-09-02T17:46:53Z"
+    },
+    {
+      "start": "61.245.10.0",
+      "end": "61.245.11.255",
+      "country": "PH",
+      "checked_at_utc": "2026-09-03T11:27:38Z"
     },
     {
       "start": "62.60.144.0",
@@ -8059,6 +8077,12 @@
       "end": "138.124.63.255",
       "country": "LV",
       "checked_at_utc": "2026-08-31T23:56:59Z"
+    },
+    {
+      "start": "138.124.64.0",
+      "end": "138.124.64.255",
+      "country": "PL",
+      "checked_at_utc": "2026-09-03T11:27:37Z"
     },
     {
       "start": "138.124.72.0",
@@ -12825,6 +12849,12 @@
       "checked_at_utc": "2026-09-03T05:22:16Z"
     },
     {
+      "start": "212.192.156.0",
+      "end": "212.192.159.255",
+      "country": "RU",
+      "checked_at_utc": "2026-09-03T11:27:40Z"
+    },
+    {
       "start": "212.192.221.0",
       "end": "212.192.221.255",
       "country": "US",
@@ -13303,6 +13333,12 @@
       "end": "2a01:4f8:1c1e:ffff:ffff:ffff:ffff:ffff",
       "country": "DE",
       "checked_at_utc": "2026-09-03T05:57:53Z"
+    },
+    {
+      "start": "2a01:4ff:f0::",
+      "end": "2a01:4ff:f0:ffff:ffff:ffff:ffff:ffff",
+      "country": "US",
+      "checked_at_utc": "2026-09-03T11:27:42Z"
     },
     {
       "start": "2a01:4ff:1f0::",

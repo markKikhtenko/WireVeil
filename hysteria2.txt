@@ -5,7 +5,7 @@ hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.229:8080?sni=hopp-le
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.231:8080/?sni=hopp-legend-se.roxa.org#
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.234:8080/?insecure=1&sni=hopp-legend-se.roxa.org#
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@103.246.248.239:8443?sni=hopp-legend-se.roxa.org#🇸🇪
-hysteria2://52e3dd44-ed23-4030-b0cc-5b5a953f2d4d@104.165.205.42:8443?sni=speedtestmark.com#%F0%9F%87%B1%F0%9F%87%BB%20Latvia%2C%20Riga%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
+hysteria2://52e3dd44-ed23-4030-b0cc-5b5a953f2d4d@104.165.205.42:8443?sni=speedtestmark.com#🇪🇸
 hysteria2://54d2f622-fd71-4f5f-8813-832b68f4ca3b@104.167.24.217:8443?sni=speedtestmark.com#🇨🇦
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@13.124.233.211:443/?insecure=1&sni=vpn-kr-003.fastervpn.world#
 hysteria2://qQe1z5kU8kN6SlKnDt9Ru3Qp@13.229.54.166:443/?insecure=1&sni=vpn-sg-001.fastervpn.world#
@@ -15,6 +15,7 @@ hysteria2://zhangyang@130.61.50.75:6443/?insecure=1&sni=130.61.50.75#
 hysteria2://7302ad33229de166d393cd56143a1e4c@131.186.19.174:50160?insecure=1&sni=css.rbxcdn.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Yangcheondong%20%7C%20%5BBL%5D
 hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160/?insecure=1&sni=www.bing.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Yangcheondong%20%7C%20%5BBL%5D
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@138.124.0.168:8080/?insecure=1&sni=hopp-legend-se.roxa.org#
+hysteria2://2_hysteria2_fastlane_g7i07kqdf:chCiPld0Fx05IfYXfn3WiWt5Vy44Ghkx@138.124.64.30:1935/?sni=pl2.h.fastlanehosting.ru&insecure=0#%F0%9F%87%B5%F0%9F%87%B1%20Poland%2C%20Warsaw%20%7C%20%5BBL%5D
 hysteria2://f87376e17da040ed04c9665ce8972930@138.2.73.238:50160?insecure=1&security=tls&sni=www.bing.com#%F0%9F%87%B8%F0%9F%87%AC%20Singapore%2C%20Singapore%20%28Loyang%29%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://4d6d97a82ddf959252e2ada36c3c3053@138.2.8.249:50160?insecure=1&sni=www.bing.com#%F0%9F%87%AF%F0%9F%87%B5%20Japan%2C%20Inzai%20%28Otsuka%29%20%7C%20%5BBL%5D
 hysteria2://184cdec28da5a09450803c8debcd2cc9@138.3.208.26:50160/?insecure=1&sni=www.bing.com#%F0%9F%87%AF%F0%9F%87%B5%20Japan%2C%20Inzai%20%28Otsuka%29%20%7C%20%5BBL%5D
@@ -33,7 +34,7 @@ hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@160.187.100.109:443/?insecure=1&sni=vpn-tw-
 hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.124.112:8443?sni=hopp-germany-new.ddnsguru.com&insecure=0#RO
 hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.124.114:8080?insecure=1&sni=hopp-germany-new.ddnsguru.com#%E5%9C%9F%E8%80%B3%E5%85%B6%20%231
 hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.124.118:8080?sni=hopp-germany-new.ddnsguru.com#%E5%9C%9F%E8%80%B3%E5%85%B6%20%232
-hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.126.6:8443?sni=hopp-germany-new.ddnsguru.com#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
+hysteria2://9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z@162.249.126.6:8443?sni=hopp-germany-new.ddnsguru.com#🇸🇬
 hysteria2://6f7a8009ecf6a12e10d03f9d88493c89@167.179.34.13:55443?sni=gorbachev-th.kvnfreetest.uk&insecure=1#GB
 hysteria2://083417772bc618cd61f0cca23dd91680@167.179.34.31:55443?sni=gorbachev-new-th.kvnfreetest.uk&insecure=1#GB
 hysteria2://KevinZakarian@179.61.132.96:8443?insecure=1&sni=179.61.132.96&obfs=salamander&obfs-password=KevinZakarian#%F0%9F%A9%B5%2B%40Azarakhsh_Proxy%2B%F0%9F%A9%B7
@@ -46,7 +47,7 @@ hysteria2://1ba59989-225e-4f1c-ab62-9bd7366009cb@194.135.34.130:443?insecure=1&s
 hysteria2://eb0e3aec-f67f-4fa2-8577-b0bff0484e77@194.238.40.185:443/?insecure=1&sni=kaz0001hy01.packet-drop-society.net#
 hysteria2://OD6gGbGU9a@195.133.24.124:443/?sni=hys26.wba-pn.ru#
 hysteria2://2_hysteria2_fastlane_udfa4x14j@2.27.25.75:443?insecure=0&sni=de11.h.fastlanehosting.ru#%F0%9F%87%A9%F0%9F%87%AA159280%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me/S...
-hysteria2://2_hysteria2_fastlane_udfa4x14j:s2N6aP83VG1oMXyTjRuez9p2ltIcLH2Y@2.27.25.75:1935/?sni=de11.h.fastlanehosting.ru&insecure=0#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%28Innenstadt%20I%29%20%7C%20%5BBL%5D
+hysteria2://2_hysteria2_fastlane_udfa4x14j:s2N6aP83VG1oMXyTjRuez9p2ltIcLH2Y@2.27.25.75:1935/?sni=de11.h.fastlanehosting.ru&insecure=0#🇩🇪
 hysteria2://cd74c0a406664a5bc0bac098220a2468@2.27.59.206:443?sni=de1.sferavpn.pro&insecure=1&obfs=salamander#GB
 hysteria2://oCYFcbOo8s@201.51.24.4:443?sni=hys22.wba-pn.ru&insecure=0#BR
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@202.146.222.29:443/?insecure=1&sni=202.146.222.29#
@@ -79,7 +80,7 @@ hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.140:8443/?sni=grap
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.142:8443/?insecure=1&sni=grape-turbo-fr.roxa.org#
 hysteria2://s0_sdK93x9wer_D02Lz9cvK3_Sa014Oakl_C2z@46.229.243.147:8443/?insecure=1&sni=grape-turbo-fr.roxa.org#
 hysteria2://qQe1z5kU8kN6SlKnDt9Ru3Qp@47.129.0.20:443?insecure=1&sni=speedtest.tinkoff.ru#%F0%9F%87%B8%F0%9F%87%AC159278%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me/S...
-hysteria2://436114b5f36b2e704bdfa0927d57b6cd@47.241.108.227:50160/?insecure=1&sni=www.bing.com#%F0%9F%87%B8%F0%9F%87%AC%20Singapore%2C%20Singapore%20%7C%20%5BBL%5D
+hysteria2://436114b5f36b2e704bdfa0927d57b6cd@47.241.108.227:50160/?insecure=1&sni=www.bing.com#🇸🇪
 hysteria2://b4bd0613-ff7c-4f2f-954d-185915e6ddad@5.175.249.174:35000?insecure=0&alpn=h3&sni=api.kermanshahi.org&obfs=salamander&obfs-password=@JavidnamanIran-Javid-SHAH-KingRezaPahlavi#%DA%A9%D8%A7%D9%86%D8%A7%D9%84%20%D8%AA%D9%84%DA%AF%D8%B1%D8%A7%D9%85%20%3A%20Free_VPN_CH%40%20%231
 hysteria2://umnDU7jgFYUjpVjVM2sW9HL0rRYLJNgzVwRu2HzWEhyZKkRx@5.83.129.11:443?sni=germany1.h2corp.local&insecure=1#DE
 hysteria2://qQe1z5kU8kN6SlKnDt9Ru3Qp@54.213.89.22:443?insecure=1&sni=vk.com#%F0%9F%87%BA%F0%9F%87%B8139909%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me/S...
@@ -105,7 +106,7 @@ hysteria2://tnnls@bwdf2fnt.xn--e1aatfr8bwa.online:443?insecure=0&sni=bwdf2fnt.xn
 hysteria2://tnnls%3Ab735eacd-3ca7-4019-b98c-3559918100e6@bwdf2fnt.xn--e1aatfr8bwa.online:30000?sni=bwdf2fnt.xn--e1aatfr8bwa.online&insecure=0&obfs=salamander#US
 hysteria2://a9081889-1949-49ba-a2aa-7054515716de@c2.bestai.beauty:3488?insecure=1&sni=c2.bestai.beauty#%E6%97%A5%E6%9C%AC%20%231
 hysteria2://cd74c0a406664a5bc0bac098220a2468@de1.sferavpn.pro:443?insecure=0&sni=de1.sferavpn.pro&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0#Channel%20%3A%20%40Daily_Configs%20%235
-hysteria2://d9a3a0a2-3bbf-4c04-9ca6-95c7c8390ae7@dereserv.just-cloud.org:443#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%7C%20%5BBL%5D
+hysteria2://d9a3a0a2-3bbf-4c04-9ca6-95c7c8390ae7@dereserv.just-cloud.org:443#🇺🇸
 hysteria2://ac7fb60f-0b7a-465d-a002-05160ec04ed6@dora3.api3-max.ru:443?insecure=1&sni=dora3.api3-max.ru#%E6%B3%95%E5%9B%BD
 hysteria2://ac7fb60f-0b7a-465d-a002-05160ec04ed6@dora4.api3-max.ru:443?insecure=1&sni=dora4.api3-max.ru#%E6%B3%95%E5%9B%BD%20%231
 hysteria2://cd74c0a406664a5bc0bac098220a2468@ee2.sferavpn.pro:443?obfs-password=44f1c1e2f8b99e792ceed574627a1eb0&sni=ee2.sferavpn.pro&obfs=salamander&seq=you_are_beautiful4036#🇩🇪
@@ -165,7 +166,7 @@ hysteria2://6dcb725e-947e-4bbe-bb35-903374d57179@rm-eco-us-01.409648.xyz:443?ins
 hysteria2://uj7XGZGUqRlmdpk6rysyZMN333RWsxTFj0hBIMaFV-NUCd5r@ro.h2corp.org:443?security=tls#🇸🇪
 hysteria2://14f7504c-bd01-4d88-bd42-80dc6bf6b202@samurai.h4ck.me:443#🇳🇱
 hysteria2://19f72087-4591-4d72-930b-2697078ec2be@sg1.xiaoliyu.cyou:1933?sni=sg1.xiaoliyu.cyou&insecure=1#SG
-hysteria2://d8d69a2d-dbc3-4d8d-a896-0425dcd04895@united.hysteria.ltd:5443?sni=united.hysteria.ltd#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Buffalo%20%7C%20%5BBL%5D
+hysteria2://d8d69a2d-dbc3-4d8d-a896-0425dcd04895@united.hysteria.ltd:5443?sni=united.hysteria.ltd#🇮🇹
 hysteria2://3b8c82ed-fe66-472d-915e-034ccb57103f@us.frkn.org:443?insecure=1&sni=us.frkn.org#%E7%BE%8E%E5%9B%BD
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@usa0003rlbhy01.tcp-reset-club.net:443?sni=usa0003rlbhy01.tcp-reset-club.net&insecure=0#XX
 hysteria2://d19b459e-fcc3-4f2a-8f2e-77e8701cd1d8@ush2.shazamri.xyz:443?insecure=1&sni=ush2.shazamri.xyz#%F0%9F%87%BA%F0%9F%87%B8US
@@ -174,5 +175,4 @@ hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@vpn-au-002.fastervpn.world:443?insecure=1&s
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@vpn-ca-001.fastervpn.world:443?insecure=1&sni=t.me#%E5%8A%A0%E6%8B%BF%E5%A4%A7
 hy2://H7mP2xY9kJ4nQ8wR5tF6vB3z@vpn-tw-002.fastervpn.world:443/?insecure=1&sni=127.0.0.1#EPODONIOS
 hysteria2://d8d69a2d-dbc3-4d8d-a896-0425dcd04895@wiki.locallynet.org:8443?sni=wiki.locallynet.org#🇨🇦
-hysteria2://44eb80266efef2761a2b@x-ui.havalvpn.ru:27955?insecure=1&sni=x-ui.havalvpn.ru#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%7C%20%5BBL%5D
 hysteria2://41f0d6d3-4a45-4635-8225-2abd2284189b@xg1.mangshe.xyz:2056?insecure=1&security=tls&sni=hdlb1.mangshe.xyz#%E4%BA%9A%E5%A4%AA%E5%9C%B0%E5%8C%BA+V2CROSS.COM
