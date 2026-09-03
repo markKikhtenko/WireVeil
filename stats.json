@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-09-03T09:09:18Z",
-    "msk": "2026-09-03T12:09:18+03:00"
+    "utc": "2026-09-03T10:14:00Z",
+    "msk": "2026-09-03T13:14:00+03:00"
   },
   "sources": [
     {
@@ -11,9 +11,9 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 156,
-      "recognized": 150,
-      "valid": 149,
+      "lines": 88,
+      "recognized": 82,
+      "valid": 81,
       "rejected": 1
     },
     {
@@ -22,9 +22,9 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 94,
-      "recognized": 80,
-      "valid": 79,
+      "lines": 69,
+      "recognized": 55,
+      "valid": 54,
       "rejected": 1
     },
     {
@@ -66,59 +66,59 @@
       "priority": 50,
       "enabled": true,
       "status": "ok",
-      "lines": 2960,
-      "recognized": 2977,
-      "valid": 2943,
-      "rejected": 34
+      "lines": 2944,
+      "recognized": 2957,
+      "valid": 2899,
+      "rejected": 58
     }
   ],
-  "recognized_keys": 3736,
-  "valid_keys_before_deduplication": 3697,
-  "rejected_keys": 39,
-  "duplicates_removed": 819,
-  "eligible_keys_before_mix": 2814,
-  "mix_target": 1000,
-  "total_keys": 1000,
+  "recognized_keys": 3623,
+  "valid_keys_before_deduplication": 3560,
+  "rejected_keys": 63,
+  "duplicates_removed": 758,
+  "eligible_keys_before_mix": 2744,
+  "mix_target": null,
+  "total_keys": 2744,
   "keys_by_protocol": {
-    "vless": 178,
-    "trojan": 178,
-    "shadowsocks": 178,
-    "vmess": 112,
+    "vless": 573,
+    "trojan": 889,
+    "shadowsocks": 280,
+    "vmess": 403,
     "hysteria": 0,
-    "hysteria2": 177,
-    "tuic": 177
+    "hysteria2": 364,
+    "tuic": 235
   },
   "geography": {
-    "ru_excluded": 64,
-    "unknown_kept": 1111,
-    "non_ru_kept": 1703
+    "ru_excluded": 58,
+    "unknown_kept": 1184,
+    "non_ru_kept": 1560
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 1000,
-      "bytes": 217349,
-      "sha256": "5351c77fe249b1638054e22e0092f40d656bdf07ad9d710dd10bb8f50d4e425e"
+      "keys": 2744,
+      "bytes": 552527,
+      "sha256": "3d665eec0ba4385fafcb90593d92a3d48bb502934a8ef68d70cdcdbad41c5902"
     },
     "vless.txt": {
-      "keys": 178,
-      "bytes": 48097,
-      "sha256": "dbd4ab86a206612a789f8e5309d04f2345bd8cf00c65fa3a184db2922cc51cf4"
+      "keys": 573,
+      "bytes": 124357,
+      "sha256": "57ec75d3399b5e58547cec59311434df6f4eb8b7047657ad8bc2c5335552e918"
     },
     "trojan.txt": {
-      "keys": 178,
-      "bytes": 28179,
-      "sha256": "d44bb9696adc3f12e9a90979a5d802928bc089bb69dc52ccc800793ed8fb88da"
+      "keys": 889,
+      "bytes": 136734,
+      "sha256": "3777df513bd29153acabc16f7781a04d2e672022078499bf35f0d1dae6ad3839"
     },
     "shadowsocks.txt": {
-      "keys": 178,
-      "bytes": 22082,
-      "sha256": "67ac05e666593862528ae4e8729cae244ed8fb6dcefd57a458e6a106e1f9e1d1"
+      "keys": 280,
+      "bytes": 30515,
+      "sha256": "87dd3ad0b7d982779b6ad7ca51993d117b0665bd839ca9bd0bcaeae10c9c9f52"
     },
     "vmess.txt": {
-      "keys": 112,
-      "bytes": 39624,
-      "sha256": "f1982da616394325c1bcf89b3884126dde1ca6f1a185469d658f2f271283536c"
+      "keys": 403,
+      "bytes": 137403,
+      "sha256": "9436f2d51bd2dff57a5e8bbae73e2a918eef8f5239a6d5b148a7fd8abaf0bb52"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -126,14 +126,14 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 177,
-      "bytes": 29169,
-      "sha256": "6a55be4d1fa61cf790560f0f215579a257c266d81ce8e25ee95a3448c916eb06"
+      "keys": 364,
+      "bytes": 58690,
+      "sha256": "e817bb2489fa593f86a3c5a2b396feaa5f0b91a9ae8dfd7442d8dab82345c1be"
     },
     "tuic.txt": {
-      "keys": 177,
-      "bytes": 50198,
-      "sha256": "bc21f64dd6623bdf01d100755153c788df53ec5e8fa28972c99ee1c886dc0a1b"
+      "keys": 235,
+      "bytes": 64828,
+      "sha256": "be1bba5461876f06bc89b6796fd18a13567992abe80c81c20a26602543d4dbee"
     }
   }
 }

@@ -1042,6 +1042,19 @@ def select_mixed(
     return selected
 
 
+def validate_required_protocols(
+    candidates: Sequence[Candidate], required_protocols: Sequence[str]
+) -> None:
+    """Ensure the unbounded candidate pool still covers every required protocol."""
+    unknown = set(required_protocols) - set(PROTOCOL_FILES)
+    if unknown:
+        raise BuildError(f"mix requires unknown protocols: {sorted(unknown)}")
+    available = {candidate.parsed.protocol for candidate in candidates}
+    missing = [protocol for protocol in required_protocols if protocol not in available]
+    if missing:
+        raise BuildError(f"mix is missing required protocols: {', '.join(missing)}")
+
+
 def filter_geography(
     candidates: Sequence[Candidate], classifier: Callable[[str], str], workers: int = 24
 ) -> tuple[list[Candidate], Counter]:
@@ -1261,7 +1274,7 @@ def publish_build(
     mix_target: int | None = None,
     root: Path = ROOT,
     min_keys: int = 100,
-    max_keys: int = 1000,
+    max_keys: int | None = None,
     now: dt.datetime | None = None,
 ) -> dict:
     """Stage, validate, and atomically replace every published artifact."""
@@ -1285,7 +1298,7 @@ def publish_build(
         raise BuildError(
             f"safety threshold failed: {len(subscription)} unique keys, minimum is {min_keys}"
         )
-    if len(subscription) > max_keys:
+    if max_keys is not None and len(subscription) > max_keys:
         raise BuildError(
             f"quality threshold failed: {len(subscription)} unique keys, maximum is {max_keys}"
         )
@@ -1429,7 +1442,7 @@ def build(
     timeout: float = 20.0,
     retries: int = 3,
     workers: int = 12,
-    max_keys: int = 1000,
+    max_keys: int | None = None,
     target_keys: int | None = None,
     required_protocols: Sequence[str] = (),
 ) -> dict:
@@ -1468,6 +1481,8 @@ def build(
     eligible_keys = len(filtered)
     if target_keys is not None:
         filtered = select_mixed(filtered, target_keys, required_protocols)
+    else:
+        validate_required_protocols(filtered, required_protocols)
     protocol_lines: dict[str, list[str]] = {protocol: [] for protocol in PROTOCOL_FILES}
     for candidate in filtered:
         protocol_lines[candidate.parsed.protocol].append(candidate.parsed.original)
@@ -1504,8 +1519,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--min-keys", type=int, default=100)
-    parser.add_argument("--max-keys", type=int, default=1000)
-    parser.add_argument("--target-keys", type=int, default=1000)
+    parser.add_argument(
+        "--max-keys",
+        type=int,
+        default=None,
+        help="optional safety ceiling; by default every eligible key is published",
+    )
+    parser.add_argument(
+        "--target-keys",
+        type=int,
+        default=None,
+        help="optional exact mixed sample size; by default every eligible key is published",
+    )
     return parser.parse_args(argv)
 
 

@@ -1,24 +1,24 @@
 # WireVeil
 
-WireVeil — автономный, автоматически обновляемый агрегатор публичных прокси-ключей для клиентов на базе Xray и sing-box. Он собирает ровно 1000 конфигураций для обычного режима чёрных списков, строго проверяет URI, удаляет семантические дубликаты, равномерно распределяет выборку между доступными протоколами и исключает только подтверждённые российские endpoints.
+WireVeil — автономный, автоматически обновляемый агрегатор публичных прокси-ключей для клиентов на базе Xray и sing-box. Он собирает все доступные конфигурации для обычного режима чёрных списков, строго проверяет URI, удаляет семантические дубликаты и исключает только подтверждённые российские endpoints.
 
 Поддерживаются VLESS, Trojan, Shadowsocks, VMess, Hysteria, Hysteria2 (`hy2://` и `hysteria2://`) и TUIC. В каждой сборке обязательны шесть актуальных типов: VLESS, Trojan, Shadowsocks, VMess, Hysteria2 и TUIC. Парсер и отдельный файл Hysteria v1 сохраняются для совместимости, но этот устаревший тип сейчас отсутствует в выбранных живых источниках. WireGuard, AmneziaWG, многострочные конфигурации, JSON/YAML-клиенты и целиком Base64-кодированные выходные подписки не публикуются.
 
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-09-03T12:09:18+03:00** (UTC: 2026-09-03T09:09:18Z).
+Последнее успешное обновление: **2026-09-03T13:14:00+03:00** (UTC: 2026-09-03T10:14:00Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 1000 | 212.3 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 178 | 47.0 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 178 | 27.5 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 178 | 21.6 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 112 | 38.7 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2744 | 539.6 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 573 | 121.4 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 889 | 133.5 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 280 | 29.8 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 403 | 134.2 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 177 | 28.5 KiB |
-| TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 177 | 49.0 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 364 | 57.3 KiB |
+| TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 235 | 63.3 KiB |
 <!-- WIREVEIL_STATS_END -->
 
 `stats.json` содержит подробную статистику, размеры и SHA-256 текущей сборки. В `update-history.json` хранятся последние 20 успешных обновлений.
@@ -26,14 +26,14 @@ WireVeil — автономный, автоматически обновляем
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-09-03T12:10:45+03:00** (UTC: 2026-09-03T09:10:45Z). Проверено через `sing-box version 1.14.0`: **218 из 1000** ключей передали HTTPS-трафик.
+Последняя проверка реального подключения: **2026-09-03T13:20:32+03:00** (UTC: 2026-09-03T10:20:32Z). Проверено через `sing-box version 1.14.0`: **93 из 2744** ключей передали HTTPS-трафик.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 218 | 44.4 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 93 | 19.8 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
-`subscription.txt` всегда остаётся отдельным полным пулом ровно из 1000 кандидатов. `active.txt` — отдельная динамическая подписка: в неё попадают только ключи, через которые `sing-box` действительно получил HTTPS-ответ. Доступность проверяется с GitHub-hosted runner и потому не гарантирует прохождение блокировок конкретного российского провайдера.
+`subscription.txt` всегда остаётся отдельным полным пулом всех семантически уникальных кандидатов из доступных источников после геофильтра. `active.txt` — отдельная динамическая подписка: в неё попадают только ключи, через которые `sing-box` действительно получил HTTPS-ответ. Доступность проверяется с GitHub-hosted runner и потому не гарантирует прохождение блокировок конкретного российского провайдера.
 
 ## Источники
 
@@ -64,7 +64,7 @@ python scripts/build.py
 python scripts/healthcheck.py --sing-box /path/to/sing-box
 ```
 
-Сборщик повторяет временно неудачные запросы, требует доступности всех основных источников, однократно распознаёт Base64-обёрнутый вход и сначала проверяет полный результат во временной директории. После геофильтра он выбирает ровно 1000 семантически уникальных ключей круговым проходом по доступным протоколам; внутри каждого протокола первыми идут источники с более высоким приоритетом. Публикация отменяется, если ключей меньше 1000, отсутствует любой из шести обязательных актуальных протоколов или результат не проходит проверку.
+Сборщик повторяет временно неудачные запросы, требует доступности всех основных источников, однократно распознаёт Base64-обёрнутый вход и сначала проверяет полный результат во временной директории. После геофильтра он публикует все семантически уникальные ключи из доступных источников. Публикация отменяется, если ключей меньше защитного минимума, отсутствует любой из шести обязательных актуальных протоколов или результат не проходит проверку. При необходимости параметры `--target-keys` и `--max-keys` позволяют вручную вернуть точную выборку и верхний предел.
 
 После сборки health-check запускает закреплённый официальный `sing-box`, конвертирует поддерживаемые URI в отдельные outbounds и проверяет каждый через один из двух HTTPS `generate_204` endpoints посредством локального Clash API. ICMP-пинг не используется. Неподдерживаемые, не подключившиеся и не передавшие HTTPS-трафик ключи не попадают в `active.txt`; при системной ошибке или слишком малом результате последняя рабочая активная подписка не перезаписывается. Подробности последнего прогона находятся в `active-stats.json`.
 

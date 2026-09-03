@@ -22,7 +22,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Check out WireVeil
         uses: actions/checkout@v5
@@ -57,7 +57,6 @@ jobs:
         run: >-
           python scripts/healthcheck.py
           --sing-box "$(command -v sing-box)"
-          --expected-keys 1000
           --min-active 10
           --timeout-ms 8000
           --workers 64

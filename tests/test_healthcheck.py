@@ -9,6 +9,10 @@ from tests.test_build import UUID1, vmess_uri
 
 
 class ConversionTests(unittest.TestCase):
+    def test_cli_defaults_test_every_input_key(self):
+        args = healthcheck.parse_args(["--sing-box", "sing-box"])
+        self.assertIsNone(args.expected_keys)
+
     def test_supported_protocols_convert_to_sing_box(self):
         samples = {
             "vless": (

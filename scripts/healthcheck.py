@@ -790,7 +790,7 @@ def healthcheck(
     binary: Path,
     input_path: Path = INPUT_PATH,
     root: Path = ROOT,
-    expected_keys: int = 1000,
+    expected_keys: int | None = None,
     min_active: int = 10,
     timeout_ms: int = 8000,
     workers: int = 64,
@@ -799,7 +799,7 @@ def healthcheck(
     if not binary.is_file():
         raise HealthCheckError(f"sing-box binary not found: {binary}")
     lines = build.validate_txt(input_path)
-    if len(lines) != expected_keys:
+    if expected_keys is not None and len(lines) != expected_keys:
         raise HealthCheckError(
             f"candidate subscription has {len(lines)} keys, expected {expected_keys}"
         )
@@ -843,7 +843,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sing-box", type=Path, required=True)
     parser.add_argument("--input", type=Path, default=INPUT_PATH)
-    parser.add_argument("--expected-keys", type=int, default=1000)
+    parser.add_argument(
+        "--expected-keys",
+        type=int,
+        default=None,
+        help="optional exact candidate count; by default every input key is tested",
+    )
     parser.add_argument("--min-active", type=int, default=10)
     parser.add_argument("--timeout-ms", type=int, default=8000)
     parser.add_argument("--workers", type=int, default=64)

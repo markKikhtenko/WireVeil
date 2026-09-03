@@ -219,6 +219,20 @@ class DeduplicationTests(unittest.TestCase):
         with self.assertRaisesRegex(build.BuildError, "missing required protocols: tuic"):
             build.select_mixed(candidates, 1, ("vless", "tuic"))
 
+    def test_unbounded_pool_rejects_a_missing_required_protocol(self):
+        candidates = [
+            self.candidate(
+                f"vless://{UUID1}@edge.example.com:443?security=tls", 100, "vless"
+            )
+        ]
+        with self.assertRaisesRegex(build.BuildError, "missing required protocols: tuic"):
+            build.validate_required_protocols(candidates, ("vless", "tuic"))
+
+    def test_cli_defaults_publish_the_full_pool(self):
+        args = build.parse_args([])
+        self.assertIsNone(args.target_keys)
+        self.assertIsNone(args.max_keys)
+
 
 class GeographyTests(unittest.TestCase):
     def candidates(self):
@@ -458,6 +472,48 @@ class PublicationTests(unittest.TestCase):
 
 
 class OfflineIntegrationTests(unittest.TestCase):
+    def test_build_without_target_publishes_every_unique_key(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "README.md").write_text(
+                "# Test\n" + build.README_START + "\nold\n" + build.README_END + "\n",
+                encoding="utf-8",
+            )
+            sources = {
+                "sources": [
+                    {
+                        "id": "all",
+                        "name": "All",
+                        "url": "memory://all",
+                        "priority": 100,
+                        "enabled": True,
+                        "protocols": ["vless"],
+                        "note": "test",
+                    }
+                ]
+            }
+            source_path = root / "sources.json"
+            source_path.write_text(json.dumps(sources), encoding="utf-8")
+            payload = "\n".join(
+                [
+                    f"vless://{UUID1}@one.example.com:443?security=tls",
+                    f"vless://{UUID2}@two.example.com:443?security=tls",
+                ]
+            )
+
+            stats = build.build(
+                root=root,
+                sources_path=source_path,
+                fetcher=lambda _url: payload,
+                classifier=lambda _host: "UNKNOWN",
+                min_keys=1,
+                workers=1,
+            )
+
+            self.assertEqual(2, stats["total_keys"])
+            self.assertEqual(2, stats["eligible_keys_before_mix"])
+            self.assertIsNone(stats["mix_target"])
+
     def test_build_skips_unavailable_source_without_network(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

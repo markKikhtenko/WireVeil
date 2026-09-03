@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "checked_at": {
-    "utc": "2026-09-03T09:10:45Z",
-    "msk": "2026-09-03T12:10:45+03:00"
+    "utc": "2026-09-03T10:20:32Z",
+    "msk": "2026-09-03T13:20:32+03:00"
   },
   "engine": {
     "name": "sing-box",
@@ -12,42 +12,43 @@
     "https://www.gstatic.com/generate_204",
     "https://cp.cloudflare.com/generate_204"
   ],
-  "candidate_keys": 1000,
-  "tested_keys": 941,
-  "active_keys": 218,
-  "inactive_keys": 723,
+  "candidate_keys": 2744,
+  "tested_keys": 2519,
+  "active_keys": 93,
+  "inactive_keys": 2426,
   "inactive_reasons": {
-    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 573,
-    "HTTP 504: {\"message\":\"Timeout\"}": 148,
-    "TimeoutError: timed out": 2
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1733,
+    "HTTP 504: {\"message\":\"Timeout\"}": 672,
+    "TimeoutError: timed out": 21
   },
-  "unsupported_keys": 59,
+  "unsupported_keys": 225,
   "unsupported_by_protocol": {
     "hysteria2": 5,
-    "trojan": 4,
+    "trojan": 3,
     "tuic": 1,
-    "vless": 49
+    "vless": 215,
+    "vmess": 1
   },
   "active_by_protocol": {
-    "vless": 59,
-    "trojan": 42,
-    "shadowsocks": 30,
-    "vmess": 24,
+    "vless": 9,
+    "trojan": 25,
+    "shadowsocks": 14,
+    "vmess": 20,
     "hysteria": 0,
-    "hysteria2": 62,
+    "hysteria2": 24,
     "tuic": 1
   },
   "latency_ms": {
-    "minimum": 72,
-    "median": 382,
-    "p95": 4105,
-    "maximum": 6491
+    "minimum": 104,
+    "median": 699,
+    "p95": 4526,
+    "maximum": 5414
   },
-  "candidate_subscription_sha256": "5351c77fe249b1638054e22e0092f40d656bdf07ad9d710dd10bb8f50d4e425e",
+  "candidate_subscription_sha256": "3d665eec0ba4385fafcb90593d92a3d48bb502934a8ef68d70cdcdbad41c5902",
   "output_file": {
     "name": "active.txt",
-    "keys": 218,
-    "bytes": 45506,
-    "sha256": "7ab06ef75779b6946bba1113411a00445cf003e577592ca730f7d21d76177f0f"
+    "keys": 93,
+    "bytes": 20227,
+    "sha256": "5e0612673c301e98f5a65768201f45b34734aaaa1ee5ce120c12f7ebba85235e"
   }
 }
