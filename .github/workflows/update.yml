@@ -1,6 +1,13 @@
 name: Update subscriptions
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update.yml"
+      - "scripts/**"
+      - "sources.json"
+      - "tests/**"
   schedule:
     - cron: "23 * * * *"
   workflow_dispatch:
@@ -31,10 +38,34 @@ jobs:
       - name: Build subscriptions
         run: python scripts/build.py
 
+      - name: Install pinned sing-box health-check runtime
+        shell: bash
+        env:
+          SING_BOX_VERSION: "1.14.0"
+          SING_BOX_SHA256: "2375de6999f4f56ab46b4fc5ddf26a6aba1d3e61a0f4e7ddec2f4690457d5f63"
+        run: |
+          archive="$RUNNER_TEMP/sing-box.tar.gz"
+          runtime="$RUNNER_TEMP/sing-box-$SING_BOX_VERSION-linux-amd64"
+          curl --fail --location --silent --show-error \
+            "https://github.com/SagerNet/sing-box/releases/download/v$SING_BOX_VERSION/sing-box-$SING_BOX_VERSION-linux-amd64.tar.gz" \
+            --output "$archive"
+          echo "$SING_BOX_SHA256  $archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          echo "$runtime" >> "$GITHUB_PATH"
+
+      - name: Probe real tunneled HTTPS connections
+        run: >-
+          python scripts/healthcheck.py
+          --sing-box "$(command -v sing-box)"
+          --expected-keys 1000
+          --min-active 10
+          --timeout-ms 8000
+          --workers 64
+
       - name: Commit real output changes
         shell: bash
         run: |
-          git add -- README.md subscription.txt vless.txt trojan.txt shadowsocks.txt vmess.txt hysteria.txt hysteria2.txt tuic.txt stats.json update-history.json
+          git add -- README.md subscription.txt active.txt active-stats.json vless.txt trojan.txt shadowsocks.txt vmess.txt hysteria.txt hysteria2.txt tuic.txt stats.json update-history.json
           if git diff --cached --quiet; then
             echo "No subscription changes to commit."
             exit 0

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "checked_at": {
+    "utc": "2026-09-03T09:05:51Z",
+    "msk": "2026-09-03T12:05:51+03:00"
+  },
+  "engine": {
+    "name": "sing-box",
+    "version": "sing-box version 1.14.0"
+  },
+  "probe_urls": [
+    "https://www.gstatic.com/generate_204",
+    "https://cp.cloudflare.com/generate_204"
+  ],
+  "candidate_keys": 1000,
+  "tested_keys": 962,
+  "active_keys": 34,
+  "inactive_keys": 928,
+  "inactive_reasons": {
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 617,
+    "HTTP 504: {\"message\":\"Timeout\"}": 311
+  },
+  "unsupported_keys": 38,
+  "unsupported_by_protocol": {
+    "hysteria2": 5,
+    "trojan": 4,
+    "tuic": 1,
+    "vless": 28
+  },
+  "active_by_protocol": {
+    "vless": 0,
+    "trojan": 12,
+    "shadowsocks": 2,
+    "vmess": 6,
+    "hysteria": 0,
+    "hysteria2": 14,
+    "tuic": 0
+  },
+  "latency_ms": {
+    "minimum": 131,
+    "median": 685,
+    "p95": 5516,
+    "maximum": 5745
+  },
+  "candidate_subscription_sha256": "e0a3fa19555186b499ddb091424042707cf602fb63422aecf649b1f33a82205a",
+  "output_file": {
+    "name": "active.txt",
+    "keys": 34,
+    "bytes": 7396,
+    "sha256": "191d1a44fc012b06d3481f1e5d6892e8560d750f28999d4869b3a163bab81fd7"
+  }
+}
