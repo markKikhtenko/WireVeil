@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "checked_at": {
-    "utc": "2026-09-03T09:05:51Z",
-    "msk": "2026-09-03T12:05:51+03:00"
+    "utc": "2026-09-03T09:10:45Z",
+    "msk": "2026-09-03T12:10:45+03:00"
   },
   "engine": {
     "name": "sing-box",
@@ -13,40 +13,41 @@
     "https://cp.cloudflare.com/generate_204"
   ],
   "candidate_keys": 1000,
-  "tested_keys": 962,
-  "active_keys": 34,
-  "inactive_keys": 928,
+  "tested_keys": 941,
+  "active_keys": 218,
+  "inactive_keys": 723,
   "inactive_reasons": {
-    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 617,
-    "HTTP 504: {\"message\":\"Timeout\"}": 311
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 573,
+    "HTTP 504: {\"message\":\"Timeout\"}": 148,
+    "TimeoutError: timed out": 2
   },
-  "unsupported_keys": 38,
+  "unsupported_keys": 59,
   "unsupported_by_protocol": {
     "hysteria2": 5,
     "trojan": 4,
     "tuic": 1,
-    "vless": 28
+    "vless": 49
   },
   "active_by_protocol": {
-    "vless": 0,
-    "trojan": 12,
-    "shadowsocks": 2,
-    "vmess": 6,
+    "vless": 59,
+    "trojan": 42,
+    "shadowsocks": 30,
+    "vmess": 24,
     "hysteria": 0,
-    "hysteria2": 14,
-    "tuic": 0
+    "hysteria2": 62,
+    "tuic": 1
   },
   "latency_ms": {
-    "minimum": 131,
-    "median": 685,
-    "p95": 5516,
-    "maximum": 5745
+    "minimum": 72,
+    "median": 382,
+    "p95": 4105,
+    "maximum": 6491
   },
-  "candidate_subscription_sha256": "e0a3fa19555186b499ddb091424042707cf602fb63422aecf649b1f33a82205a",
+  "candidate_subscription_sha256": "5351c77fe249b1638054e22e0092f40d656bdf07ad9d710dd10bb8f50d4e425e",
   "output_file": {
     "name": "active.txt",
-    "keys": 34,
-    "bytes": 7396,
-    "sha256": "191d1a44fc012b06d3481f1e5d6892e8560d750f28999d4869b3a163bab81fd7"
+    "keys": 218,
+    "bytes": 45506,
+    "sha256": "7ab06ef75779b6946bba1113411a00445cf003e577592ca730f7d21d76177f0f"
   }
 }
