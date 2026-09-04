@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "checked_at": {
-    "utc": "2026-09-04T06:15:24Z",
-    "msk": "2026-09-04T09:15:24+03:00"
+    "utc": "2026-09-04T06:21:08Z",
+    "msk": "2026-09-04T09:21:08+03:00"
   },
   "engine": {
     "name": "sing-box",
@@ -12,43 +12,43 @@
     "https://www.gstatic.com/generate_204",
     "https://cp.cloudflare.com/generate_204"
   ],
-  "candidate_keys": 2221,
-  "tested_keys": 2053,
-  "passing_keys_before_endpoint_deduplication": 51,
-  "active_keys": 51,
+  "candidate_keys": 2219,
+  "tested_keys": 2052,
+  "passing_keys_before_endpoint_deduplication": 370,
+  "active_keys": 370,
   "active_endpoint_duplicates_removed": 0,
-  "inactive_keys": 2002,
+  "inactive_keys": 1682,
   "inactive_reasons": {
-    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1250,
-    "HTTP 504: {\"message\":\"Timeout\"}": 726,
-    "TimeoutError: timed out": 26
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1286,
+    "HTTP 504: {\"message\":\"Timeout\"}": 394,
+    "TimeoutError: timed out": 2
   },
-  "unsupported_keys": 168,
+  "unsupported_keys": 167,
   "unsupported_by_protocol": {
     "hysteria2": 6,
     "trojan": 3,
-    "vless": 159
+    "vless": 158
   },
   "active_by_protocol": {
-    "vless": 11,
-    "trojan": 6,
-    "shadowsocks": 17,
-    "vmess": 9,
+    "vless": 114,
+    "trojan": 17,
+    "shadowsocks": 127,
+    "vmess": 37,
     "hysteria": 0,
-    "hysteria2": 8,
-    "tuic": 0
+    "hysteria2": 73,
+    "tuic": 2
   },
   "latency_ms": {
-    "minimum": 117,
-    "median": 787,
-    "p95": 4206,
-    "maximum": 7427
+    "minimum": 24,
+    "median": 221,
+    "p95": 2394,
+    "maximum": 7768
   },
-  "candidate_subscription_sha256": "fdc9db8aa66495310f82fc9cf6b2920bd99f1988112044672ea00f694d2759ff",
+  "candidate_subscription_sha256": "af9419663f9d2a886f1a4ddc95a71e36ef6f0e20f8824984f070c1573bd64a17",
   "output_file": {
     "name": "active.txt",
-    "keys": 51,
-    "bytes": 9685,
-    "sha256": "8fde588960016c24b76267ff60f8c6c77f84542f41165818894956ca2412e6f5"
+    "keys": 370,
+    "bytes": 59711,
+    "sha256": "8a4120ef2051b714289e372bf3515d57a648dda46e459b8fe79a4f28396a78b2"
   }
 }
