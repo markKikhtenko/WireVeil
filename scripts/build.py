@@ -509,11 +509,19 @@ def fetch_url(
         try:
             with opener(request, timeout=timeout) as response:  # type: ignore[attr-defined]
                 body = response.read()
-            return body.decode("utf-8-sig")
-        except (OSError, UnicodeError, urllib.error.URLError) as exc:
+        except (OSError, urllib.error.URLError) as exc:
             last_error = exc
             if attempt < retries:
                 time.sleep(min(2 ** (attempt - 1), 4))
+            continue
+        try:
+            return body.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            warn(
+                f"{url}: invalid UTF-8 at byte {exc.start}; "
+                "malformed bytes were replaced"
+            )
+            return body.decode("utf-8-sig", errors="replace")
     raise BuildError(f"failed after {retries} attempts: {last_error}")
 
 

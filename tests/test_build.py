@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
+from unittest import mock
 
 from scripts import build
 
@@ -121,6 +122,40 @@ class ProtocolParsingTests(unittest.TestCase):
 
 
 class ExtractionTests(unittest.TestCase):
+    def test_source_with_one_invalid_utf8_byte_is_not_discarded(self):
+        uri = f"vless://{UUID1}@edge.example.com:443?security=tls"
+        payload = uri.encode("utf-8") + b"#broken-\xb9-name\n"
+        calls = 0
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return payload
+
+        def opener(_request, *, timeout):
+            nonlocal calls
+            calls += 1
+            self.assertEqual(1.0, timeout)
+            return Response()
+
+        with mock.patch.object(build, "warn") as warning:
+            text = build.fetch_url(
+                "https://example.com/subscription.txt",
+                timeout=1.0,
+                retries=3,
+                opener=opener,
+            )
+
+        self.assertIn("\ufffd", text)
+        self.assertEqual([uri + "#broken-\ufffd-name"], build.extract_uris(text))
+        self.assertEqual(1, calls)
+        warning.assert_called_once()
+
     def test_plain_text_and_single_base64_wrapper(self):
         uri = f"vless://{UUID1}@edge.example.com:443?security=tls"
         self.assertEqual([uri], build.extract_uris("heading\n" + uri + "\nfooter"))
