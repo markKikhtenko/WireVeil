@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "checked_at": {
-    "utc": "2026-09-05T10:50:01Z",
-    "msk": "2026-09-05T13:50:01+03:00"
+    "utc": "2026-09-05T13:58:26Z",
+    "msk": "2026-09-05T16:58:26+03:00"
   },
   "engine": {
     "name": "sing-box",
@@ -12,15 +12,15 @@
     "https://www.gstatic.com/generate_204",
     "https://cp.cloudflare.com/generate_204"
   ],
-  "candidate_keys": 2246,
-  "tested_keys": 2079,
-  "passing_keys_before_endpoint_deduplication": 375,
-  "active_keys": 375,
+  "candidate_keys": 2218,
+  "tested_keys": 2051,
+  "passing_keys_before_endpoint_deduplication": 367,
+  "active_keys": 367,
   "active_endpoint_duplicates_removed": 0,
-  "inactive_keys": 1704,
+  "inactive_keys": 1684,
   "inactive_reasons": {
-    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1301,
-    "HTTP 504: {\"message\":\"Timeout\"}": 401,
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1296,
+    "HTTP 504: {\"message\":\"Timeout\"}": 386,
     "TimeoutError: timed out": 2
   },
   "unsupported_keys": 167,
@@ -31,25 +31,25 @@
     "vless": 155
   },
   "active_by_protocol": {
-    "vless": 143,
-    "trojan": 14,
-    "shadowsocks": 117,
-    "vmess": 17,
+    "vless": 130,
+    "trojan": 19,
+    "shadowsocks": 121,
+    "vmess": 15,
     "hysteria": 0,
-    "hysteria2": 84,
+    "hysteria2": 82,
     "tuic": 0
   },
   "latency_ms": {
-    "minimum": 33,
-    "median": 335,
-    "p95": 3191,
-    "maximum": 7158
+    "minimum": 21,
+    "median": 334,
+    "p95": 3040,
+    "maximum": 6652
   },
-  "candidate_subscription_sha256": "83fe12fec854588786367b30e2459ac7a6ac2691962b897ae23557810108fa3d",
+  "candidate_subscription_sha256": "7d64e0a873b6bb826ea050754212c4107701741dc7c1a8c379056a337473430e",
   "output_file": {
     "name": "active.txt",
-    "keys": 375,
-    "bytes": 63554,
-    "sha256": "cdd3670baa38aea86f136033f639090caa9a8e437bc5a495d0bce9c6659071b1"
+    "keys": 367,
+    "bytes": 60824,
+    "sha256": "112848ac0988e7756373e97a52ca9004291e07d6df7ff80f0d03c38cd908a731"
   }
 }
