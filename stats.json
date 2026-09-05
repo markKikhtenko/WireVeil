@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-09-05T16:53:16Z",
-    "msk": "2026-09-05T19:53:16+03:00"
+    "utc": "2026-09-05T19:10:30Z",
+    "msk": "2026-09-05T22:10:30+03:00"
   },
   "sources": [
     {
@@ -11,10 +11,10 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 137,
-      "recognized": 131,
-      "valid": 90,
-      "rejected": 41
+      "lines": 88,
+      "recognized": 82,
+      "valid": 71,
+      "rejected": 11
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -22,10 +22,10 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 138,
-      "recognized": 124,
-      "valid": 82,
-      "rejected": 42
+      "lines": 80,
+      "recognized": 66,
+      "valid": 55,
+      "rejected": 11
     },
     {
       "id": "wlunlocker-blacklist-vpn1",
@@ -33,9 +33,9 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 178,
-      "recognized": 175,
-      "valid": 175,
+      "lines": 31,
+      "recognized": 28,
+      "valid": 28,
       "rejected": 0
     },
     {
@@ -72,55 +72,55 @@
       "rejected": 25
     }
   ],
-  "recognized_keys": 3865,
-  "valid_keys_before_deduplication": 3754,
-  "rejected_keys": 111,
-  "duplicates_removed": 1336,
-  "semantic_duplicates_removed": 762,
-  "endpoint_duplicates_removed": 574,
-  "eligible_keys_before_mix": 2365,
+  "recognized_keys": 3611,
+  "valid_keys_before_deduplication": 3561,
+  "rejected_keys": 50,
+  "duplicates_removed": 1199,
+  "semantic_duplicates_removed": 719,
+  "endpoint_duplicates_removed": 480,
+  "eligible_keys_before_mix": 2309,
   "mix_target": null,
-  "total_keys": 2365,
+  "total_keys": 2309,
   "keys_by_protocol": {
-    "vless": 536,
+    "vless": 514,
     "trojan": 886,
-    "shadowsocks": 364,
-    "vmess": 148,
+    "shadowsocks": 365,
+    "vmess": 144,
     "hysteria": 0,
-    "hysteria2": 195,
+    "hysteria2": 164,
     "tuic": 236
   },
   "geography": {
     "ru_excluded": 53,
-    "unknown_kept": 1048,
-    "non_ru_kept": 1317
+    "unknown_kept": 1006,
+    "non_ru_kept": 1303
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 2365,
-      "bytes": 434309,
-      "sha256": "583f5f4938d8a6864c91d1bfdaae958cba6e349c2b4600960e029fc72b15b58e"
+      "keys": 2309,
+      "bytes": 422309,
+      "sha256": "91d077bb60a1739a00e71630bb5d96d762cfe6c65b4523d1f69948ccfe2ceeab"
     },
     "vless.txt": {
-      "keys": 536,
-      "bytes": 112382,
-      "sha256": "92e441a975fc90a6ea96e60f53f66ceff576a20376a6e1c84a742d123bb8cfa9"
+      "keys": 514,
+      "bytes": 107006,
+      "sha256": "d5952f7d475cfc0ac5b353e0229a749147eaa6390254cb71c6e57f063f5286fd"
     },
     "trojan.txt": {
       "keys": 886,
-      "bytes": 133965,
-      "sha256": "94fdcddba0c094eb693f0079314d37be6ab9be6aa9110a10d45bcd811b3ae006"
+      "bytes": 133912,
+      "sha256": "ea133ae7a41980f121df63c3fcbf62455d85dd8dd43ac087a94632f97f9d0c9b"
     },
     "shadowsocks.txt": {
-      "keys": 364,
-      "bytes": 39896,
-      "sha256": "bf5fa2b208fe218c9bdfa8532f4a1aec935c9f1127426a2b7686fd21650fc499"
+      "keys": 365,
+      "bytes": 40046,
+      "sha256": "149ab59da7589db7927833ee2723ea01349c1bdbdba53d4541ba7b095d78c69b"
     },
     "vmess.txt": {
-      "keys": 148,
-      "bytes": 54894,
-      "sha256": "7225a671a3af6947506f63032771844b3a27bdf86bad235cf5e7dc539be0ef1e"
+      "keys": 144,
+      "bytes": 53386,
+      "sha256": "159be5a1c0f01ff0301592f130f18b7b5e80bc5a30662357b3c0bb71106d22ec"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -128,9 +128,9 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 195,
-      "bytes": 27911,
-      "sha256": "80ec0f004e93db2280a1333230499c3ab1243423d094ea18e94534896b1e753e"
+      "keys": 164,
+      "bytes": 22698,
+      "sha256": "20403d183530ab90b35f4e1653eaa7377d73da1cdf4e3eae2abde617a3c9e7af"
     },
     "tuic.txt": {
       "keys": 236,
