@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "checked_at": {
-    "utc": "2026-09-04T22:29:17Z",
-    "msk": "2026-09-05T01:29:17+03:00"
+    "utc": "2026-09-05T01:11:32Z",
+    "msk": "2026-09-05T04:11:32+03:00"
   },
   "engine": {
     "name": "sing-box",
@@ -12,44 +12,44 @@
     "https://www.gstatic.com/generate_204",
     "https://cp.cloudflare.com/generate_204"
   ],
-  "candidate_keys": 2203,
-  "tested_keys": 2013,
-  "passing_keys_before_endpoint_deduplication": 341,
-  "active_keys": 341,
+  "candidate_keys": 2205,
+  "tested_keys": 2012,
+  "passing_keys_before_endpoint_deduplication": 356,
+  "active_keys": 356,
   "active_endpoint_duplicates_removed": 0,
-  "inactive_keys": 1672,
+  "inactive_keys": 1656,
   "inactive_reasons": {
-    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1267,
-    "HTTP 504: {\"message\":\"Timeout\"}": 403,
+    "HTTP 503: {\"message\":\"An error occurred in the delay test\"}": 1254,
+    "HTTP 504: {\"message\":\"Timeout\"}": 400,
     "TimeoutError: timed out": 2
   },
-  "unsupported_keys": 190,
+  "unsupported_keys": 193,
   "unsupported_by_protocol": {
     "hysteria2": 6,
     "trojan": 5,
     "tuic": 2,
-    "vless": 177
+    "vless": 180
   },
   "active_by_protocol": {
-    "vless": 128,
-    "trojan": 17,
-    "shadowsocks": 93,
-    "vmess": 14,
+    "vless": 132,
+    "trojan": 24,
+    "shadowsocks": 95,
+    "vmess": 16,
     "hysteria": 0,
     "hysteria2": 89,
     "tuic": 0
   },
   "latency_ms": {
-    "minimum": 32,
-    "median": 326,
-    "p95": 3467,
-    "maximum": 7553
+    "minimum": 42,
+    "median": 248,
+    "p95": 1292,
+    "maximum": 5032
   },
-  "candidate_subscription_sha256": "9faf972cd50ad17f6e22274b289420453797b3f414ca638db9bddb2d9ba7532e",
+  "candidate_subscription_sha256": "b733fd431c3a0d0b2c6958f67bc6d4318c9d7b75030ec77cee646d1c93528934",
   "output_file": {
     "name": "active.txt",
-    "keys": 341,
-    "bytes": 56942,
-    "sha256": "b1b229c5de4a7f7c0666a35d10f5b1b0befe3c1be9d8ac05c61564dec0f5327b"
+    "keys": 356,
+    "bytes": 60411,
+    "sha256": "398b69a44c20ee1e174ba6e81dcb79c0876d61aaeab9e6ee322c4f35eb12c573"
   }
 }
