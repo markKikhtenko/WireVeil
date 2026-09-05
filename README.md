@@ -7,17 +7,17 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-09-05T08:54:44+03:00** (UTC: 2026-09-05T05:54:44Z).
+Последнее успешное обновление: **2026-09-05T13:46:33+03:00** (UTC: 2026-09-05T10:46:33Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2407 | 445.9 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 613 | 126.5 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 865 | 127.6 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 274 | 28.3 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 224 | 73.6 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2246 | 414.1 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 640 | 147.3 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 799 | 115.2 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 292 | 30.0 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 98 | 34.1 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 196 | 26.8 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 182 | 24.3 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 235 | 63.2 KiB |
 <!-- WIREVEIL_STATS_END -->
 
@@ -26,11 +26,11 @@ WireVeil — автономный, автоматически обновляем
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-09-05T08:58:12+03:00** (UTC: 2026-09-05T05:58:12Z). Проверено через `sing-box version 1.14.0`: **357 из 2407** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **357**.
+Последняя проверка реального подключения: **2026-09-05T13:50:01+03:00** (UTC: 2026-09-05T10:50:01Z). Проверено через `sing-box version 1.14.0`: **375 из 2246** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **375**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 357 | 58.1 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 375 | 62.1 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 `subscription.txt` всегда остаётся отдельным полным пулом кандидатов из доступных источников после геофильтра и endpoint-дедупликации. `active.txt` — отдельная динамическая подписка: в неё попадают только ключи, через которые `sing-box` действительно получил HTTPS-ответ; повторные сочетания «протокол + сервер + порт» дополнительно схлопываются с сохранением самого быстрого рабочего варианта. Доступность проверяется с GitHub-hosted runner и потому не гарантирует прохождение блокировок конкретного российского провайдера.
