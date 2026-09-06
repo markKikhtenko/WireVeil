@@ -335,6 +335,7 @@ trojan://2e7d3f13-be1b-479c-94ff-0e95c2bd565d@209.46.30.215:443?security=tls&sni
 trojan://humanity@212.227.144.37:8443?sni=www.calmlunch.com&peer=www.calmlunch.com&security=tls#ES
 trojan://humanity@213.182.199.137:443?sni=www.pleadcourt.org&peer=www.pleadcourt.org&security=tls#HR
 trojan://23391d1e-3567-4555-9e40-de87569d74f6@213.202.216.14:443?security=tls&sni=downloadde.xn--mes358acgm99l.com&allowInsecure=1&type=tcp#
+trojan://UQfj7bdfjibTjpUHfg72aew51S7fB32g@216.195.211.50:443?allowInsecure=1&insecure=1&type=tcp&security=tls&fp=chrome#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20San%20Jose%20%7C%20%5BBL%5D
 trojan://humanity@216.24.57.7:443?sni=www.ignitelimit.com&peer=www.ignitelimit.com&security=tls#US
 trojan://0dd0ae16-4081-4530-a925-c3c34ca07d57@217.79.184.18:443?security=tls&sni=download.xn--mes358a9urctx.com&allowInsecure=1&type=tcp#
 trojan://41bec492-cd79-4b57-9a15-7d2bb00fcfca@217.79.184.76:443/?type=tcp&security=tls&sni=18-140-66-207.nhost.00cdn.com&allowInsecure=1#
@@ -618,6 +619,7 @@ trojan://3a2c0c6c-9ee5-c05f-c951-fcd73831983e@kr01.wangxd.life:3052?security=tls
 trojan://3a2c0c6c-9ee5-c05f-c951-fcd73831983e@kr05.wangxd.life:3052#
 trojan://FDIypSwe64a3DA7un2R8DFjYXZO3NS05gKZTTOC8SxO0Fy3cqYg3EaFDA3ABaEYKNx39D@kuame.missionsec.us:443?sni=kuame.missionsec.us&peer=kuame.missionsec.us&security=tls#JP
 trojan://3b9deff947c74dde@kuso153.pacemakere.com:101?security=tls#
+trojan://UQfj7bdfjibTjpUHfg72aew51S7fB32g@littoral.appagent.net:443?type=raw&security=tls&fp=android#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20San%20Jose%20%7C%20%5BBL%5D
 trojan://BWDcALS5TU@lllliraniv2rayllll.norooz.shop:2083?sni=lllliraniv2rayllll.norooz.shop&peer=lllliraniv2rayllll.norooz.shop&security=tls#XX
 trojan://a4aac0ee79b742fb966568187bd70f68@log-svc-1fc77c.t2579389.workers.dev:443?sni=loG-sVC-1FC77c.t2579389.wOrkERS.dEv&peer=loG-sVC-1FC77c.t2579389.wOrkERS.dEv&security=tls#XX
 trojan://3a2c0c6c-9ee5-c05f-c951-fcd73831983e@lsj02.wangxd.life:3052/?type=tcp&security=tls#
