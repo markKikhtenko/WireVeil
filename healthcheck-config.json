@@ -1,0 +1,6 @@
+{
+  "good": {
+    "enabled": true,
+    "max_latency_ms": 500
+  }
+}

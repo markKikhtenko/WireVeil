@@ -7,6 +7,7 @@ on:
       - ".github/workflows/update.yml"
       - "scripts/**"
       - "sources.json"
+      - "healthcheck-config.json"
       - "tests/**"
   schedule:
     - cron: "23 * * * *"
@@ -64,7 +65,7 @@ jobs:
       - name: Commit real output changes
         shell: bash
         run: |
-          git add -- README.md subscription.txt active.txt active-stats.json vless.txt trojan.txt shadowsocks.txt vmess.txt hysteria.txt hysteria2.txt tuic.txt stats.json update-history.json
+          git add -- README.md subscription.txt active.txt good.txt active-stats.json vless.txt trojan.txt shadowsocks.txt vmess.txt hysteria.txt hysteria2.txt tuic.txt stats.json update-history.json
           if git diff --cached --quiet; then
             echo "No subscription changes to commit."
             exit 0

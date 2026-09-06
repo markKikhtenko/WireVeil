@@ -5,6 +5,8 @@ The checker converts supported share links to sing-box outbounds, starts one
 temporary sing-box instance, and asks its local Clash API to fetch HTTPS probe
 URLs through every outbound. A key is active only after a real tunneled HTTP
 request succeeds; ICMP reachability is deliberately not used.
+The good subscription filters these active results by recorded errors and HTTPS
+latency without changing the probes or active subscription selection.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ from scripts import build
 INPUT_PATH = ROOT / "subscription.txt"
 OUTPUT_PATH = ROOT / "active.txt"
 STATS_PATH = ROOT / "active-stats.json"
+CONFIG_PATH = ROOT / "healthcheck-config.json"
 README_START = "<!-- WIREVEIL_HEALTH_START -->"
 README_END = "<!-- WIREVEIL_HEALTH_END -->"
 DEFAULT_PROBE_URLS = (
@@ -68,6 +71,32 @@ class HealthCheckError(RuntimeError):
 
 class UnsupportedConfig(HealthCheckError):
     pass
+
+
+@dataclasses.dataclass(frozen=True)
+class GoodConfig:
+    enabled: bool = True
+    max_latency_ms: int = 500
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise HealthCheckError("good.enabled must be a boolean")
+        if type(self.max_latency_ms) is not int or self.max_latency_ms <= 0:
+            raise HealthCheckError("good.max_latency_ms must be a positive integer")
+
+
+def load_good_config(path: Path = CONFIG_PATH) -> GoodConfig:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HealthCheckError(f"cannot read health-check config {path}: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("good", {}), dict):
+        raise HealthCheckError("health-check config must contain a good object")
+    good = data.get("good", {})
+    unknown = set(good) - {"enabled", "max_latency_ms"}
+    if unknown:
+        raise HealthCheckError(f"unknown good settings: {', '.join(sorted(unknown))}")
+    return GoodConfig(**good)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -685,8 +714,22 @@ def _format_size(size: int) -> str:
     return f"{size / 1024:.1f} KiB"
 
 
+def _latency_summary(delays: Sequence[int]) -> dict:
+    return {
+        "latency_min": min(delays) if delays else None,
+        "latency_avg": round(statistics.mean(delays), 2) if delays else None,
+        "latency_max": max(delays) if delays else None,
+    }
+
+
 def _update_readme(template: str, stats: dict) -> str:
     output = stats["output_file"]
+    good_output = stats["good_output_file"]
+    good_label = (
+        f"Рабочие и быстрые (≤ {stats['good']['max_latency_ms']} мс)"
+        if stats["good"]["enabled"]
+        else "Рабочие и быстрые (отключено)"
+    )
     dynamic = (
         f"{README_START}\n"
         f"Последняя проверка реального подключения: **{stats['checked_at']['msk']}** "
@@ -700,6 +743,9 @@ def _update_readme(template: str, stats: dict) -> str:
         "| Только активные и проверенные | "
         "[RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | "
         f"{output['keys']} | {_format_size(output['bytes'])} |\n"
+        f"| {good_label} | "
+        "[RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | "
+        f"{good_output['keys']} | {_format_size(good_output['bytes'])} |\n"
         f"{README_END}"
     )
     pattern = re.compile(re.escape(README_START) + r".*?" + re.escape(README_END), re.S)
@@ -718,6 +764,7 @@ def publish_results(
     probe_urls: Sequence[str],
     root: Path = ROOT,
     min_active: int = 1,
+    good: GoodConfig = GoodConfig(),
     now: dt.datetime | None = None,
 ) -> dict:
     mixed = _mix_active(results)
@@ -733,6 +780,22 @@ def publish_results(
     for line in active_lines:
         build.parse_uri(line)
 
+    # Filter the already selected active subscription so its membership,
+    # endpoint winners and protocol ordering stay independent of good settings.
+    # The existing probe may retain an earlier error after a fallback succeeds:
+    # that result remains active, but does not qualify as good.
+    good_results = [
+        result
+        for result in mixed
+        if good.enabled
+        and result.active
+        and result.error is None
+        and result.delay_ms is not None
+        and 0 < result.delay_ms <= good.max_latency_ms
+    ]
+    good_content = "".join(f"{result.target.uri}\n" for result in good_results).encode("utf-8")
+    good_delays = [result.delay_ms for result in good_results]
+
     checked_at = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
     checked_at = checked_at.replace(microsecond=0)
     moscow = checked_at.astimezone(dt.timezone(dt.timedelta(hours=3), name="MSK"))
@@ -740,6 +803,7 @@ def publish_results(
     unsupported = Counter(conversion_unsupported)
     unsupported.update(runtime_rejected)
     active_by_protocol = Counter(result.target.protocol for result in mixed)
+    good_by_protocol = Counter(result.target.protocol for result in good_results)
     inactive_reasons = Counter(
         result.error or "unknown" for result in results if not result.active
     )
@@ -758,6 +822,13 @@ def publish_results(
         "tested_keys": tested_count,
         "passing_keys_before_endpoint_deduplication": passing_count,
         "active_keys": len(active_lines),
+        "total_active": len(active_lines),
+        "total_good": len(good_results),
+        **_latency_summary(delays),
+        "good": {
+            **dataclasses.asdict(good),
+            **_latency_summary(good_delays),
+        },
         "active_endpoint_duplicates_removed": endpoint_duplicates,
         "inactive_keys": tested_count - passing_count,
         "inactive_reasons": dict(inactive_reasons.most_common(20)),
@@ -767,12 +838,26 @@ def publish_results(
             protocol: int(active_by_protocol.get(protocol, 0))
             for protocol in build.PROTOCOL_FILES
         },
-        "latency_ms": {
-            "minimum": min(delays),
-            "median": round(statistics.median(delays)),
-            "p95": delays[min(len(delays) - 1, int(len(delays) * 0.95))],
-            "maximum": max(delays),
+        "good_by_protocol": {
+            protocol: int(good_by_protocol.get(protocol, 0))
+            for protocol in build.PROTOCOL_FILES
         },
+        "latency_ms": {
+            "minimum": min(delays) if delays else None,
+            "median": round(statistics.median(delays)) if delays else None,
+            "p95": delays[min(len(delays) - 1, int(len(delays) * 0.95))] if delays else None,
+            "maximum": max(delays) if delays else None,
+        },
+        "probe_results": [
+            {
+                "candidate_index": result.target.index,
+                "uri_sha256": _sha256_bytes(result.target.uri.encode("utf-8")),
+                "active": result.active,
+                "latency_ms": result.delay_ms,
+                "error": result.error,
+            }
+            for result in sorted(results, key=lambda item: item.target.index)
+        ],
         "candidate_subscription_sha256": _sha256_bytes(
             "".join(f"{line}\n" for line in candidate_lines).encode("utf-8")
         ),
@@ -781,6 +866,12 @@ def publish_results(
             "keys": len(active_lines),
             "bytes": len(content),
             "sha256": _sha256_bytes(content),
+        },
+        "good_output_file": {
+            "name": "good.txt",
+            "keys": len(good_results),
+            "bytes": len(good_content),
+            "sha256": _sha256_bytes(good_content),
         },
     }
 
@@ -792,6 +883,7 @@ def publish_results(
     with tempfile.TemporaryDirectory(prefix=".wireveil-health-", dir=root) as name:
         staging = Path(name)
         (staging / "active.txt").write_bytes(content)
+        (staging / "good.txt").write_bytes(good_content)
         (staging / "active-stats.json").write_text(
             json.dumps(stats, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -801,8 +893,9 @@ def publish_results(
             updated_readme, encoding="utf-8", newline="\n"
         )
         build.validate_txt(staging / "active.txt")
+        build.validate_txt(staging / "good.txt")
         json.loads((staging / "active-stats.json").read_text(encoding="utf-8"))
-        for filename in ("active.txt", "active-stats.json", "README.md"):
+        for filename in ("active.txt", "good.txt", "active-stats.json", "README.md"):
             os.replace(staging / filename, root / filename)
     return stats
 
@@ -817,6 +910,7 @@ def healthcheck(
     timeout_ms: int = 8000,
     workers: int = 64,
     probe_urls: Sequence[str] = DEFAULT_PROBE_URLS,
+    good: GoodConfig = GoodConfig(),
 ) -> dict:
     if not binary.is_file():
         raise HealthCheckError(f"sing-box binary not found: {binary}")
@@ -851,10 +945,12 @@ def healthcheck(
         probe_urls=probe_urls,
         root=root,
         min_active=min_active,
+        good=good,
     )
     print(
         f"Health-check complete: {stats['active_keys']}/{stats['candidate_keys']} "
-        f"keys passed a tunneled HTTPS request"
+        f"keys passed a tunneled HTTPS request; {stats['total_good']} good keys "
+        f"(enabled={good.enabled}, max_latency_ms={good.max_latency_ms})"
     )
     for protocol, count in stats["active_by_protocol"].items():
         print(f"  {protocol}: {count}")
@@ -865,6 +961,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sing-box", type=Path, required=True)
     parser.add_argument("--input", type=Path, default=INPUT_PATH)
+    parser.add_argument(
+        "--config", type=Path, default=CONFIG_PATH,
+        help="JSON quality-filter settings (default: healthcheck-config.json)",
+    )
     parser.add_argument(
         "--expected-keys",
         type=int,
@@ -881,6 +981,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        good = load_good_config(args.config)
         healthcheck(
             binary=args.sing_box,
             input_path=args.input,
@@ -889,6 +990,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout_ms=args.timeout_ms,
             workers=args.workers,
             probe_urls=args.probe_urls or DEFAULT_PROBE_URLS,
+            good=good,
         )
     except (HealthCheckError, build.BuildError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
