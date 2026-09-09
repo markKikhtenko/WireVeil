@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-09-09T09:55:39Z",
-    "msk": "2026-09-09T12:55:39+03:00"
+    "utc": "2026-09-09T14:41:09Z",
+    "msk": "2026-09-09T17:41:09+03:00"
   },
   "sources": [
     {
@@ -11,10 +11,10 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 119,
-      "recognized": 113,
-      "valid": 112,
-      "rejected": 1
+      "lines": 120,
+      "recognized": 114,
+      "valid": 114,
+      "rejected": 0
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -22,10 +22,10 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 66,
-      "recognized": 52,
-      "valid": 51,
-      "rejected": 1
+      "lines": 45,
+      "recognized": 31,
+      "valid": 31,
+      "rejected": 0
     },
     {
       "id": "wlunlocker-blacklist-vpn1",
@@ -33,9 +33,9 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 61,
-      "recognized": 58,
-      "valid": 58,
+      "lines": 66,
+      "recognized": 63,
+      "valid": 63,
       "rejected": 0
     },
     {
@@ -72,55 +72,55 @@
       "rejected": 29
     }
   ],
-  "recognized_keys": 3692,
-  "valid_keys_before_deduplication": 3658,
-  "rejected_keys": 34,
-  "duplicates_removed": 1395,
-  "semantic_duplicates_removed": 873,
-  "endpoint_duplicates_removed": 522,
-  "eligible_keys_before_mix": 2222,
+  "recognized_keys": 3677,
+  "valid_keys_before_deduplication": 3645,
+  "rejected_keys": 32,
+  "duplicates_removed": 1380,
+  "semantic_duplicates_removed": 827,
+  "endpoint_duplicates_removed": 553,
+  "eligible_keys_before_mix": 2224,
   "mix_target": null,
-  "total_keys": 2222,
+  "total_keys": 2224,
   "keys_by_protocol": {
-    "vless": 615,
+    "vless": 616,
     "trojan": 823,
-    "shadowsocks": 266,
-    "vmess": 98,
+    "shadowsocks": 274,
+    "vmess": 99,
     "hysteria": 0,
-    "hysteria2": 187,
+    "hysteria2": 179,
     "tuic": 233
   },
   "geography": {
     "ru_excluded": 41,
-    "unknown_kept": 1001,
-    "non_ru_kept": 1221
+    "unknown_kept": 1020,
+    "non_ru_kept": 1204
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 2222,
-      "bytes": 408410,
-      "sha256": "3415d96e74373e43175984ac5e8d555677c85969eecf7f1c7cebfbe828ffff52"
+      "keys": 2224,
+      "bytes": 407388,
+      "sha256": "5a4997e571788aeb76c826e1fdfccf9b267a8b86ad6335a1250a585880072832"
     },
     "vless.txt": {
-      "keys": 615,
-      "bytes": 132329,
-      "sha256": "254eab3de5de66c3d53215f675e274730a394a8e7a96e48109f72f60ac507642"
+      "keys": 616,
+      "bytes": 131912,
+      "sha256": "529e42c4e61d90d5b54877cd257cbba19efefb9d38d859a8886dad209c227557"
     },
     "trojan.txt": {
       "keys": 823,
-      "bytes": 121822,
-      "sha256": "e3f736515f55766180b3ab56d409171f2c04a09cb6c1317bcf4622effea39447"
+      "bytes": 121842,
+      "sha256": "8535c81689882e9bb4bef6e933d130389e74256517f609f0393f58e1640cca79"
     },
     "shadowsocks.txt": {
-      "keys": 266,
-      "bytes": 27714,
-      "sha256": "5ffecc631d865c15addbca30bc1f7b202fd183d049a3d292249581a9657b5d36"
+      "keys": 274,
+      "bytes": 28300,
+      "sha256": "6721ef6b317b28ebec66901cd95770e269fea3143db5fffdfb77fa7b8aae7a40"
     },
     "vmess.txt": {
-      "keys": 98,
-      "bytes": 34767,
-      "sha256": "2c4a76a653e1cf7fb2f6b90d752a8cb32a9ae689b9dc160eac45452000d2ca98"
+      "keys": 99,
+      "bytes": 35307,
+      "sha256": "aa9c8bb8ac3791126694f59c1c591913461eb2ed1fafbd543ca5c3d66384e826"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -128,9 +128,9 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 187,
-      "bytes": 27006,
-      "sha256": "7330fe6e35f03b8e47886a3c3dd3272eceea4557c7b0d48fcfa0360b1bb9fdff"
+      "keys": 179,
+      "bytes": 25255,
+      "sha256": "d9f739d734531ea3198d8bc4388d0f36dbfdaf3e5f1eba3988ea7ff5b8663d3a"
     },
     "tuic.txt": {
       "keys": 233,
