@@ -7,7 +7,7 @@ hysteria2://f25f19f29ce3fb53a35bf1b35b452a43@129.159.156.109:50160?insecure=1&sn
 hysteria2://qQe1z5kU8kN6SlKnDt9Ru3Qp@13.250.120.9:443?insecure=1&sni=13.250.120.9#%F0%9F%8E%A165%40oneclickvpnkeys
 hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?sni=hy2.aspidnet.xyz&insecure=0&obfs=salamander#HK
 hysteria2://zhangyang@130.61.50.75:6443/?insecure=1&sni=130.61.50.75#
-hysteria2://7302ad33229de166d393cd56143a1e4c@131.186.19.174:50160?insecure=1&sni=css.rbxcdn.com&type=tcp&allowInsecure=1&upmbps=10&downmbps=50#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Yangcheondong%20%7C%20%5BBL%5D
+hysteria2://7302ad33229de166d393cd56143a1e4c@131.186.19.174:50160?insecure=1&sni=css.rbxcdn.com&type=tcp&allowInsecure=1&upmbps=10&downmbps=50#🇩🇪
 hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160/?insecure=1&sni=www.bing.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Yangcheondong%20%7C%20%5BBL%5D
 hysteria2://h_B9x3942fJ9x_Kpx3914KQ_nZ934HFg_rT@138.124.0.168:8080/?insecure=1&sni=hopp-legend-se.roxa.org#
 hysteria2://f87376e17da040ed04c9665ce8972930@138.2.73.238:50160?insecure=1&sni=www.bing.com#%F0%9F%87%B8%F0%9F%87%AC%20Singapore%2C%20Singapore%20%28Loyang%29%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
@@ -22,7 +22,7 @@ hysteria2://cbb5cf13f04b22883390f1a073753123@147.224.12.19:443?insecure=1&sni=ww
 hysteria2://a34f3990b69f44bfa0d32385@149.118.78.109:443?insecure=1&sni=rmgyvpn.rest&obfs=salamander&obfs-password=a34f3990b69f44bfa0d32385#AU
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@15.223.122.197:443/?insecure=1&sni=t.me#
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@15.223.183.81:443/?insecure=1&sni=t.me#
-hysteria2://3d7634af8cb2c6cb4bac1c0efad8b43d@152.67.200.82:50160?insecure=1&sni=speedtest.tinkoff.ru#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Chuncheon-si%20%7C%20%5BBL%5D
+hysteria2://3d7634af8cb2c6cb4bac1c0efad8b43d@152.67.200.82:50160?insecure=1&sni=css.rbxcdn.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Chuncheon-si%20%7C%20%5BBL%5D
 hysteria2://maintell@152.70.237.123:2053?insecure=1&sni=bing.com#%F0%9F%87%B0%F0%9F%87%B7%20South%20Korea%2C%20Yangcheondong%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://bce6c821-200d-421f-bf3d-7159e5246ea0@155.248.209.237:33333/?insecure=1&sni=155.248.209.237#
 hysteria2://suAmQS9LlInNq4Wumh-FUF4GGlpgmG_g@159.223.157.129:8443/?insecure=1#
@@ -98,7 +98,7 @@ hysteria2://dsmO0439gj_nX942GJRE_9j39fbcxv52_R@85.209.157.177:8080?sni=hopp-tran
 hysteria2://mkL3AfdSZIpTWRB9TcWPn9vywPGN89MRHg3ToRDj@91.196.32.163:443/?insecure=1&sni=germany3.h2corp.local#
 hysteria2://f0098427ecce06a25089f5c18f4ac666@92.5.43.121:443?insecure=1&sni=www.bing.com&obfs=salamander&obfs-password=f832485b7363626ee836f58576aad25f#DE%20%231
 hysteria2://YutbgyXL1mGaSlBXDoEucWvYbrDCINgUcQ6R6_At5Pjr2xCc@admin.wwwinternetvideo.click:443/?insecure=1#@OutlineReleasedKey
-hysteria2://df8d55f9-fb51-442d-902a-bf8160dc051b@brb.nnpy.org:11100?insecure=1&sni=www.bing.com#🇸🇪
+hysteria2://df8d55f9-fb51-442d-902a-bf8160dc051b@brb.nnpy.org:11100?insecure=1&sni=www.bing.com#%F0%9F%87%A7%F0%9F%87%B7%20Brazil%2C%20S%C3%A3o%20Paulo%20%7C%20%F0%9F%8C%90%20%7C%20%5BBL%5D
 hysteria2://tnnls@bwdf2fnt.xn--e1aatfr8bwa.online:443?insecure=0&sni=bwdf2fnt.xn--e1aatfr8bwa.online&obfs=salamander&obfs-password=b6d1f3888ab1d90dd11aac1dce427b81#Tel%3A%20%40Daily_Configs%20%231
 hysteria2://tnnls%3Ab735eacd-3ca7-4019-b98c-3559918100e6@bwdf2fnt.xn--e1aatfr8bwa.online:30000?sni=bwdf2fnt.xn--e1aatfr8bwa.online&insecure=0&obfs=salamander#US
 hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@che01plrhy01.tcp-reset-club.net:443?sni=che01plrhy01.tcp-reset-club.net&insecure=0#CH
@@ -106,7 +106,7 @@ hysteria2://dffb4c3d-1e84-4938-8881-cad917e8efb2@de1.apexvpn.space:443?sni=de1.a
 hysteria2://b0d431139ded4333aa805a1567c761bb@dep.charsoulink3.ir:53062?insecure=0&sni=dep.charsoulink3.ir&obfs=salamander&obfs-password=t38lc9pdw1uhtgn6#%40V2raySaman%20%231
 hysteria2://cd74c0a406664a5bc0bac098220a2468@ee2.sferavpn.pro:443?obfs-password=44f1c1e2f8b99e792ceed574627a1eb0&sni=ee2.sferavpn.pro&obfs=salamander&seq=you_are_beautiful4036#🇩🇪
 hysteria2://BPvdjudCGodsF67hRP3xgBYvcKp48coTsh6ANydLhQs%3D@fin14qr.wwwinternetvideo.click:443?insecure=1&sni=fin14qr.wwwinternetvideo.click#%E8%8A%AC%E5%85%B0%20%232
-hysteria2://Krab9Hyst2_Rk7pQ2xL@fr.vpn.legendaah.xyz:36723?insecure=1#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
+hysteria2://Krab9Hyst2_Rk7pQ2xL@fr.vpn.legendaah.xyz:36723?insecure=1&sni=127.0.0.1#%F0%9F%87%AB%F0%9F%87%AE%20Finland%2C%20Helsinki%20%7C%20%5BBL%5D
 hysteria2://8z2e26xkqsa598s3@gift-catalog.aroonia.ir:52000?insecure=0&sni=gift-catalog.aroonia.ir&obfs=salamander&obfs-password=6cmj1dymhm79hopl#Telegram%20%F0%9F%86%94%40cnetvpn%20%F0%9F%87%A9%F0%9F%87%AA
 hysteria2://g2d0ooqq3ykzsacc@giftcard.gateway-stream.com:52000?alpn=h3&fp=chrome&obfs=salamander&obfs-password=fuw2k1ddrouwxr3u&security=tls&sni=giftcard.gateway-stream.com#
 hysteria2://dmbbfqabkdu46mo3@giftcard.gateway-stream.com:52001?insecure=0&sni=giftcard.gateway-stream.com&obfs=salamander&obfs-password=fuw2k1ddrouwxr3u#%F0%9F%8F%B4%E2%80%8D%E2%98%A0%EF%B8%8F%40FreakConfig
@@ -148,8 +148,8 @@ hysteria2://eb0e3aec-f67f-4fa2-8577-b0bff0484e77@kaz0001hy01.packet-drop-society
 hysteria2://41f0d6d3-4a45-4635-8225-2abd2284189b@lmny.mangshe.xyz:2056?insecure=1&sni=lmny.mangshe.xyz#%E7%BD%97%E9%A9%AC%E5%B0%BC%E4%BA%9A
 hysteria2://7c5566a7-4b55-4659-975f-06507d32fd3f@ltu-01.node.lumixnet.com:443?insecure=1&sni=ltu-01.node.lumixnet.com#%E8%8A%AC%E5%85%B0%20%231
 hysteria2://60e2a548-96aa-4850-a279-1edab743c39b@md1.cnyvpn.com:443?insecure=1&sni=md1.cnyvpn.com#%E6%91%A9%E5%B0%94%E5%A4%9A%E7%93%A6
+hysteria2://5d0a6445-a30d-4522-bb1f-94f1d3ad63be@mlxy2.mangshe.xyz:2060?insecure=1&sni=mlxy2.mangshe.xyz#%F0%9F%87%B2%F0%9F%87%BE%20Malaysia%2C%20Cyberjaya%20%7C%20%5BBL%5D
 hysteria2://sxc15led4b0vp5fy@musicclips.videolinks.ru:8443?sni=musicclips.videolinks.ru&obfs=salamander&obfs-password=8zzng75tz4tf82pj#%F0%9F%87%AB%F0%9F%87%AE168311%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me%2FSOSkeyNET
-hysteria2://8fb328f0-d8e0-4b11-a6db-3dadfc4f02a3@nl01ntrhy01.tcp-reset-club.net:443?insecure=1&sni=nl01ntrhy01.tcp-reset-club.net#%F0%9F%87%B3%F0%9F%87%B1%20The%20Netherlands%2C%20Amsterdam%20%28Amsterdam-Zuidoost%29%20%7C%20%5BBL%5D
 hysteria2://rjj39jg8iphgd06h@pro2.riziro.ir:44100?alpn=h3&fm={
 hysteria2://%41%73%74%72%6f%56%50%4e%5f%6f%66%66%69%63%69%61%6c@ptserv.accuratenetworkchecker.ir:36896?security=tls&fm=%7B%22udp%22%3A%5B%7B%22settings%22%3A%7B%22password%22%3A%22pr317jpnr2arr09j%22%7D%2C%22type%22%3A%22salamander%22%7D%5D%7D&sni=lms22.gelzaro.ir&allowinsecure=0#%F0%9F%87%A8%F0%9F%87%A6168302%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me%2FSOSkeyNET
 hysteria2://6dcb725e-947e-4bbe-bb35-903374d57179@rm-eco-us-01.409648.xyz:443?insecure=1&sni=mkm.icu#%E7%BE%8E%E5%9B%BD
