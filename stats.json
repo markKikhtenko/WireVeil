@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-09-12T00:24:11Z",
-    "msk": "2026-09-12T03:24:11+03:00"
+    "utc": "2026-09-12T05:58:18Z",
+    "msk": "2026-09-12T08:58:18+03:00"
   },
   "sources": [
     {
@@ -11,10 +11,10 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 156,
-      "recognized": 150,
-      "valid": 127,
-      "rejected": 23
+      "lines": 149,
+      "recognized": 143,
+      "valid": 143,
+      "rejected": 0
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -22,10 +22,10 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 89,
-      "recognized": 75,
-      "valid": 51,
-      "rejected": 24
+      "lines": 121,
+      "recognized": 107,
+      "valid": 106,
+      "rejected": 1
     },
     {
       "id": "wlunlocker-blacklist-vpn1",
@@ -33,10 +33,10 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 39,
-      "recognized": 36,
-      "valid": 36,
-      "rejected": 0
+      "lines": 106,
+      "recognized": 103,
+      "valid": 101,
+      "rejected": 2
     },
     {
       "id": "wlunlocker-blacklist-vpn2",
@@ -66,61 +66,61 @@
       "priority": 50,
       "enabled": true,
       "status": "ok",
-      "lines": 2867,
-      "recognized": 2873,
-      "valid": 2826,
-      "rejected": 47
+      "lines": 2932,
+      "recognized": 2948,
+      "valid": 2915,
+      "rejected": 33
     }
   ],
-  "recognized_keys": 3567,
-  "valid_keys_before_deduplication": 3470,
-  "rejected_keys": 97,
-  "duplicates_removed": 1241,
-  "semantic_duplicates_removed": 737,
-  "endpoint_duplicates_removed": 504,
-  "eligible_keys_before_mix": 2172,
+  "recognized_keys": 3734,
+  "valid_keys_before_deduplication": 3695,
+  "rejected_keys": 39,
+  "duplicates_removed": 1405,
+  "semantic_duplicates_removed": 850,
+  "endpoint_duplicates_removed": 555,
+  "eligible_keys_before_mix": 2224,
   "mix_target": null,
-  "total_keys": 2172,
+  "total_keys": 2224,
   "keys_by_protocol": {
-    "vless": 490,
-    "trojan": 785,
-    "shadowsocks": 274,
-    "vmess": 221,
+    "vless": 571,
+    "trojan": 772,
+    "shadowsocks": 307,
+    "vmess": 178,
     "hysteria": 0,
-    "hysteria2": 171,
+    "hysteria2": 165,
     "tuic": 231
   },
   "geography": {
-    "ru_excluded": 57,
-    "unknown_kept": 1024,
-    "non_ru_kept": 1148
+    "ru_excluded": 66,
+    "unknown_kept": 978,
+    "non_ru_kept": 1246
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 2172,
-      "bytes": 415432,
-      "sha256": "9462d644179d1a02280d03a9e056b8b3244fb33649e8a88c65658d2f96a34dda"
+      "keys": 2224,
+      "bytes": 430742,
+      "sha256": "f580017f9509192fb933f770f6fdf0b5a96970c62e39dc380bda202957e02a32"
     },
     "vless.txt": {
-      "keys": 490,
-      "bytes": 107388,
-      "sha256": "ce7e736841293607acbd4301d06607eafd898c5338b36ca8ad4c2310a57bb7e8"
+      "keys": 571,
+      "bytes": 131170,
+      "sha256": "89b285a28866319830b34f6d2094494292bec5fbe4b32465f994dcf671a05c4e"
     },
     "trojan.txt": {
-      "keys": 785,
-      "bytes": 114670,
-      "sha256": "93b8a1d9be73c503930030eae96144e9274c95a50cb167bd02013076a4b601b6"
+      "keys": 772,
+      "bytes": 113628,
+      "sha256": "74e8ae75bdf61aab226d78ae06951df4b47ae8d219610bd70b81626d253049e9"
     },
     "shadowsocks.txt": {
-      "keys": 274,
-      "bytes": 29479,
-      "sha256": "6b8b74d6a12f19323f47970852bcda4bb7157540a33e24ab25a2884087bc8cfe"
+      "keys": 307,
+      "bytes": 31469,
+      "sha256": "a256d6fffea8f1c50d7fd5df918d692638faad173c3309823a893048d97e91ee"
     },
     "vmess.txt": {
-      "keys": 221,
-      "bytes": 75028,
-      "sha256": "38426336a19e3dcc45391771951e3541d1d6f77a2f340ac4a069d8a69c2128b4"
+      "keys": 178,
+      "bytes": 66870,
+      "sha256": "4c83b2c5fa45f5e66883d9f487d880681a752130fea6e974a724d0c934ab3e69"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -128,9 +128,9 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 171,
-      "bytes": 24308,
-      "sha256": "5d26e81f7f6b56b575e517526927dcef9e57de6107d70ddb109b16a9e29aa429"
+      "keys": 165,
+      "bytes": 23046,
+      "sha256": "e6e091841cd72f7400b11b43f4dc2a4ea4420cd760654acda27081caeb03bbf2"
     },
     "tuic.txt": {
       "keys": 231,
