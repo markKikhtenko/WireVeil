@@ -1,7 +1,7 @@
 trojan://1oVfSPR0eM@0101010101010101010101010101011010.poki-pakipon.ir:14579?mode=gun&security=reality&pbk=QBQffGuSwDaXUoGxow_-MUl5P1t5vCYRhCzavcBtqSs&fp=firefox&spx=%2F------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------%40sil3nt_network-------&type=grpc&sni=yahoo.com#
 trojan://bpb-trojan@10-bpb-worker-panel.pages.dev:443?sni=10-bPb-WORKer-paNEL.paGeS.dEV&peer=10-bPb-WORKer-paNEL.paGeS.dEV&security=tls#XX
 trojan://bpb-trojan@10-bpb-worker-panel.pages.dev:8443?sni=10-bpB-woRKer-pANeL.pAGes.dev&peer=10-bpB-woRKer-pANeL.pAGes.dev&security=tls#XX
-trojan://BxceQaOe@100.42.228.109:443?security=tls&sni=t.me%252Fripaojiedian&type=tcp&allowInsecure=1&fp=android#%F0%9F%8C%90%20Anycast-IP%20%7C%20%F0%9F%87%A8%F0%9F%87%B3%20%7C%20%5BBL%5D
+trojan://BxceQaOe@100.42.228.109:443?security=tls&sni=t.me%252Fripaojiedian&type=tcp&allowInsecure=1#%F0%9F%87%A8%F0%9F%87%B3%20China%2C%20Guilin%20%7C%20%5BBL%5D
 trojan://265f092f-418b-30c9-a479-4800fd44dd19mielink@103.135.103.229:443?security=tls#
 trojan://0cc6b4268dea0ba8@103.168.155.73:3306?security=tls&sni=n2.gladns.com&allowInsecure=1&type=ws&path=/gateway/connect&host=TG.WangCai_1#
 trojan://0c6a3341e8d5ab17@103.172.116.196:3389?security=tls#
@@ -703,7 +703,7 @@ trojan://05bf7037-a3d0-3d4a-96ea-fc4787f798e0@scloud59.jafiyun.world:22059?secur
 trojan://05bf7037-a3d0-3d4a-96ea-fc4787f798e0@scloud60.jafiyun.world:22060?security=tls&sni=scloud60.jafiyun.world#
 trojan://4aeda200-44c9-4168-8f2a-a00a72176d35@scloudtw2-tg-data.amazonwebservicess.com:443?security=tls&sni=data.amazonwebservicess.com&type=tcp&headerType=none#
 trojan://0b65bb06-6b28-487a-8e3c-820dda51e977@series-v1.samanehha.co:443/?type=ws&path=%2F43xf5zgeApzDAfhOHq&security=tls&sni=series-v1.samanehha.co#
-trojan://1803e6f6-9da1-4b31-8cc5-ffa155771a14@sg-3.gsafevpnapi.com:44370?security=reality&pbk=FPdrKezrFzBWzEf9X5xA95RxBZO5N9MKK3B53zy_mDY&sid=c9672c5ded53a018&sni=www.yahoo.com&fp=chrome#%F0%9F%8C%90%20Anycast-IP%20%7C%20%F0%9F%87%B8%F0%9F%87%AA%20%F0%9F%87%B8%F0%9F%87%AC%20%7C%20%5BBL%5D
+trojan://7647b321-4bfe-43f3-b21f-926c5de8f9b6@sg-3.gsafevpnapi.com:44370?security=reality&pbk=FPdrKezrFzBWzEf9X5xA95RxBZO5N9MKK3B53zy_mDY&sid=c9672c5ded53a018&sni=www.yahoo.com&fp=chrome#%F0%9F%8C%90%20Anycast-IP%20%7C%20%F0%9F%87%B8%F0%9F%87%AA%20%F0%9F%87%B8%F0%9F%87%AC%20%7C%20%5BBL%5D
 trojan://3e820eb0-3f06-4337-a4fc-0c3c7c0d3b4d@sg-aaa-sjf-4555-ass-78xa.jumaonet.com:12232?security=tls&sni=sg-aaa-sjf-4555-ass-78xa.jumaonet.com&type=tcp#
 trojan://3e820eb0-3f06-4337-a4fc-0c3c7c0d3b4d@sg-aaa-sjf-4555-ass-78xa.jumaonet.com:22209?security=tls&sni=sg-aaa-sjf-4555-ass-78xa.jumaonet.com&type=tcp#
 trojan://375e1e34-8f6f-39be-bdb9-52080f546d4d@sg-zf.jiashumao.net:29465?allowInsecure=1&sni=sg.jiashumao.net#
