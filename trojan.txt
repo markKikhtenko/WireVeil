@@ -38,7 +38,7 @@ trojan://0ab6c98dae3b48e8b9c4a776b6c9c19a@104.16.192.1:443/?type=ws&host=sherash
 trojan://0ab6c98dae3b48e8b9c4a776b6c9c19a@104.16.192.146:443/?type=tcp&security=tls&sni=jobscareertoday.com#
 trojan://humanity@104.16.71.213:443?sni=www.calmlunch.com&peer=www.calmlunch.com&security=tls#XX
 trojan://humanity@104.16.72.2:443?sni=www.calmlunch.com&peer=www.calmlunch.com&security=tls#XX
-trojan://600421cf-11d7-429f-a65b-c30397f1bc03@104.160.44.203:443?sni=la14.freeguard.org&peer=la14.freeguard.org&security=tls&fp=chrome#%F0%9F%87%B3%F0%9F%87%B4%20Norway%2C%20Oslo%20%7C%20%5BBL%5D
+trojan://600421cf-11d7-429f-a65b-c30397f1bc03@104.160.44.203:443?sni=la14.freeguard.org&peer=la14.freeguard.org&security=tls#US
 trojan://humanity@104.17.111.1:443?sni=www.ignitelimit.com&peer=www.ignitelimit.com&security=tls#XX
 trojan://humanity@104.17.111.8:443?sni=www.ignitelimit.com&peer=www.ignitelimit.com&security=tls#XX
 trojan://0ab6c98dae3b48e8b9c4a776b6c9c19a@104.17.147.11:443/?type=ws&host=jobscareerfortoday.com&path=%2F6b777a91&security=tls&sni=jobscareerfortoday.com#

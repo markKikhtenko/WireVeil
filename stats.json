@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-09-26T17:17:46Z",
-    "msk": "2026-09-26T20:17:46+03:00"
+    "utc": "2026-09-26T19:59:21Z",
+    "msk": "2026-09-26T22:59:21+03:00"
   },
   "sources": [
     {
@@ -13,8 +13,8 @@
       "status": "ok",
       "lines": 156,
       "recognized": 150,
-      "valid": 134,
-      "rejected": 16
+      "valid": 132,
+      "rejected": 18
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -22,9 +22,9 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 95,
-      "recognized": 81,
-      "valid": 62,
+      "lines": 79,
+      "recognized": 65,
+      "valid": 46,
       "rejected": 19
     },
     {
@@ -33,9 +33,9 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 84,
-      "recognized": 81,
-      "valid": 81,
+      "lines": 158,
+      "recognized": 155,
+      "valid": 155,
       "rejected": 0
     },
     {
@@ -46,8 +46,8 @@
       "status": "ok",
       "lines": 203,
       "recognized": 200,
-      "valid": 199,
-      "rejected": 1
+      "valid": 200,
+      "rejected": 0
     },
     {
       "id": "morpheus-tuic",
@@ -55,9 +55,9 @@
       "priority": 55,
       "enabled": true,
       "status": "ok",
-      "lines": 246,
-      "recognized": 240,
-      "valid": 239,
+      "lines": 248,
+      "recognized": 242,
+      "valid": 241,
       "rejected": 1
     },
     {
@@ -72,55 +72,55 @@
       "rejected": 37
     }
   ],
-  "recognized_keys": 3282,
-  "valid_keys_before_deduplication": 3208,
-  "rejected_keys": 74,
-  "duplicates_removed": 931,
-  "semantic_duplicates_removed": 523,
-  "endpoint_duplicates_removed": 408,
-  "eligible_keys_before_mix": 2227,
+  "recognized_keys": 3342,
+  "valid_keys_before_deduplication": 3267,
+  "rejected_keys": 75,
+  "duplicates_removed": 990,
+  "semantic_duplicates_removed": 505,
+  "endpoint_duplicates_removed": 485,
+  "eligible_keys_before_mix": 2225,
   "mix_target": null,
-  "total_keys": 2227,
+  "total_keys": 2225,
   "keys_by_protocol": {
-    "vless": 418,
+    "vless": 424,
     "trojan": 805,
-    "shadowsocks": 260,
-    "vmess": 378,
+    "shadowsocks": 258,
+    "vmess": 373,
     "hysteria": 0,
-    "hysteria2": 128,
-    "tuic": 238
+    "hysteria2": 126,
+    "tuic": 239
   },
   "geography": {
-    "ru_excluded": 50,
-    "unknown_kept": 1227,
-    "non_ru_kept": 1000
+    "ru_excluded": 52,
+    "unknown_kept": 1221,
+    "non_ru_kept": 1004
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 2227,
-      "bytes": 423687,
-      "sha256": "b3dbd19fc739cb99bc635160e389284e1e120c3aeb9b690d6f7a3f9db176b2d8"
+      "keys": 2225,
+      "bytes": 422530,
+      "sha256": "01e98b2ba28419e9c00f77e5469eb4b7a162d700000e5cb7d4b9f23423faccc3"
     },
     "vless.txt": {
-      "keys": 418,
-      "bytes": 87461,
-      "sha256": "d04c16614fc0703afc28adcd1ef8c287cb1bcd421ac6283b71293f32148ec5e7"
+      "keys": 424,
+      "bytes": 88646,
+      "sha256": "9aff11be78872df86d6ed7c4ec3bad984eda67e9746c54fe054b76e91799a08a"
     },
     "trojan.txt": {
       "keys": 805,
-      "bytes": 100742,
-      "sha256": "bcffbc7927dc055b3cec18e261a244918d9af528fe75a1907b98831e40a26d4f"
+      "bytes": 100674,
+      "sha256": "3e73e8ee34f4ba6b608a38a0170345d2f877228332f863b78cb91dafcde9d235"
     },
     "shadowsocks.txt": {
-      "keys": 260,
-      "bytes": 27004,
-      "sha256": "b27d8446b4cd3471c434a7e4829434160d04cddc01520bd0cc9db9db260feee7"
+      "keys": 258,
+      "bytes": 26764,
+      "sha256": "20af06d5501ff2bbe4d7c7755dd4d71a1cdc1c90475206fcab8e90534b45b11a"
     },
     "vmess.txt": {
-      "keys": 378,
-      "bytes": 127817,
-      "sha256": "97ea66ad35b681773b20a072c17a4738faf3f3730443a7b2ca5f983790ee2d06"
+      "keys": 373,
+      "bytes": 125696,
+      "sha256": "ac0db65e73c42ec3af7e74bd1b4f78d4380345173054ed18613fac61213ded63"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -128,14 +128,14 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 128,
-      "bytes": 15897,
-      "sha256": "0ab1d978aa5db91bd22ea69f85f34b7974bb1428b3ffdf57331df6f4f2ded030"
+      "keys": 126,
+      "bytes": 15661,
+      "sha256": "8601ca2a81e2c88e7954533bd4f9eacdb6d4f413943861a0a36f7d2c2b75542c"
     },
     "tuic.txt": {
-      "keys": 238,
-      "bytes": 64766,
-      "sha256": "01777c328e3d1e80ccdc25de3927d0df680ab5a8f5168b1ca479a224eeb161d0"
+      "keys": 239,
+      "bytes": 65089,
+      "sha256": "08a50268f54e4b48dad908c62f52927994636d70be784e230080b3475f96a402"
     }
   }
 }
