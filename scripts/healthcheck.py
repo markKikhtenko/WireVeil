@@ -880,8 +880,10 @@ def publish_results(
     except OSError as exc:
         raise HealthCheckError(f"cannot read README.md: {exc}") from exc
     updated_readme = _update_readme(readme, stats)
-    with tempfile.TemporaryDirectory(prefix=".wireveil-health-", dir=root) as name:
-        staging = Path(name)
+    # Use a repository-inheriting staging directory. tempfile's owner-only ACL
+    # follows files moved with os.replace on Windows and can make the published
+    # subscription unreadable to Git and the interactive user.
+    with build.staging_directory(root) as staging:
         (staging / "active.txt").write_bytes(content)
         (staging / "good.txt").write_bytes(good_content)
         (staging / "active-stats.json").write_text(

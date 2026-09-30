@@ -1152,7 +1152,7 @@ def _txt_bytes(lines: Sequence[str]) -> bytes:
 
 
 @contextlib.contextmanager
-def _staging_directory(root: Path):
+def staging_directory(root: Path):
     """Create a private-name staging directory that inherits repository ACLs.
 
     tempfile creates mode 0700 directories. On modern Windows that translates
@@ -1245,11 +1245,12 @@ def _load_history(path: Path) -> list[dict]:
         warn("existing update-history.json is invalid; starting a fresh history")
         return []
     updates = data.get("updates") if isinstance(data, dict) else None
-    return updates[-19:] if isinstance(updates, list) else []
+    return updates[-20:] if isinstance(updates, list) else []
 
 
 README_START = "<!-- WIREVEIL_STATS_START -->"
 README_END = "<!-- WIREVEIL_STATS_END -->"
+README_HISTORY_LIMIT = 10
 
 
 def _format_size(size: int) -> str:
@@ -1260,8 +1261,118 @@ def _format_size(size: int) -> str:
     return f"{size / (1024 * 1024):.2f} MiB"
 
 
-def _update_readme(template: str, stats: dict) -> str:
+def _format_history_time(value: object) -> str:
+    try:
+        timestamp = dt.datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    return timestamp.strftime("%d.%m.%Y %H:%M") + " МСК"
+
+
+def _format_chart_time(value: object) -> str:
+    try:
+        timestamp = dt.datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    return timestamp.strftime("%d.%m %H:%M")
+
+
+def _signed(value: int) -> str:
+    return f"{value:+d}" if value else "0"
+
+
+def _history_delta(current: Mapping, previous: Mapping | None) -> tuple[str, str, str, str]:
+    total_change = current.get("change")
+    exact = isinstance(total_change, Mapping)
+    if exact:
+        added = int(total_change.get("added", 0))
+        removed = int(total_change.get("removed", 0))
+        net = int(total_change.get("net", added - removed))
+        protocol_changes = current.get("changes_by_protocol", {})
+    elif previous is not None:
+        added = removed = 0
+        net = int(current.get("total_keys", 0)) - int(previous.get("total_keys", 0))
+        protocol_changes = {
+            protocol: {
+                "net": int(current.get("keys_by_protocol", {}).get(protocol, 0))
+                - int(previous.get("keys_by_protocol", {}).get(protocol, 0))
+            }
+            for protocol in PROTOCOL_FILES
+        }
+    else:
+        return "—", "—", "—", "нет предыдущей записи"
+
+    labels = {
+        "vless": "VLESS",
+        "trojan": "Trojan",
+        "shadowsocks": "SS",
+        "vmess": "VMess",
+        "hysteria": "Hysteria",
+        "hysteria2": "Hysteria2",
+        "tuic": "TUIC",
+    }
+    details = []
+    for protocol in PROTOCOL_FILES:
+        values = protocol_changes.get(protocol, {})
+        if exact:
+            protocol_added = int(values.get("added", 0))
+            protocol_removed = int(values.get("removed", 0))
+            if protocol_added or protocol_removed:
+                details.append(f"{labels[protocol]} +{protocol_added}/−{protocol_removed}")
+        else:
+            protocol_net = int(values.get("net", 0))
+            if protocol_net:
+                details.append(f"{labels[protocol]} {_signed(protocol_net)}")
+    return (
+        f"+{added}" if exact else "—",
+        f"−{removed}" if exact else "—",
+        _signed(net),
+        "; ".join(details) if details else "без изменений",
+    )
+
+
+def _history_markdown(history: Sequence[Mapping]) -> str:
+    if not history:
+        return "История обновлений пока пуста."
+
+    start = max(0, len(history) - README_HISTORY_LIMIT)
     rows = []
+    for index in range(start, len(history)):
+        current = history[index]
+        previous = history[index - 1] if index else None
+        added, removed, net, details = _history_delta(current, previous)
+        rows.append(
+            f"| {_format_history_time(current.get('msk', ''))} | "
+            f"{int(current.get('total_keys', 0))} | {added} | {removed} | {net} | {details} |"
+        )
+
+    chart_history = history[-README_HISTORY_LIMIT:]
+    labels = [f'"{_format_chart_time(item.get("msk", ""))}"' for item in chart_history]
+    totals = [int(item.get("total_keys", 0)) for item in chart_history]
+    spread = max(totals) - min(totals)
+    padding = max(10, (spread + 9) // 10)
+    lower = max(0, min(totals) - padding)
+    upper = max(totals) + padding
+    return (
+        "### История обновлений\n\n"
+        "Время указано по Москве. `Добавлено` и `удалено` считают изменения состава URI; "
+        "для записей, созданных до появления этого учёта, доступно только чистое изменение `Δ`.\n\n"
+        "| Обновлено (МСК) | Всего | Добавлено | Удалено | Δ | Что изменилось |\n"
+        "|---|---:|---:|---:|---:|---|\n"
+        + "\n".join(rows)
+        + "\n\n```mermaid\n"
+        "xychart-beta\n"
+        '    title "Количество ключей в последних обновлениях"\n'
+        f"    x-axis [{', '.join(labels)}]\n"
+        f'    y-axis "Ключи" {lower} --> {upper}\n'
+        f"    line [{', '.join(map(str, totals))}]\n"
+        "```"
+    )
+
+
+def _update_readme(template: str, stats: dict, history: Sequence[Mapping]) -> str:
+    rows = []
+    source_rows = []
     labels = {
         "subscription.txt": "Все протоколы",
         "vless.txt": "VLESS",
@@ -1278,6 +1389,13 @@ def _update_readme(template: str, stats: dict) -> str:
             f"[RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/{filename}) | "
             f"{values['keys']} | {_format_size(values['bytes'])} |"
         )
+    for source in stats["sources"]:
+        source_rows.append(
+            f"| {source.get('name', source.get('id', 'unknown'))} | "
+            f"{source.get('status', 'ok')} | "
+            f"{int(source.get('recognized', 0))} | {int(source.get('valid', 0))} | "
+            f"{int(source.get('selected', 0))} |"
+        )
     dynamic = (
         f"{README_START}\n"
         f"Последнее успешное обновление: **{stats['built_at']['msk']}** "
@@ -1285,6 +1403,14 @@ def _update_readme(template: str, stats: dict) -> str:
         "| Подписка | RAW-ссылка | Ключей | Размер |\n"
         "|---|---|---:|---:|\n"
         + "\n".join(rows)
+        + "\n\n### Вклад источников в текущую сборку\n\n"
+        + "`В итоговой подписке` — число ключей источника, оставшихся после "
+        "валидации, приоритетной дедупликации и геофильтра.\n\n"
+        + "| Источник | Статус | Распознано | Валидно | В итоговой подписке |\n"
+        + "|---|---|---:|---:|---:|\n"
+        + "\n".join(source_rows)
+        + "\n\n"
+        + _history_markdown(history)
         + f"\n{README_END}"
     )
     pattern = re.compile(re.escape(README_START) + r".*?" + re.escape(README_END), re.S)
@@ -1312,13 +1438,14 @@ def publish_build(
 ) -> dict:
     """Stage, validate, and atomically replace every published artifact."""
     effective: dict[str, list[str]] = {}
+    previous: dict[str, list[str]] = {}
     preserved: list[str] = []
     for protocol in PROTOCOL_FILES:
+        previous[protocol] = _read_previous_protocol(root, protocol)
         current = list(protocol_lines.get(protocol, ()))
         if not current:
-            previous = _read_previous_protocol(root, protocol)
-            if previous:
-                current = previous
+            if previous[protocol]:
+                current = previous[protocol]
                 preserved.append(protocol)
         effective[protocol] = current
 
@@ -1339,7 +1466,8 @@ def publish_build(
     # A successful fetch with identical subscriptions is a no-op. This keeps
     # hourly automation from committing timestamp-only changes and defines the
     # history as the last 20 successful content publications.
-    if _published_txt_is_unchanged(root, effective, subscription):
+    content_unchanged = _published_txt_is_unchanged(root, effective, subscription)
+    if content_unchanged:
         try:
             existing_stats = json.loads((root / "stats.json").read_text(encoding="utf-8"))
             existing_history = json.loads(
@@ -1350,6 +1478,7 @@ def publish_build(
                 isinstance(existing_history.get("updates"), list)
                 and README_START in existing_readme
                 and README_END in existing_readme
+                and "selected_keys_by_source" in existing_stats
                 and int(existing_stats.get("total_keys", -1)) == len(subscription)
                 and all(
                     existing_stats["output_files"][filename]["sha256"]
@@ -1367,7 +1496,7 @@ def publish_build(
     utc_time, msk_time = _iso_times(now)
     temp_parent = root
     temp_parent.mkdir(parents=True, exist_ok=True)
-    with _staging_directory(temp_parent) as temp:
+    with staging_directory(temp_parent) as temp:
         for protocol, filename in PROTOCOL_FILES.items():
             _write_txt(temp / filename, effective[protocol])
         _write_txt(temp / "subscription.txt", subscription)
@@ -1389,6 +1518,22 @@ def publish_build(
         total_by_protocol = {
             protocol: len(effective[protocol]) for protocol in PROTOCOL_FILES
         }
+        changes_by_protocol = {}
+        for protocol in PROTOCOL_FILES:
+            before = set(previous[protocol])
+            after = set(effective[protocol])
+            added = len(after - before)
+            removed = len(before - after)
+            changes_by_protocol[protocol] = {
+                "added": added,
+                "removed": removed,
+                "net": added - removed,
+            }
+        change = {
+            "added": sum(values["added"] for values in changes_by_protocol.values()),
+            "removed": sum(values["removed"] for values in changes_by_protocol.values()),
+        }
+        change["net"] = change["added"] - change["removed"]
         semantic_duplicates = (
             duplicates if semantic_duplicates is None else semantic_duplicates
         )
@@ -1410,6 +1555,12 @@ def publish_build(
             "mix_target": mix_target,
             "total_keys": len(subscription),
             "keys_by_protocol": total_by_protocol,
+            "selected_keys_by_source": {
+                str(source["id"]): int(source.get("selected", 0))
+                for source in source_stats
+            },
+            "change": change,
+            "changes_by_protocol": changes_by_protocol,
             "geography": {
                 "ru_excluded": int(geo_counts.get("RU", 0)),
                 "unknown_kept": int(geo_counts.get("UNKNOWN", 0)),
@@ -1420,17 +1571,20 @@ def publish_build(
         }
 
         history = _load_history(root / "update-history.json")
-        history.append(
-            {
-                "utc": utc_time,
-                "msk": msk_time,
-                "total_keys": len(subscription),
-                "keys_by_protocol": total_by_protocol,
-                "duplicates_removed": duplicates,
-                "ru_excluded": int(geo_counts.get("RU", 0)),
-                "subscription_sha256": output_files["subscription.txt"]["sha256"],
-            }
-        )
+        if not content_unchanged:
+            history.append(
+                {
+                    "utc": utc_time,
+                    "msk": msk_time,
+                    "total_keys": len(subscription),
+                    "keys_by_protocol": total_by_protocol,
+                    "change": change,
+                    "changes_by_protocol": changes_by_protocol,
+                    "duplicates_removed": duplicates,
+                    "ru_excluded": int(geo_counts.get("RU", 0)),
+                    "subscription_sha256": output_files["subscription.txt"]["sha256"],
+                }
+            )
         (temp / "stats.json").write_text(
             json.dumps(stats, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
         )
@@ -1445,7 +1599,7 @@ def publish_build(
         except OSError as exc:
             raise BuildError(f"cannot read README.md: {exc}") from exc
         (temp / "README.md").write_text(
-            _update_readme(readme, stats), encoding="utf-8", newline="\n"
+            _update_readme(readme, stats, history[-20:]), encoding="utf-8", newline="\n"
         )
 
         for json_name in ("stats.json", "update-history.json"):
@@ -1523,6 +1677,9 @@ def build(
         filtered = select_mixed(filtered, target_keys, required_protocols)
     else:
         validate_required_protocols(filtered, required_protocols)
+    selected_counts = Counter(candidate.source_id for candidate in filtered)
+    for source in source_stats:
+        source["selected"] = int(selected_counts.get(source["id"], 0))
     protocol_lines: dict[str, list[str]] = {protocol: [] for protocol in PROTOCOL_FILES}
     for candidate in filtered:
         protocol_lines[candidate.parsed.protocol].append(candidate.parsed.original)

@@ -7,18 +7,58 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-09-30T09:54:10+03:00** (UTC: 2026-09-30T06:54:10Z).
+Последнее успешное обновление: **2026-09-30T10:44:57+03:00** (UTC: 2026-09-30T07:44:57Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2258 | 417.6 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 507 | 105.5 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 796 | 98.7 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 272 | 28.1 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 307 | 102.1 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2979 | 583.6 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 1058 | 244.5 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 809 | 101.0 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 384 | 37.2 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 346 | 117.1 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 137 | 17.5 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 143 | 18.1 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 239 | 65.7 KiB |
+
+### Вклад источников в текущую сборку
+
+`В итоговой подписке` — число ключей источника, оставшихся после валидации, приоритетной дедупликации и геофильтра.
+
+| Источник | Статус | Распознано | Валидно | В итоговой подписке |
+|---|---|---:|---:|---:|
+| igareck Blacklist Mobile Top | ok | 150 | 149 | 83 |
+| igareck Blacklist Mixed | ok | 28 | 28 | 9 |
+| WLUnlocker Blacklist VPN 1 | ok | 113 | 113 | 27 |
+| FLAT447 Blacklist LTE | ok | 134 | 134 | 69 |
+| WLUnlocker Blacklist VPN 2 | ok | 200 | 200 | 167 |
+| 0xRadikal Verified | ok | 1046 | 1032 | 831 |
+| morpheusadam TUIC | ok | 243 | 242 | 239 |
+| Argh94 All Config | ok | 2466 | 2423 | 1554 |
+
+### История обновлений
+
+Время указано по Москве. `Добавлено` и `удалено` считают изменения состава URI; для записей, созданных до появления этого учёта, доступно только чистое изменение `Δ`.
+
+| Обновлено (МСК) | Всего | Добавлено | Удалено | Δ | Что изменилось |
+|---|---:|---:|---:|---:|---|
+| 28.09.2026 18:40 МСК | 2206 | — | — | -11 | VLESS -29; Trojan +28; SS -9; VMess +1; Hysteria2 -2 |
+| 29.09.2026 01:10 МСК | 2211 | — | — | +5 | VLESS +164; Trojan +61; SS +24; VMess -236; Hysteria2 -8 |
+| 29.09.2026 05:06 МСК | 1996 | — | — | -215 | VLESS -89; Trojan -86; SS -26; VMess -21; Hysteria2 +7 |
+| 29.09.2026 11:45 МСК | 2227 | — | — | +231 | VLESS +100; Trojan +13; SS +45; VMess +77; Hysteria2 -4 |
+| 29.09.2026 19:00 МСК | 2188 | — | — | -39 | VLESS -192; Trojan -6; SS -23; VMess +176; Hysteria2 +6 |
+| 29.09.2026 23:55 МСК | 2195 | — | — | +7 | VLESS +11; Trojan +6; SS +1; VMess -5; Hysteria2 -6 |
+| 30.09.2026 03:36 МСК | 2458 | — | — | +263 | VLESS +18; Trojan +71; SS +268; VMess -230; Hysteria2 +136 |
+| 30.09.2026 09:54 МСК | 2258 | — | — | -200 | VLESS +89; Trojan -63; SS -281; VMess +184; Hysteria2 -129 |
+| 30.09.2026 10:29 МСК | 2947 | +877 | −188 | +689 | VLESS +592/−94; Trojan +76/−29; SS +131/−35; VMess +68/−26; Hysteria2 +10/−4 |
+| 30.09.2026 10:44 МСК | 2979 | +292 | −260 | +32 | VLESS +213/−160; Trojan +33/−67; SS +29/−13; VMess +15/−18; Hysteria2 +2/−2 |
+
+```mermaid
+xychart-beta
+    title "Количество ключей в последних обновлениях"
+    x-axis ["28.09 18:40", "29.09 01:10", "29.09 05:06", "29.09 11:45", "29.09 19:00", "29.09 23:55", "30.09 03:36", "30.09 09:54", "30.09 10:29", "30.09 10:44"]
+    y-axis "Ключи" 1897 --> 3078
+    line [2206, 2211, 1996, 2227, 2188, 2195, 2458, 2258, 2947, 2979]
+```
 <!-- WIREVEIL_STATS_END -->
 
 `stats.json` содержит подробную статистику, размеры и SHA-256 текущей сборки. В `update-history.json` хранятся последние 20 успешных обновлений.
@@ -26,12 +66,12 @@ WireVeil — автономный, автоматически обновляем
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-09-30T09:57:23+03:00** (UTC: 2026-09-30T06:57:23Z). Проверено через `sing-box version 1.14.0`: **292 из 2258** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **292**.
+Последняя проверка реального подключения: **2026-09-30T10:51:10+03:00** (UTC: 2026-09-30T07:51:10Z). Проверено через `sing-box version 1.14.0`: **258 из 2979** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **258**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 292 | 56.7 KiB |
-| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 227 | 43.0 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 258 | 69.7 KiB |
+| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 134 | 25.8 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 Подписки образуют три уровня:
@@ -42,7 +82,7 @@ WireVeil — автономный, автоматически обновляем
 
 `good.txt` использует задержку HTTPS-проверки, которую уже возвращает локальный Clash API sing-box. Таймауты, ошибки, отсутствие корректной задержки и превышение порога исключают ключ только из `good.txt`. Если первый HTTPS endpoint завершился ошибкой, а запасной сработал, ключ остаётся в `active.txt`, но не проходит фильтр `good.txt`. Дополнительные запросы и ping не выполняются; текущая логика sing-box healthcheck и отбора `active.txt` сохраняется.
 
-Это оценка по текущему прогону, а не проверка долговременной стабильности. Доступность и задержка измеряются с GitHub-hosted runner и потому не гарантируют прохождение блокировок или такую же скорость у конкретного российского провайдера.
+Это оценка по текущему прогону, а не проверка долговременной стабильности. Доступность и задержка зависят от сети, где запущен health-check: автоматическая публикация проверяется с GitHub-hosted runner, а локальный запуск — с текущей машины. Ни один из этих результатов не гарантирует такую же доступность у конкретного российского провайдера.
 
 ## Источники
 
@@ -51,7 +91,9 @@ WireVeil — автономный, автоматически обновляем
 | [igareck Blacklist Mobile Top](https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS_mobile.txt) | Компактная подборка лучших проверенных конфигураций | 100 |
 | [igareck Blacklist Mixed](https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_SS%2BAll_RUS.txt) | Проверенные альтернативные протоколы | 95 |
 | [WLUnlocker Blacklist VPN 1](https://raw.githubusercontent.com/wlunlocker/vpn-configs/main/blacklist_vpn1.txt) | Компактная VLESS-подписка | 90 |
+| [FLAT447 Blacklist LTE](https://raw.githubusercontent.com/FLAT447/v2ray-lists/refs/heads/main/BLACK_LTE.txt) | Компактная подборка для российского режима чёрных списков | 85 |
 | [WLUnlocker Blacklist VPN 2](https://raw.githubusercontent.com/wlunlocker/vpn-configs/main/blacklist_vpn2.txt) | Компактная Shadowsocks/Hysteria2-подписка | 80 |
+| [0xRadikal Verified](https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt) | Конфигурации после трёх раундов реальных proxy-запросов | 70 |
 | [morpheusadam TUIC](https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/tuic.txt) | Ежедневно проверяемый резерв TUIC | 55 |
 | [Argh94 All Config](https://raw.githubusercontent.com/Argh94/Proxy-List/main/All_Config.txt) | Широкий резерв актуальных URI-протоколов | 50 |
 

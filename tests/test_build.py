@@ -470,6 +470,55 @@ class PublicationTests(unittest.TestCase):
             self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
             self.assertTrue(raw.endswith(b"\n"))
 
+            readme = (root / "README.md").read_text(encoding="utf-8")
+            self.assertIn("### История обновлений", readme)
+            self.assertIn("### Вклад источников в текущую сборку", readme)
+            self.assertIn("11.08.2026 23:00 МСК", readme)
+            self.assertIn("xychart-beta", readme)
+            self.assertIn("| +7 | −0 | +7 |", readme)
+
+    def test_history_tracks_exact_additions_and_removals(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            self.make_root(root)
+            first = {
+                "vless": [
+                    f"vless://{UUID1}@one.example.com:443?security=tls",
+                    f"vless://{UUID2}@two.example.com:443?security=tls",
+                ]
+            }
+            self.publish(root, first)
+            second = {
+                "vless": [
+                    f"vless://{UUID2}@two.example.com:443?security=tls",
+                    f"vless://{UUID1}@three.example.com:443?security=tls",
+                ]
+            }
+            build.publish_build(
+                second,
+                source_stats=[{"id": "test", "valid": 2}],
+                recognized=2,
+                rejected=0,
+                duplicates=0,
+                geo_counts={"UNKNOWN": 2},
+                root=root,
+                min_keys=1,
+                now=dt.datetime(2026, 8, 12, 20, 0, tzinfo=dt.timezone.utc),
+            )
+
+            history = json.loads(
+                (root / "update-history.json").read_text(encoding="utf-8")
+            )["updates"]
+            self.assertEqual(
+                {"added": 1, "removed": 1, "net": 0}, history[-1]["change"]
+            )
+            self.assertEqual(
+                {"added": 1, "removed": 1, "net": 0},
+                history[-1]["changes_by_protocol"]["vless"],
+            )
+            readme = (root / "README.md").read_text(encoding="utf-8")
+            self.assertIn("VLESS +1/−1", readme)
+
     def test_empty_result_cannot_overwrite_working_files(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -564,6 +613,8 @@ class OfflineIntegrationTests(unittest.TestCase):
             self.assertEqual(2, stats["total_keys"])
             self.assertEqual(2, stats["eligible_keys_before_mix"])
             self.assertIsNone(stats["mix_target"])
+            self.assertEqual({"all": 2}, stats["selected_keys_by_source"])
+            self.assertEqual(2, stats["sources"][0]["selected"])
 
     def test_build_skips_unavailable_source_without_network(self):
         with tempfile.TemporaryDirectory() as name:

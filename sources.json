@@ -31,6 +31,16 @@
       "note": "Компактная проверенная VLESS-подписка для обычного режима чёрных списков."
     },
     {
+      "id": "flat447-blacklist-lte",
+      "name": "FLAT447 Blacklist LTE",
+      "url": "https://raw.githubusercontent.com/FLAT447/v2ray-lists/refs/heads/main/BLACK_LTE.txt",
+      "priority": 85,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Часто обновляемая компактная подборка для российского режима чёрных списков; недоступность источника не останавливает сборку."
+    },
+    {
       "id": "wlunlocker-blacklist-vpn2",
       "name": "WLUnlocker Blacklist VPN 2",
       "url": "https://raw.githubusercontent.com/wlunlocker/vpn-configs/main/blacklist_vpn2.txt",
@@ -39,6 +49,16 @@
       "required": true,
       "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
       "note": "Компактная проверенная Shadowsocks/Hysteria2-подписка для обычного режима чёрных списков."
+    },
+    {
+      "id": "radikal-verified",
+      "name": "0xRadikal Verified",
+      "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
+      "priority": 70,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Резерв конфигураций, прошедших три раунда реальных proxy-запросов; недоступность источника не останавливает сборку."
     },
     {
       "id": "morpheus-tuic",
