@@ -1,23 +1,6 @@
 {
   "updates": [
     {
-      "utc": "2026-09-28T01:02:36Z",
-      "msk": "2026-09-28T04:02:36+03:00",
-      "total_keys": 2108,
-      "keys_by_protocol": {
-        "vless": 583,
-        "trojan": 771,
-        "shadowsocks": 275,
-        "vmess": 113,
-        "hysteria": 0,
-        "hysteria2": 127,
-        "tuic": 239
-      },
-      "duplicates_removed": 867,
-      "ru_excluded": 64,
-      "subscription_sha256": "65ced340f24d5212b22be005d5928e512ca6aa561154b19ce05e98513c950165"
-    },
-    {
       "utc": "2026-09-28T07:06:19Z",
       "msk": "2026-09-28T10:06:19+03:00",
       "total_keys": 2217,
@@ -759,6 +742,65 @@
       "duplicates_removed": 1804,
       "ru_excluded": 118,
       "subscription_sha256": "10488166d7d70249303db44dec99da2b9c9d032bdf25c27ed8854f71844eec1c"
+    },
+    {
+      "utc": "2026-10-02T05:55:11Z",
+      "msk": "2026-10-02T08:55:11+03:00",
+      "total_keys": 3013,
+      "keys_by_protocol": {
+        "vless": 1152,
+        "trojan": 940,
+        "shadowsocks": 379,
+        "vmess": 177,
+        "hysteria": 0,
+        "hysteria2": 125,
+        "tuic": 240
+      },
+      "change": {
+        "added": 1362,
+        "removed": 1515,
+        "net": -153
+      },
+      "changes_by_protocol": {
+        "vless": {
+          "added": 527,
+          "removed": 390,
+          "net": 137
+        },
+        "trojan": {
+          "added": 700,
+          "removed": 621,
+          "net": 79
+        },
+        "shadowsocks": {
+          "added": 42,
+          "removed": 73,
+          "net": -31
+        },
+        "vmess": {
+          "added": 52,
+          "removed": 237,
+          "net": -185
+        },
+        "hysteria": {
+          "added": 0,
+          "removed": 0,
+          "net": 0
+        },
+        "hysteria2": {
+          "added": 40,
+          "removed": 194,
+          "net": -154
+        },
+        "tuic": {
+          "added": 1,
+          "removed": 0,
+          "net": 1
+        }
+      },
+      "duplicates_removed": 2097,
+      "ru_excluded": 103,
+      "subscription_sha256": "fcee11733e1ed5d2a0d4385925f9d81d4b2e2908ec996ce047b8edcc79f1653f"
     }
   ]
 }
