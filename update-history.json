@@ -1,23 +1,6 @@
 {
   "updates": [
     {
-      "utc": "2026-09-29T16:00:46Z",
-      "msk": "2026-09-29T19:00:46+03:00",
-      "total_keys": 2188,
-      "keys_by_protocol": {
-        "vless": 389,
-        "trojan": 782,
-        "shadowsocks": 284,
-        "vmess": 358,
-        "hysteria": 0,
-        "hysteria2": 136,
-        "tuic": 239
-      },
-      "duplicates_removed": 720,
-      "ru_excluded": 57,
-      "subscription_sha256": "067cb576f524e154d530d02eeac760be82fc9d75c68316b45df4cd8619f1dedd"
-    },
-    {
       "utc": "2026-09-29T20:55:26Z",
       "msk": "2026-09-29T23:55:26+03:00",
       "total_keys": 2195,
@@ -1011,6 +994,65 @@
       "duplicates_removed": 1489,
       "ru_excluded": 120,
       "subscription_sha256": "2e13cbb2060e3e5cef9a17314c7c77f8e28275d975e4ef38e1fe10197ae2c336"
+    },
+    {
+      "utc": "2026-10-03T13:34:55Z",
+      "msk": "2026-10-03T16:34:55+03:00",
+      "total_keys": 2817,
+      "keys_by_protocol": {
+        "vless": 1098,
+        "trojan": 810,
+        "shadowsocks": 375,
+        "vmess": 160,
+        "hysteria": 0,
+        "hysteria2": 134,
+        "tuic": 240
+      },
+      "change": {
+        "added": 815,
+        "removed": 950,
+        "net": -135
+      },
+      "changes_by_protocol": {
+        "vless": {
+          "added": 554,
+          "removed": 546,
+          "net": 8
+        },
+        "trojan": {
+          "added": 149,
+          "removed": 231,
+          "net": -82
+        },
+        "shadowsocks": {
+          "added": 45,
+          "removed": 53,
+          "net": -8
+        },
+        "vmess": {
+          "added": 34,
+          "removed": 47,
+          "net": -13
+        },
+        "hysteria": {
+          "added": 0,
+          "removed": 0,
+          "net": 0
+        },
+        "hysteria2": {
+          "added": 33,
+          "removed": 73,
+          "net": -40
+        },
+        "tuic": {
+          "added": 0,
+          "removed": 0,
+          "net": 0
+        }
+      },
+      "duplicates_removed": 1200,
+      "ru_excluded": 95,
+      "subscription_sha256": "8354347b05cf3c583b7adc36905976f8f550cba91d8c18cc88d134c204233c3f"
     }
   ]
 }
