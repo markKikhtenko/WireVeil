@@ -1,23 +1,6 @@
 {
   "updates": [
     {
-      "utc": "2026-09-29T08:45:20Z",
-      "msk": "2026-09-29T11:45:20+03:00",
-      "total_keys": 2227,
-      "keys_by_protocol": {
-        "vless": 581,
-        "trojan": 788,
-        "shadowsocks": 307,
-        "vmess": 182,
-        "hysteria": 0,
-        "hysteria2": 130,
-        "tuic": 239
-      },
-      "duplicates_removed": 846,
-      "ru_excluded": 72,
-      "subscription_sha256": "ee41c3f3f28573cbf2415b44bdb306c6fe2b7973dd03d56eaee7a75b53cfe23d"
-    },
-    {
       "utc": "2026-09-29T16:00:46Z",
       "msk": "2026-09-29T19:00:46+03:00",
       "total_keys": 2188,
@@ -969,6 +952,65 @@
       "duplicates_removed": 1698,
       "ru_excluded": 123,
       "subscription_sha256": "88ba15faef9d483b7c8957bccc851b2ecbd5e4d4e2af45c21f7c2213320f3a28"
+    },
+    {
+      "utc": "2026-10-03T08:20:45Z",
+      "msk": "2026-10-03T11:20:45+03:00",
+      "total_keys": 2952,
+      "keys_by_protocol": {
+        "vless": 1090,
+        "trojan": 892,
+        "shadowsocks": 383,
+        "vmess": 173,
+        "hysteria": 0,
+        "hysteria2": 174,
+        "tuic": 240
+      },
+      "change": {
+        "added": 698,
+        "removed": 672,
+        "net": 26
+      },
+      "changes_by_protocol": {
+        "vless": {
+          "added": 390,
+          "removed": 446,
+          "net": -56
+        },
+        "trojan": {
+          "added": 185,
+          "removed": 129,
+          "net": 56
+        },
+        "shadowsocks": {
+          "added": 32,
+          "removed": 40,
+          "net": -8
+        },
+        "vmess": {
+          "added": 41,
+          "removed": 45,
+          "net": -4
+        },
+        "hysteria": {
+          "added": 0,
+          "removed": 0,
+          "net": 0
+        },
+        "hysteria2": {
+          "added": 50,
+          "removed": 12,
+          "net": 38
+        },
+        "tuic": {
+          "added": 0,
+          "removed": 0,
+          "net": 0
+        }
+      },
+      "duplicates_removed": 1489,
+      "ru_excluded": 120,
+      "subscription_sha256": "2e13cbb2060e3e5cef9a17314c7c77f8e28275d975e4ef38e1fe10197ae2c336"
     }
   ]
 }
