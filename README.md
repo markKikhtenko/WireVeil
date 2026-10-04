@@ -7,17 +7,17 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-10-04T00:30:58+03:00** (UTC: 2026-10-03T21:30:58Z).
+Последнее успешное обновление: **2026-10-04T04:44:05+03:00** (UTC: 2026-10-04T01:44:05Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 3036 | 536.9 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 971 | 204.9 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 895 | 117.1 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 367 | 36.3 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 181 | 65.1 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 3778 | 690.1 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 1215 | 274.8 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 878 | 114.3 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 381 | 37.8 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 329 | 113.0 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 343 | 42.8 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 696 | 79.5 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 279 | 70.7 KiB |
 
 ### Вклад источников в текущую сборку
@@ -26,14 +26,14 @@ WireVeil — автономный, автоматически обновляем
 
 | Источник | Статус | Распознано | Валидно | В итоговой подписке |
 |---|---|---:|---:|---:|
-| igareck Blacklist Mobile Top | ok | 150 | 149 | 61 |
-| igareck Blacklist Mixed | ok | 28 | 27 | 2 |
-| WLUnlocker Blacklist VPN 1 | ok | 101 | 101 | 7 |
-| FLAT447 Blacklist LTE | ok | 61 | 61 | 35 |
-| WLUnlocker Blacklist VPN 2 | ok | 200 | 200 | 173 |
-| 0xRadikal Verified | ok | 1140 | 1130 | 893 |
+| igareck Blacklist Mobile Top | ok | 144 | 144 | 82 |
+| igareck Blacklist Mixed | ok | 40 | 40 | 5 |
+| WLUnlocker Blacklist VPN 1 | ok | 124 | 124 | 34 |
+| FLAT447 Blacklist LTE | ok | 58 | 58 | 34 |
+| WLUnlocker Blacklist VPN 2 | ok | 200 | 200 | 176 |
+| 0xRadikal Verified | ok | 1544 | 1525 | 1132 |
 | morpheusadam TUIC | ok | 285 | 282 | 279 |
-| Argh94 All Config | ok | 2723 | 2379 | 1586 |
+| Argh94 All Config | ok | 3133 | 3095 | 2036 |
 
 ### История обновлений
 
@@ -41,7 +41,6 @@ WireVeil — автономный, автоматически обновляем
 
 | Обновлено (МСК) | Всего | Добавлено | Удалено | Δ | Что изменилось |
 |---|---:|---:|---:|---:|---|
-| 02.10.2026 02:59 МСК | 3166 | +867 | −650 | +217 | VLESS +325/−244; Trojan +77/−44; SS +81/−51; VMess +239/−293; Hysteria2 +145/−18 |
 | 02.10.2026 08:55 МСК | 3013 | +1362 | −1515 | -153 | VLESS +527/−390; Trojan +700/−621; SS +42/−73; VMess +52/−237; Hysteria2 +40/−194; TUIC +1/−0 |
 | 02.10.2026 15:54 МСК | 2973 | +1328 | −1368 | -40 | VLESS +430/−531; Trojan +627/−703; SS +69/−45; VMess +35/−40; Hysteria2 +167/−48; TUIC +0/−1 |
 | 02.10.2026 21:33 МСК | 2697 | +620 | −896 | -276 | VLESS +422/−574; Trojan +37/−120; SS +50/−75; VMess +45/−51; Hysteria2 +66/−76 |
@@ -51,13 +50,14 @@ WireVeil — автономный, автоматически обновляем
 | 03.10.2026 16:34 МСК | 2817 | +815 | −950 | -135 | VLESS +554/−546; Trojan +149/−231; SS +45/−53; VMess +34/−47; Hysteria2 +33/−73 |
 | 03.10.2026 21:02 МСК | 2994 | +1112 | −935 | +177 | VLESS +384/−515; Trojan +309/−247; SS +33/−42; VMess +42/−36; Hysteria2 +255/−45; TUIC +89/−50 |
 | 04.10.2026 00:30 МСК | 3036 | +460 | −418 | +42 | VLESS +278/−274; Trojan +67/−44; SS +58/−57; VMess +48/−33; Hysteria2 +9/−10 |
+| 04.10.2026 04:44 МСК | 3778 | +1644 | −902 | +742 | VLESS +521/−277; Trojan +271/−288; SS +31/−17; VMess +175/−27; Hysteria2 +646/−293 |
 
 ```mermaid
 xychart-beta
     title "Количество ключей в последних обновлениях"
-    x-axis ["02.10 02:59", "02.10 08:55", "02.10 15:54", "02.10 21:33", "03.10 02:05", "03.10 05:07", "03.10 11:20", "03.10 16:34", "03.10 21:02", "04.10 00:30"]
-    y-axis "Ключи" 2650 --> 3213
-    line [3166, 3013, 2973, 2697, 2760, 2926, 2952, 2817, 2994, 3036]
+    x-axis ["02.10 08:55", "02.10 15:54", "02.10 21:33", "03.10 02:05", "03.10 05:07", "03.10 11:20", "03.10 16:34", "03.10 21:02", "04.10 00:30", "04.10 04:44"]
+    y-axis "Ключи" 2588 --> 3887
+    line [3013, 2973, 2697, 2760, 2926, 2952, 2817, 2994, 3036, 3778]
 ```
 <!-- WIREVEIL_STATS_END -->
 
@@ -66,12 +66,12 @@ xychart-beta
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-10-04T00:35:00+03:00** (UTC: 2026-10-03T21:35:00Z). Проверено через `sing-box version 1.14.0`: **908 из 3036** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **908**.
+Последняя проверка реального подключения: **2026-10-04T04:48:53+03:00** (UTC: 2026-10-04T01:48:53Z). Проверено через `sing-box version 1.14.0`: **1106 из 3778** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **1106**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 908 | 175.8 KiB |
-| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 699 | 127.2 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 1106 | 225.9 KiB |
+| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 927 | 180.8 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 Подписки образуют три уровня:

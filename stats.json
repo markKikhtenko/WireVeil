@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-10-03T21:30:58Z",
-    "msk": "2026-10-04T00:30:58+03:00"
+    "utc": "2026-10-04T01:44:05Z",
+    "msk": "2026-10-04T04:44:05+03:00"
   },
   "sources": [
     {
@@ -11,11 +11,11 @@
       "priority": 100,
       "enabled": true,
       "status": "ok",
-      "lines": 156,
-      "recognized": 150,
-      "valid": 149,
-      "rejected": 1,
-      "selected": 61
+      "lines": 150,
+      "recognized": 144,
+      "valid": 144,
+      "rejected": 0,
+      "selected": 82
     },
     {
       "id": "igareck-mixed-blacklist",
@@ -23,11 +23,11 @@
       "priority": 95,
       "enabled": true,
       "status": "ok",
-      "lines": 42,
-      "recognized": 28,
-      "valid": 27,
-      "rejected": 1,
-      "selected": 2
+      "lines": 54,
+      "recognized": 40,
+      "valid": 40,
+      "rejected": 0,
+      "selected": 5
     },
     {
       "id": "wlunlocker-blacklist-vpn1",
@@ -35,11 +35,11 @@
       "priority": 90,
       "enabled": true,
       "status": "ok",
-      "lines": 104,
-      "recognized": 101,
-      "valid": 101,
+      "lines": 127,
+      "recognized": 124,
+      "valid": 124,
       "rejected": 0,
-      "selected": 7
+      "selected": 34
     },
     {
       "id": "flat447-blacklist-lte",
@@ -47,11 +47,11 @@
       "priority": 85,
       "enabled": true,
       "status": "ok",
-      "lines": 66,
-      "recognized": 61,
-      "valid": 61,
+      "lines": 63,
+      "recognized": 58,
+      "valid": 58,
       "rejected": 0,
-      "selected": 35
+      "selected": 34
     },
     {
       "id": "wlunlocker-blacklist-vpn2",
@@ -63,7 +63,7 @@
       "recognized": 200,
       "valid": 200,
       "rejected": 0,
-      "selected": 173
+      "selected": 176
     },
     {
       "id": "radikal-verified",
@@ -71,11 +71,11 @@
       "priority": 70,
       "enabled": true,
       "status": "ok",
-      "lines": 1149,
-      "recognized": 1140,
-      "valid": 1130,
-      "rejected": 10,
-      "selected": 893
+      "lines": 1553,
+      "recognized": 1544,
+      "valid": 1525,
+      "rejected": 19,
+      "selected": 1132
     },
     {
       "id": "morpheus-tuic",
@@ -95,66 +95,66 @@
       "priority": 50,
       "enabled": true,
       "status": "ok",
-      "lines": 2712,
-      "recognized": 2723,
-      "valid": 2379,
-      "rejected": 344,
-      "selected": 1586
+      "lines": 3133,
+      "recognized": 3133,
+      "valid": 3095,
+      "rejected": 38,
+      "selected": 2036
     }
   ],
-  "recognized_keys": 4688,
-  "valid_keys_before_deduplication": 4329,
-  "rejected_keys": 359,
-  "duplicates_removed": 1202,
-  "semantic_duplicates_removed": 466,
-  "endpoint_duplicates_removed": 736,
-  "eligible_keys_before_mix": 3036,
+  "recognized_keys": 5528,
+  "valid_keys_before_deduplication": 5468,
+  "rejected_keys": 60,
+  "duplicates_removed": 1586,
+  "semantic_duplicates_removed": 472,
+  "endpoint_duplicates_removed": 1114,
+  "eligible_keys_before_mix": 3778,
   "mix_target": null,
-  "total_keys": 3036,
+  "total_keys": 3778,
   "keys_by_protocol": {
-    "vless": 971,
-    "trojan": 895,
-    "shadowsocks": 367,
-    "vmess": 181,
+    "vless": 1215,
+    "trojan": 878,
+    "shadowsocks": 381,
+    "vmess": 329,
     "hysteria": 0,
-    "hysteria2": 343,
+    "hysteria2": 696,
     "tuic": 279
   },
   "selected_keys_by_source": {
-    "igareck-blacklist-mobile": 61,
-    "igareck-mixed-blacklist": 2,
-    "wlunlocker-blacklist-vpn1": 7,
-    "flat447-blacklist-lte": 35,
-    "wlunlocker-blacklist-vpn2": 173,
-    "radikal-verified": 893,
+    "igareck-blacklist-mobile": 82,
+    "igareck-mixed-blacklist": 5,
+    "wlunlocker-blacklist-vpn1": 34,
+    "flat447-blacklist-lte": 34,
+    "wlunlocker-blacklist-vpn2": 176,
+    "radikal-verified": 1132,
     "morpheus-tuic": 279,
-    "argh94-all-config": 1586
+    "argh94-all-config": 2036
   },
   "change": {
-    "added": 460,
-    "removed": 418,
-    "net": 42
+    "added": 1644,
+    "removed": 902,
+    "net": 742
   },
   "changes_by_protocol": {
     "vless": {
-      "added": 278,
-      "removed": 274,
-      "net": 4
+      "added": 521,
+      "removed": 277,
+      "net": 244
     },
     "trojan": {
-      "added": 67,
-      "removed": 44,
-      "net": 23
+      "added": 271,
+      "removed": 288,
+      "net": -17
     },
     "shadowsocks": {
-      "added": 58,
-      "removed": 57,
-      "net": 1
+      "added": 31,
+      "removed": 17,
+      "net": 14
     },
     "vmess": {
-      "added": 48,
-      "removed": 33,
-      "net": 15
+      "added": 175,
+      "removed": 27,
+      "net": 148
     },
     "hysteria": {
       "added": 0,
@@ -162,9 +162,9 @@
       "net": 0
     },
     "hysteria2": {
-      "added": 9,
-      "removed": 10,
-      "net": -1
+      "added": 646,
+      "removed": 293,
+      "net": 353
     },
     "tuic": {
       "added": 0,
@@ -173,36 +173,36 @@
     }
   },
   "geography": {
-    "ru_excluded": 91,
-    "unknown_kept": 1537,
-    "non_ru_kept": 1499
+    "ru_excluded": 104,
+    "unknown_kept": 2101,
+    "non_ru_kept": 1677
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 3036,
-      "bytes": 549750,
-      "sha256": "ce87b7b0e56fc89a5f1e00c4fea0451bb4f94e8b3e1b25e2f1f8d59bc81932b8"
+      "keys": 3778,
+      "bytes": 706652,
+      "sha256": "47c7542f8e65b3303b13664173d415cea4d33fb1989aa54bbabc217735de04a9"
     },
     "vless.txt": {
-      "keys": 971,
-      "bytes": 209793,
-      "sha256": "8efc4baad1dab32d49bc05f5e67275672d95422d1add96f2ec6534e5bf20119d"
+      "keys": 1215,
+      "bytes": 281349,
+      "sha256": "bb947bce91ca9b7d3f41c091e7d919b51144157163e467d753bd8ee98c945629"
     },
     "trojan.txt": {
-      "keys": 895,
-      "bytes": 119889,
-      "sha256": "da52bf664da0e8a5177b652880dc57e9121f8c82695aae78a7ed49e160050898"
+      "keys": 878,
+      "bytes": 117019,
+      "sha256": "e51e7f1a46846d4643d9289db254270a193c379ba5d85b01be204301b16ef5d9"
     },
     "shadowsocks.txt": {
-      "keys": 367,
-      "bytes": 37167,
-      "sha256": "12fb0a931c4033dadb4b239cc221ac883e3a3a3f20100f6affe269e39490bcd3"
+      "keys": 381,
+      "bytes": 38747,
+      "sha256": "cd333f8349b3f324cea02e33c23287792a75cda26496ccf8827d0c86203d1ac8"
     },
     "vmess.txt": {
-      "keys": 181,
-      "bytes": 66680,
-      "sha256": "2c7c891168a8f2a4a8a35a93cde8ce49208191d51f312ffd5bb4a1b4d795304f"
+      "keys": 329,
+      "bytes": 115667,
+      "sha256": "c35f30ff467bfbe71d5d9057148abbb179b650975c5d3d1f897c6e2f8710e4ab"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -210,9 +210,9 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "hysteria2.txt": {
-      "keys": 343,
-      "bytes": 43801,
-      "sha256": "87404d57992a9ffc39197f602a7242a1cd9d24632e006dcbbfdee7de8a158c4f"
+      "keys": 696,
+      "bytes": 81450,
+      "sha256": "6b20e7a16e00939b578a1fad7a3bdf9711679fbc36ff15d70290c845bd215e7c"
     },
     "tuic.txt": {
       "keys": 279,
