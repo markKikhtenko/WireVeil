@@ -79,6 +79,8 @@ class WireVeilChecker(tk.Tk):
         self.item_uris: dict[str, str] = {}
         self.live_results: dict[int, dict[str, object]] = {}
         self.speed_results: dict[int, local_checker.SpeedResult] = {}
+        self.service_results: dict[int, local_checker.ServiceResult] = {}
+        self.service_result_name: str | None = None
         self.column_headings: dict[str, str] = {}
         self.sort_column: str | None = "latency"
         self.sort_descending = False
@@ -91,6 +93,7 @@ class WireVeilChecker(tk.Tk):
         self.latency_var = tk.IntVar(value=500)
         self.auto_enabled_var = tk.BooleanVar(value=False)
         self.auto_interval_var = tk.IntVar(value=30)
+        self.service_var = tk.StringVar(value=local_checker.DEFAULT_SERVICE_NAME)
         self.status_var = tk.StringVar(value="Вставьте ссылку подписки или её содержимое.")
         self.summary_var = tk.StringVar(value="Результатов пока нет")
         self.progress_var = tk.DoubleVar(value=0)
@@ -131,6 +134,23 @@ class WireVeilChecker(tk.Tk):
         style.map("Stepper.TButton", background=[("active", "#575757"), ("pressed", "#278dcc")])
         style.configure("TCheckbutton", background="#202020", foreground="#ededed")
         style.map("TCheckbutton", background=[("active", "#202020")])
+        style.configure(
+            "TCombobox",
+            fieldbackground="#292929",
+            background="#424242",
+            foreground="#ffffff",
+            arrowcolor="#ffffff",
+            borderwidth=1,
+            padding=(5, 3),
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", "#292929")],
+            foreground=[("readonly", "#ffffff")],
+            selectbackground=[("readonly", "#292929")],
+            selectforeground=[("readonly", "#ffffff")],
+            arrowcolor=[("disabled", "#777777"), ("readonly", "#ffffff")],
+        )
         style.configure("Horizontal.TProgressbar", background="#2d9cdb", troughcolor="#303030", borderwidth=0)
         style.configure(
             "Treeview",
@@ -218,9 +238,43 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(settings, text="мин", style="Dim.TLabel").grid(row=0, column=12, padx=(4, 2))
         settings.columnconfigure(10, weight=1)
 
+        ttk.Label(settings, text="Проверка сайта:").grid(
+            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 6)
+        )
+        self.service_combo = ttk.Combobox(
+            settings,
+            textvariable=self.service_var,
+            values=tuple(service.name for service in local_checker.SERVICE_DEFINITIONS),
+            state="readonly",
+            width=16,
+        )
+        self.service_combo.grid(row=1, column=1, columnspan=2, sticky="w", pady=(6, 0))
+        self.service_combo.bind("<<ComboboxSelected>>", self._service_changed)
+        self.service_button = ttk.Button(
+            settings,
+            text="Проверить доступ",
+            command=self._start_service_test,
+            state="disabled",
+        )
+        self.service_button.grid(row=1, column=3, columnspan=3, sticky="w", pady=(6, 0), padx=(8, 0))
+        ttk.Label(
+            settings,
+            text="тест запускается только для зелёных серверов",
+            style="Dim.TLabel",
+        ).grid(row=1, column=6, columnspan=7, sticky="w", pady=(6, 0), padx=(8, 0))
+
         table_frame = ttk.Frame(outer)
         table_frame.pack(fill="both", expand=True)
-        columns = ("number", "protocol", "endpoint", "name", "latency", "speed", "passes")
+        columns = (
+            "number",
+            "protocol",
+            "endpoint",
+            "name",
+            "latency",
+            "speed",
+            "service",
+            "passes",
+        )
         self.table = ttk.Treeview(
             table_frame, columns=columns, show="headings", selectmode="extended"
         )
@@ -231,16 +285,18 @@ class WireVeilChecker(tk.Tk):
             "name": "Имя / ошибка",
             "latency": "Пинг",
             "speed": "Скорость",
+            "service": self.service_var.get(),
             "passes": "Прогоны",
         }
         self.column_headings = headings
         widths = {
             "number": 45,
             "protocol": 100,
-            "endpoint": 245,
-            "name": 360,
-            "latency": 100,
-            "speed": 115,
+            "endpoint": 220,
+            "name": 285,
+            "latency": 90,
+            "speed": 110,
+            "service": 145,
             "passes": 80,
         }
         for column in columns:
@@ -249,7 +305,12 @@ class WireVeilChecker(tk.Tk):
                 text=headings[column],
                 command=lambda selected=column: self._sort_table(selected),
             )
-            self.table.column(column, width=widths[column], minwidth=35, stretch=column in {"endpoint", "name"})
+            self.table.column(
+                column,
+                width=widths[column],
+                minwidth=35,
+                stretch=column in {"endpoint", "name"},
+            )
         self._refresh_sort_headers()
         self.table.tag_configure("fast", foreground="#60d35f")
         self.table.tag_configure("active", foreground="#d8ce43")
@@ -398,6 +459,8 @@ class WireVeilChecker(tk.Tk):
         self.activity = "ping"
         self.report = None
         self.speed_results.clear()
+        self.service_results.clear()
+        self.service_result_name = None
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.summary_var.set("Подготовка конфигураций…")
@@ -439,6 +502,85 @@ class WireVeilChecker(tk.Tk):
             self.cancel_event.set()
             self.stop_button.configure(state="disabled")
             self.status_var.set("Останавливаю проверку…")
+
+    def _service_changed(self, _event: object | None = None) -> None:
+        if self.running:
+            return
+        self.service_results.clear()
+        self.service_result_name = None
+        self.column_headings["service"] = self.service_var.get()
+        self._refresh_sort_headers()
+        for index in tuple(self.table_items):
+            self._set_service_cell(index, "—")
+        self.status_var.set(f"Выбран сервис: {self.service_var.get()}")
+
+    def _start_service_test(self) -> None:
+        if self.running or self.report is None:
+            return
+        targets = tuple(result.target for result in self.report.fast_results(self._latency_limit()))
+        if not targets:
+            messagebox.showinfo(APP_TITLE, "Нет зелёных серверов для проверки сайта.")
+            return
+        binary = find_sing_box()
+        if binary is None:
+            messagebox.showerror(APP_TITLE, "Не найден вложенный sing-box.")
+            return
+        service_name = self.service_var.get()
+        if service_name not in local_checker.SERVICE_DEFINITIONS_BY_NAME:
+            messagebox.showerror(APP_TITLE, "Выберите сервис из списка.")
+            return
+        try:
+            timeout = max(5, min(60, int(self.timeout_var.get())))
+            workers = max(1, min(16, int(self.workers_var.get())))
+        except (ValueError, tk.TclError):
+            timeout, workers = 15, 16
+
+        self._cancel_auto_timer()
+        self.running = True
+        self.activity = "service"
+        self.cancel_event = threading.Event()
+        self.service_results.clear()
+        self.service_result_name = service_name
+        self.progress_var.set(0)
+        self.status_var.set(
+            f"Подготовка проверки {service_name} для {len(targets)} зелёных серверов…"
+        )
+        self._set_running_controls(True)
+        for target in targets:
+            self._set_service_cell(target.index, "ожидание…")
+        self._log(
+            f"Проверка доступа к {service_name}: {len(targets)} зелёных серверов."
+        )
+
+        def work() -> None:
+            try:
+                def progress(
+                    done: int, total: int, result: local_checker.ServiceResult
+                ) -> None:
+                    self.events.put(("service_progress", done, total, result))
+
+                results = local_checker.run_service_tests(
+                    binary=binary,
+                    targets=targets,
+                    service_name=service_name,
+                    workers=workers,
+                    timeout=float(timeout),
+                    progress_callback=progress,
+                    cancel_event=self.cancel_event,
+                )
+                self.events.put(("service_done", service_name, results))
+            except (local_checker.LocalCheckError, healthcheck.HealthCheckError, OSError) as exc:
+                self.events.put(("service_error", service_name, str(exc)))
+            except Exception as exc:
+                self.events.put(
+                    (
+                        "service_error",
+                        service_name,
+                        f"Непредвиденная ошибка: {type(exc).__name__}: {exc}",
+                    )
+                )
+
+        threading.Thread(target=work, name="wireveil-service", daemon=True).start()
 
     def _start_speed_test(self) -> None:
         if self.running or self.report is None:
@@ -519,6 +661,31 @@ class WireVeilChecker(tk.Tk):
         self.speed_results[result.target.index] = result
         self._set_speed_cell(result.target.index, self._format_speed(result))
 
+    @staticmethod
+    def _format_service(result: local_checker.ServiceResult | None) -> str:
+        if result is None:
+            return "—"
+        delay = f" · {result.latency_ms} ms" if result.latency_ms is not None else ""
+        if result.available:
+            return f"доступен{delay}"
+        if result.http_status is not None:
+            return f"HTTP {result.http_status}{delay}"
+        return "нет доступа"
+
+    def _set_service_cell(self, index: int, value: str) -> None:
+        item = self.table_items.get(index)
+        if not item:
+            return
+        values = list(self.table.item(item, "values"))
+        if len(values) >= 8:
+            values[6] = value
+            self.table.item(item, values=values)
+            self._schedule_resort()
+
+    def _update_service_result(self, result: local_checker.ServiceResult) -> None:
+        self.service_results[result.target.index] = result
+        self._set_service_cell(result.target.index, self._format_service(result))
+
     def _restore_result_buttons(self) -> None:
         if self.report is None:
             return
@@ -529,6 +696,46 @@ class WireVeilChecker(tk.Tk):
         self.fast_button.configure(state=state)
         self.copy_button.configure(state=state)
         self.speed_button.configure(state=state)
+        self.service_button.configure(state=state)
+
+    def _finish_service_test(
+        self,
+        service_name: str,
+        results: tuple[local_checker.ServiceResult, ...],
+    ) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(100)
+        self._set_running_controls(False)
+        for result in results:
+            self._update_service_result(result)
+        available = [result for result in results if result.available]
+        self.status_var.set(f"Проверка {service_name} завершена")
+        self.summary_var.set(
+            f"{service_name}: доступен через {len(available)} из {len(results)} зелёных серверов"
+        )
+        self._log(
+            f"Проверка {service_name} завершена: доступно {len(available)}/{len(results)}."
+        )
+        self._restore_result_buttons()
+        self._schedule_auto_check()
+
+    def _fail_service_test(self, service_name: str, detail: str) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(0)
+        self._set_running_controls(False)
+        if "cancelled" in detail.lower():
+            self.status_var.set(f"Проверка {service_name} остановлена")
+            self._log(f"Проверка {service_name} остановлена пользователем.")
+        else:
+            self.status_var.set(f"Ошибка проверки {service_name}")
+            self._log(f"Ошибка проверки {service_name}: {detail}")
+            if not self.closing:
+                messagebox.showerror(APP_TITLE, detail)
+        self._restore_result_buttons()
+        if not self.closing and self.auto_enabled_var.get():
+            self._schedule_auto_check()
 
     def _finish_speed_test(
         self, results: tuple[local_checker.SpeedResult, ...]
@@ -613,6 +820,23 @@ class WireVeilChecker(tk.Tk):
                     if self.closing:
                         self.destroy()
                         return
+                elif kind == "service_progress":
+                    done, total, result = event[1], event[2], event[3]
+                    self.progress_var.set((done / total) * 100 if total else 0)
+                    self.status_var.set(
+                        f"Проверка {result.service_name}: {done} / {total}"
+                    )
+                    self._update_service_result(result)
+                elif kind == "service_done":
+                    self._finish_service_test(event[1], event[2])
+                    if self.closing:
+                        self.destroy()
+                        return
+                elif kind == "service_error":
+                    self._fail_service_test(event[1], event[2])
+                    if self.closing:
+                        self.destroy()
+                        return
         except queue.Empty:
             pass
         self.after(100, self._poll_events)
@@ -639,6 +863,7 @@ class WireVeilChecker(tk.Tk):
         self.fast_button.configure(state=state)
         self.copy_button.configure(state=state)
         self.speed_button.configure(state=state)
+        self.service_button.configure(state=state)
         self._schedule_auto_check()
 
     def _fail(self, detail: str) -> None:
@@ -664,11 +889,13 @@ class WireVeilChecker(tk.Tk):
         self.stop_button.configure(state="normal" if running else "disabled")
         self.file_button.configure(state="disabled" if running else "normal")
         self.paste_button.configure(state="disabled" if running else "normal")
+        self.service_combo.configure(state="disabled" if running else "readonly")
         if running:
             self.active_button.configure(state="disabled")
             self.fast_button.configure(state="disabled")
             self.copy_button.configure(state="disabled")
             self.speed_button.configure(state="disabled")
+            self.service_button.configure(state="disabled")
 
     def _clear_table(self) -> None:
         children = self.table.get_children()
@@ -722,6 +949,7 @@ class WireVeilChecker(tk.Tk):
             name,
             test,
             "—",
+            "—",
             f"{state['successes']}/{attempts}",
         )
         item = self.table_items.get(index)
@@ -746,6 +974,7 @@ class WireVeilChecker(tk.Tk):
                 f"{parsed.server}:{parsed.port}",
                 display_name(uri),
                 "ожидание…",
+                "—",
                 "—",
                 f"0/{attempts}",
             )
@@ -790,6 +1019,7 @@ class WireVeilChecker(tk.Tk):
                     detail,
                     f"{result.delay_ms} ms" if result.delay_ms is not None else "timeout",
                     self._format_speed(self.speed_results.get(result.target.index)),
+                    self._format_service(self.service_results.get(result.target.index)),
                     f"{result.successes}/{result.attempts}",
                 ),
                 tags=(tag,),
@@ -826,7 +1056,8 @@ class WireVeilChecker(tk.Tk):
             "name": 3,
             "latency": 4,
             "speed": 5,
-            "passes": 6,
+            "service": 6,
+            "passes": 7,
         }
         raw = str(values[positions[column]]).strip()
         if column == "number":
@@ -846,6 +1077,16 @@ class WireVeilChecker(tk.Tk):
         if column == "speed":
             match = re.match(r"^(\d+(?:[.,]\d+)?)\s*Мбит/с$", raw, re.IGNORECASE)
             return float(match.group(1).replace(",", ".")) if match else None
+        if column == "service":
+            match = re.search(r"(\d+)\s*ms$", raw, re.IGNORECASE)
+            if raw.casefold().startswith("доступен"):
+                return (0, int(match.group(1)) if match else sys.maxsize)
+            if raw.upper().startswith("HTTP"):
+                status = re.match(r"^HTTP\s+(\d+)", raw, re.IGNORECASE)
+                return (1, int(status.group(1)) if status else sys.maxsize)
+            if raw == "нет доступа":
+                return (2, sys.maxsize)
+            return None
         return raw.casefold()
 
     def _apply_sort(self) -> None:

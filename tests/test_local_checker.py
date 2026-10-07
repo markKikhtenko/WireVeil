@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -151,6 +152,71 @@ class SpeedTestTests(unittest.TestCase):
         self.assertEqual(1_000_000, result.bytes_received)
         self.assertEqual(500, result.duration_ms)
         self.assertIsNone(result.error)
+
+
+class ServiceTestTests(unittest.TestCase):
+    def target(self):
+        uri = vless(UUID1, "service.example.com")
+        return healthcheck.ProbeTarget(
+            0,
+            "wv-0000",
+            uri,
+            "vless",
+            {"type": "vless", "tag": "wv-0000"},
+        )
+
+    def test_service_catalog_contains_requested_sites(self):
+        names = set(local_checker.SERVICE_DEFINITIONS_BY_NAME)
+        self.assertTrue({"ChatGPT", "YouTube", "GitHub"}.issubset(names))
+
+    def test_service_access_reports_http_success_and_latency(self):
+        class Response(io.BytesIO):
+            status = 204
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(b"")
+        service = local_checker.SERVICE_DEFINITIONS_BY_NAME["YouTube"]
+        with (
+            mock.patch("urllib.request.build_opener", return_value=opener),
+            mock.patch("time.perf_counter", side_effect=[10.0, 10.125]),
+        ):
+            result = local_checker._test_service_access(
+                self.target(),
+                21001,
+                service=service,
+                timeout=15,
+                cancel_event=None,
+            )
+        self.assertTrue(result.available)
+        self.assertEqual(204, result.http_status)
+        self.assertEqual(125, result.latency_ms)
+
+    def test_service_access_keeps_restriction_status(self):
+        opener = mock.Mock()
+        opener.open.side_effect = urllib.error.HTTPError(
+            "https://chatgpt.com/", 403, "Forbidden", {}, io.BytesIO(b"blocked")
+        )
+        service = local_checker.SERVICE_DEFINITIONS_BY_NAME["ChatGPT"]
+        with (
+            mock.patch("urllib.request.build_opener", return_value=opener),
+            mock.patch("time.perf_counter", side_effect=[20.0, 20.050]),
+        ):
+            result = local_checker._test_service_access(
+                self.target(),
+                21001,
+                service=service,
+                timeout=15,
+                cancel_event=None,
+            )
+        self.assertFalse(result.available)
+        self.assertEqual(403, result.http_status)
+        self.assertEqual(50, result.latency_ms)
 
 
 if __name__ == "__main__":

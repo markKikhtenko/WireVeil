@@ -25,6 +25,24 @@ USER_AGENT = "WireVeil-Portable-Checker/1.0"
 SPEED_TEST_URL = "https://speed.cloudflare.com/__down"
 
 
+@dataclasses.dataclass(frozen=True)
+class ServiceDefinition:
+    name: str
+    url: str
+
+
+SERVICE_DEFINITIONS = (
+    ServiceDefinition("ChatGPT", "https://chatgpt.com/"),
+    ServiceDefinition("YouTube", "https://www.youtube.com/generate_204"),
+    ServiceDefinition("GitHub", "https://github.com/"),
+    ServiceDefinition("Google", "https://www.google.com/generate_204"),
+    ServiceDefinition("Discord", "https://discord.com/api/v10/gateway"),
+    ServiceDefinition("Telegram Web", "https://web.telegram.org/"),
+)
+SERVICE_DEFINITIONS_BY_NAME = {service.name: service for service in SERVICE_DEFINITIONS}
+DEFAULT_SERVICE_NAME = SERVICE_DEFINITIONS[0].name
+
+
 class LocalCheckError(RuntimeError):
     pass
 
@@ -69,6 +87,16 @@ class SpeedResult:
     speed_mbps: float | None = None
     bytes_received: int = 0
     duration_ms: int | None = None
+    error: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ServiceResult:
+    target: healthcheck.ProbeTarget
+    service_name: str
+    available: bool = False
+    latency_ms: int | None = None
+    http_status: int | None = None
     error: str | None = None
 
 
@@ -239,19 +267,19 @@ def _allocate_ports(count: int) -> list[int]:
             listener.close()
 
 
-def _wait_for_speed_runtime(
+def _wait_for_proxy_runtime(
     process: subprocess.Popen, port: int, timeout: float = 20.0
 ) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise LocalCheckError("sing-box остановился до запуска теста скорости.")
+            raise LocalCheckError("sing-box остановился до запуска дополнительного теста.")
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 return
         except OSError:
             time.sleep(0.15)
-    raise LocalCheckError("Локальный proxy для теста скорости не запустился.")
+    raise LocalCheckError("Локальный proxy для дополнительного теста не запустился.")
 
 
 def _test_download_speed(
@@ -350,7 +378,7 @@ def run_speed_tests(
             except OSError as exc:
                 raise LocalCheckError(f"Не удалось запустить sing-box: {exc}") from exc
             try:
-                _wait_for_speed_runtime(process, ports[0])
+                _wait_for_proxy_runtime(process, ports[0])
                 executor = concurrent.futures.ThreadPoolExecutor(
                     max_workers=min(workers, len(targets))
                 )
@@ -374,6 +402,157 @@ def run_speed_tests(
                         if cancel_event is not None and cancel_event.is_set():
                             cancelled = True
                             raise healthcheck.HealthCheckError("speed test cancelled")
+                        result = future.result()
+                        results.append(result)
+                        if progress_callback is not None:
+                            progress_callback(completed, len(targets), result)
+                finally:
+                    executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+    return tuple(sorted(results, key=lambda result: result.target.index))
+
+
+def _test_service_access(
+    target: healthcheck.ProbeTarget,
+    port: int,
+    *,
+    service: ServiceDefinition,
+    timeout: float,
+    cancel_event: threading.Event | None,
+) -> ServiceResult:
+    if cancel_event is not None and cancel_event.is_set():
+        return ServiceResult(target, service.name, error="cancelled")
+    proxy = f"http://127.0.0.1:{port}"
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+    )
+    request = urllib.request.Request(
+        service.url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/140.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+            "Accept-Encoding": "identity",
+            "Cache-Control": "no-cache",
+        },
+    )
+    started = time.perf_counter()
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            response.read(1)
+            elapsed = time.perf_counter() - started
+            status_value = getattr(response, "status", None)
+            if status_value is None:
+                status_value = response.getcode()
+            status = int(status_value)
+    except urllib.error.HTTPError as exc:
+        elapsed = time.perf_counter() - started
+        exc.close()
+        return ServiceResult(
+            target,
+            service.name,
+            latency_ms=max(1, round(elapsed * 1000)),
+            http_status=int(exc.code),
+            error=f"HTTP {exc.code}",
+        )
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return ServiceResult(
+            target,
+            service.name,
+            error=f"{type(exc).__name__}: {str(exc)[:240]}",
+        )
+    available = 200 <= status < 400
+    return ServiceResult(
+        target,
+        service.name,
+        available=available,
+        latency_ms=max(1, round(elapsed * 1000)),
+        http_status=status,
+        error=None if available else f"HTTP {status}",
+    )
+
+
+def run_service_tests(
+    *,
+    binary: Path,
+    targets: Sequence[healthcheck.ProbeTarget],
+    service_name: str,
+    workers: int = 16,
+    timeout: float = 15.0,
+    progress_callback: Callable[[int, int, ServiceResult], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> tuple[ServiceResult, ...]:
+    """Check one selected website through every pre-qualified green target."""
+    if not binary.is_file():
+        raise LocalCheckError(f"Не найден sing-box: {binary}")
+    service = SERVICE_DEFINITIONS_BY_NAME.get(service_name)
+    if service is None:
+        raise LocalCheckError(f"Неизвестный сервис: {service_name}")
+    if not targets:
+        return ()
+    if not 1 <= workers <= 32:
+        raise LocalCheckError("Параллельность проверки сервисов должна быть от 1 до 32.")
+    if not 3 <= timeout <= 60:
+        raise LocalCheckError("Тайм-аут проверки сервисов должен быть от 3 до 60 секунд.")
+
+    ports = _allocate_ports(len(targets))
+    with tempfile.TemporaryDirectory(prefix="wireveil-service-") as name:
+        directory = Path(name)
+        config_path = directory / "service.json"
+        log_path = directory / "sing-box.log"
+        config_path.write_text(
+            json.dumps(_speed_test_config(targets, ports), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        passed, detail = healthcheck._run_config_check(binary, config_path)
+        if not passed:
+            raise LocalCheckError(f"Конфигурация проверки сервиса отклонена: {detail[-800:]}")
+        with log_path.open("w", encoding="utf-8") as log_handle:
+            try:
+                process = subprocess.Popen(
+                    [str(binary), "run", "-c", str(config_path)],
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    **healthcheck._hidden_process_options(),
+                )
+            except OSError as exc:
+                raise LocalCheckError(f"Не удалось запустить sing-box: {exc}") from exc
+            try:
+                _wait_for_proxy_runtime(process, ports[0])
+                executor = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(workers, len(targets))
+                )
+                futures = [
+                    executor.submit(
+                        _test_service_access,
+                        target,
+                        port,
+                        service=service,
+                        timeout=timeout,
+                        cancel_event=cancel_event,
+                    )
+                    for target, port in zip(targets, ports)
+                ]
+                cancelled = False
+                results: list[ServiceResult] = []
+                try:
+                    for completed, future in enumerate(
+                        concurrent.futures.as_completed(futures), start=1
+                    ):
+                        if cancel_event is not None and cancel_event.is_set():
+                            cancelled = True
+                            raise healthcheck.HealthCheckError("service test cancelled")
                         result = future.result()
                         results.append(result)
                         if progress_callback is not None:
