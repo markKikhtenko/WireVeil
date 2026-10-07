@@ -150,6 +150,45 @@ class AutoCheckTests(unittest.TestCase):
         checker._start_one_click.assert_called_once_with()
 
 
+class SourceInputTests(unittest.TestCase):
+    def test_shortcuts_work_by_windows_keycode_with_any_layout(self):
+        expected = {65: "select_all", 67: "copy", 86: "paste", 88: "cut"}
+        for keycode, action in expected.items():
+            with self.subTest(keycode=keycode):
+                event = mock.Mock(keycode=keycode, keysym="unrelated")
+                self.assertEqual(
+                    action, WireVeilChecker._source_shortcut_action(event)
+                )
+
+    def test_shortcuts_recognize_russian_keysyms(self):
+        expected = {
+            "Cyrillic_ef": "select_all",
+            "Cyrillic_es": "copy",
+            "Cyrillic_em": "paste",
+            "Cyrillic_che": "cut",
+        }
+        for keysym, action in expected.items():
+            with self.subTest(keysym=keysym):
+                event = mock.Mock(keycode=-1, keysym=keysym)
+                self.assertEqual(
+                    action, WireVeilChecker._source_shortcut_action(event)
+                )
+
+    def test_clear_subscription_clears_input_and_persistent_value(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.running = False
+        checker.source = mock.Mock()
+        checker.imported = object()
+        checker.status_var = mock.Mock()
+        checker._queue_settings_save = mock.Mock()
+
+        checker._clear_source()
+
+        checker.source.delete.assert_called_once_with("1.0", "end")
+        self.assertIsNone(checker.imported)
+        checker._queue_settings_save.assert_called_once_with()
+
+
 class SettingsPersistenceTests(unittest.TestCase):
     def test_settings_round_trip_next_to_application(self):
         settings = {

@@ -342,6 +342,12 @@ class WireVeilChecker(tk.Tk):
         source_row = ttk.Frame(outer, padding=(0, 6, 0, 4))
         source_row.pack(fill="x")
         ttk.Label(source_row, text="Подписка:").pack(side="left", padx=(2, 6))
+        self.clear_source_button = ttk.Button(
+            source_row,
+            text="Очистить",
+            command=self._clear_source,
+        )
+        self.clear_source_button.pack(side="right", padx=(5, 0))
         self.source = tk.Text(
             source_row,
             height=2,
@@ -356,6 +362,9 @@ class WireVeilChecker(tk.Tk):
             pady=5,
         )
         self.source.pack(side="left", fill="x", expand=True)
+        self.source.bind("<Control-KeyPress>", self._source_keyboard_shortcut)
+        self.source.bind("<Control-Insert>", self._source_copy_event)
+        self.source.bind("<Shift-Insert>", self._source_paste_event)
 
         hero = ttk.Frame(outer, style="Hero.TFrame", padding=(7, 5))
         hero.pack(fill="x", pady=(0, 4))
@@ -683,6 +692,82 @@ class WireVeilChecker(tk.Tk):
             return
         self.source.delete("1.0", "end")
         self.source.insert("1.0", value)
+
+    def _clear_source(self) -> None:
+        if self.running:
+            return
+        self.source.delete("1.0", "end")
+        self.imported = None
+        self.status_var.set("Поле подписки и сохранённое значение очищены.")
+        self._queue_settings_save()
+
+    @staticmethod
+    def _source_shortcut_action(event: object) -> str | None:
+        keycode_actions = {65: "select_all", 67: "copy", 86: "paste", 88: "cut"}
+        try:
+            keycode = int(getattr(event, "keycode", -1))
+        except (TypeError, ValueError):
+            keycode = -1
+        if keycode in keycode_actions:
+            return keycode_actions[keycode]
+        keysym = str(getattr(event, "keysym", "")).casefold()
+        return {
+            "a": "select_all",
+            "c": "copy",
+            "v": "paste",
+            "x": "cut",
+            "cyrillic_ef": "select_all",
+            "cyrillic_es": "copy",
+            "cyrillic_em": "paste",
+            "cyrillic_che": "cut",
+        }.get(keysym)
+
+    def _source_copy_selection(self) -> bool:
+        selection = self.source.tag_ranges("sel")
+        if not selection:
+            return False
+        value = self.source.get(selection[0], selection[1])
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update_idletasks()
+        return True
+
+    def _source_paste_clipboard(self) -> None:
+        try:
+            value = self.clipboard_get()
+        except tk.TclError:
+            return
+        selection = self.source.tag_ranges("sel")
+        if selection:
+            self.source.delete(selection[0], selection[1])
+        self.source.insert("insert", value)
+        self.source.see("insert")
+
+    def _source_keyboard_shortcut(self, event: object) -> str | None:
+        action = self._source_shortcut_action(event)
+        if action == "copy":
+            self._source_copy_selection()
+        elif action == "paste":
+            self._source_paste_clipboard()
+        elif action == "cut":
+            selection = self.source.tag_ranges("sel")
+            if selection and self._source_copy_selection():
+                self.source.delete(selection[0], selection[1])
+        elif action == "select_all":
+            self.source.tag_add("sel", "1.0", "end-1c")
+            self.source.mark_set("insert", "end-1c")
+            self.source.see("insert")
+        else:
+            return None
+        return "break"
+
+    def _source_copy_event(self, _event: object | None = None) -> str:
+        self._source_copy_selection()
+        return "break"
+
+    def _source_paste_event(self, _event: object | None = None) -> str:
+        self._source_paste_clipboard()
+        return "break"
 
     def _choose_file(self) -> None:
         name = filedialog.askopenfilename(
@@ -1376,6 +1461,7 @@ class WireVeilChecker(tk.Tk):
         self.stop_button.configure(state="normal" if running else "disabled")
         self.file_button.configure(state="disabled" if running else "normal")
         self.paste_button.configure(state="disabled" if running else "normal")
+        self.clear_source_button.configure(state="disabled" if running else "normal")
         self.service_menu_button.configure(state="disabled" if running else "normal")
         self.magic_button.configure(state="disabled" if running else "normal")
         if running:
