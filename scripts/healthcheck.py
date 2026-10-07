@@ -26,13 +26,14 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -114,6 +115,8 @@ class ProbeResult:
     active: bool
     delay_ms: int | None = None
     error: str | None = None
+    attempts: int = 1
+    successes: int = 0
 
 
 def _query(uri: str) -> dict[str, list[str]]:
@@ -493,6 +496,7 @@ def _run_config_check(binary: Path, config_path: Path) -> tuple[bool, str]:
             errors="replace",
             timeout=45,
             check=False,
+            **_hidden_process_options(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise HealthCheckError(f"cannot validate sing-box config: {exc}") from exc
@@ -587,7 +591,42 @@ def _probe_target(
         if delay > 0:
             best_delay = delay if best_delay is None else min(best_delay, delay)
             break
-    return ProbeResult(target, best_delay is not None, best_delay, last_error)
+    active = best_delay is not None
+    return ProbeResult(target, active, best_delay, last_error, 1, int(active))
+
+
+def _hidden_process_options() -> dict[str, int]:
+    """Keep helper console windows hidden in the packaged Windows application."""
+    flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return {"creationflags": flag} if flag else {}
+
+
+def _combine_probe_attempts(
+    target: ProbeTarget,
+    attempts: Sequence[ProbeResult],
+    required_successes: int,
+) -> ProbeResult:
+    successful = [result for result in attempts if result.active and result.delay_ms]
+    delays = [int(result.delay_ms) for result in successful if result.delay_ms is not None]
+    active = len(successful) >= required_successes
+    delay = round(statistics.median(delays)) if active and delays else None
+    errors = [result.error for result in attempts if result.error]
+    error: str | None = None
+    if len(successful) < len(attempts):
+        detail = errors[-1] if errors else "no usable delay"
+        error = f"{len(successful)}/{len(attempts)} successful: {detail}"
+    elif errors:
+        # A fallback probe URL worked. Keep the detail so repository good.txt
+        # retains its deliberately conservative behaviour.
+        error = errors[-1]
+    return ProbeResult(
+        target,
+        active,
+        delay,
+        error,
+        attempts=len(attempts),
+        successes=len(successful),
+    )
 
 
 def run_probes(
@@ -598,7 +637,16 @@ def run_probes(
     timeout_ms: int,
     workers: int,
     directory: Path,
+    attempts: int = 1,
+    required_successes: int | None = None,
+    progress_callback: Callable[[int, int, ProbeResult], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> tuple[list[ProbeResult], str]:
+    if attempts < 1:
+        raise HealthCheckError("probe attempts must be positive")
+    required = attempts if required_successes is None else required_successes
+    if required < 1 or required > attempts:
+        raise HealthCheckError("required successes must be between 1 and attempts")
     host, port = _free_controller()
     controller = f"{host}:{port}"
     config_path = directory / "healthcheck.json"
@@ -619,6 +667,7 @@ def run_probes(
         errors="replace",
         timeout=15,
         check=False,
+        **_hidden_process_options(),
     ).stdout.splitlines()[0]
     with log_path.open("w", encoding="utf-8") as log_handle:
         try:
@@ -627,13 +676,21 @@ def run_probes(
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
                 text=True,
+                **_hidden_process_options(),
             )
         except OSError as exc:
             raise HealthCheckError(f"cannot start sing-box: {exc}") from exc
         try:
             _wait_for_api(process, controller)
-            results: list[ProbeResult] = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            by_target: dict[int, list[ProbeResult]] = {
+                target.index: [] for target in targets
+            }
+            completed = 0
+            total = len(targets) * attempts
+            for _attempt in range(attempts):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise HealthCheckError("health-check cancelled")
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
                 futures = [
                     executor.submit(
                         _probe_target,
@@ -644,15 +701,28 @@ def run_probes(
                     )
                     for target in targets
                 ]
-                for completed, future in enumerate(
-                    concurrent.futures.as_completed(futures), start=1
-                ):
-                    results.append(future.result())
-                    if completed % 100 == 0:
-                        print(
-                            f"Health-check progress: {completed}/{len(targets)}",
-                            flush=True,
-                        )
+                cancelled = False
+                try:
+                    for future in concurrent.futures.as_completed(futures):
+                        if cancel_event is not None and cancel_event.is_set():
+                            cancelled = True
+                            raise HealthCheckError("health-check cancelled")
+                        result = future.result()
+                        by_target[result.target.index].append(result)
+                        completed += 1
+                        if progress_callback is not None:
+                            progress_callback(completed, total, result)
+                        if completed % 100 == 0:
+                            print(
+                                f"Health-check progress: {completed}/{total}",
+                                flush=True,
+                            )
+                finally:
+                    executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
+            results = [
+                _combine_probe_attempts(target, by_target[target.index], required)
+                for target in targets
+            ]
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -855,6 +925,8 @@ def publish_results(
                 "active": result.active,
                 "latency_ms": result.delay_ms,
                 "error": result.error,
+                "attempts": result.attempts,
+                "successes": result.successes,
             }
             for result in sorted(results, key=lambda item: item.target.index)
         ],
