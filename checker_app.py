@@ -244,18 +244,21 @@ class WireVeilChecker(tk.Tk):
         style.map("TButton", background=[("active", "#444444"), ("pressed", "#1f78a8")])
         style.configure(
             "Launch.TButton",
-            background="#a81f1f",
+            background="#b52b2b",
             foreground="#ffffff",
-            font=("Segoe UI Black", 14),
-            padding=(24, 11),
-            borderwidth=2,
+            font=("Segoe UI Semibold", 10),
+            padding=(10, 5),
+            borderwidth=1,
+            relief="raised",
+            focuscolor="#e26060",
         )
         style.map(
             "Launch.TButton",
-            background=[("active", "#d63232"), ("pressed", "#761616")],
+            background=[("active", "#cf3838"), ("pressed", "#8d2020")],
             foreground=[("disabled", "#a0a0a0"), ("!disabled", "#ffffff")],
+            relief=[("pressed", "sunken"), ("!pressed", "raised")],
         )
-        style.configure("Hero.TFrame", background="#2a2020")
+        style.configure("Hero.TFrame", background="#272222")
         style.configure(
             "Stepper.TEntry",
             fieldbackground="#292929",
@@ -346,16 +349,15 @@ class WireVeilChecker(tk.Tk):
         )
         self.source.pack(side="left", fill="x", expand=True)
 
-        hero = ttk.Frame(outer, style="Hero.TFrame", padding=(10, 7))
+        hero = ttk.Frame(outer, style="Hero.TFrame", padding=(7, 5))
         hero.pack(fill="x", pady=(0, 4))
         hero.columnconfigure(0, weight=1)
         hero.columnconfigure(3, weight=1)
         self.magic_button = ttk.Button(
             hero,
-            text="☢  СДЕЛАТЬ ЗАЕБИСЬ  ☢\nПОЛНАЯ АВТОПРОВЕРКА",
+            text="☢  Сделать заебись",
             command=self._start_one_click,
             style="Launch.TButton",
-            width=34,
         )
         self.magic_button.grid(row=0, column=1, padx=8)
         self.stop_button = ttk.Button(
