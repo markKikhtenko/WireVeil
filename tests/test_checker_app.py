@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from checker_app import (
     SERVICE_COLUMN_BY_NAME,
@@ -6,6 +7,7 @@ from checker_app import (
     TABLE_COLUMNS,
     WireVeilChecker,
 )
+from scripts import healthcheck, local_checker
 
 
 class TableSortTests(unittest.TestCase):
@@ -32,6 +34,76 @@ class TableSortTests(unittest.TestCase):
             WireVeilChecker._column_sort_value(column, available),
             WireVeilChecker._column_sort_value(column, restricted),
         )
+
+    def test_smart_quality_prioritizes_full_access_before_ping(self):
+        full = ["—"] * len(TABLE_COLUMNS)
+        partial = ["—"] * len(TABLE_COLUMNS)
+        full[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 240 ms"
+        partial[TABLE_COLUMN_POSITIONS["quality"]] = "2/3 · 40 ms"
+        self.assertLess(
+            WireVeilChecker._column_sort_value("quality", tuple(full)),
+            WireVeilChecker._column_sort_value("quality", tuple(partial)),
+        )
+
+    def test_smart_quality_uses_worst_service_latency_as_tiebreaker(self):
+        fast = ["—"] * len(TABLE_COLUMNS)
+        slow = ["—"] * len(TABLE_COLUMNS)
+        fast[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 120 ms"
+        slow[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 350 ms"
+        self.assertLess(
+            WireVeilChecker._column_sort_value("quality", tuple(fast)),
+            WireVeilChecker._column_sort_value("quality", tuple(slow)),
+        )
+
+
+class QualifiedExportTests(unittest.TestCase):
+    def test_low_ping_is_excluded_when_selected_service_is_unavailable(self):
+        targets = tuple(
+            healthcheck.ProbeTarget(
+                index,
+                f"wv-{index:04d}",
+                f"vless://00000000-0000-4000-8000-00000000000{index}@node{index}.example:443",
+                "vless",
+                {},
+            )
+            for index in range(2)
+        )
+        probe_results = tuple(
+            healthcheck.ProbeResult(
+                target,
+                True,
+                50 + target.index,
+                attempts=2,
+                successes=2,
+            )
+            for target in targets
+        )
+        checker = object.__new__(WireVeilChecker)
+        checker.report = local_checker.CheckReport(
+            candidates=tuple(target.uri for target in targets),
+            results=probe_results,
+            conversion_unsupported={},
+            runtime_rejected={},
+            engine_version="test",
+            attempts=2,
+        )
+        checker.latency_var = mock.Mock()
+        checker.latency_var.get.return_value = 500
+        checker.service_vars = {
+            service.name: mock.Mock()
+            for service in local_checker.SERVICE_DEFINITIONS
+        }
+        for name, variable in checker.service_vars.items():
+            variable.get.return_value = name == "ChatGPT"
+        checker.service_results = {
+            (0, "ChatGPT"): local_checker.ServiceResult(
+                targets[0], "ChatGPT", available=False, http_status=403
+            ),
+            (1, "ChatGPT"): local_checker.ServiceResult(
+                targets[1], "ChatGPT", available=True, http_status=200
+            ),
+        }
+        self.assertEqual((probe_results[1],), checker._qualified_results())
 
 
 if __name__ == "__main__":
