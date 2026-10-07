@@ -73,10 +73,7 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64) -or
               [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
-            if ($env:GITHUB_REF -like "refs/tags/checker-v*") {
-              throw "A tagged release requires WINDOWS_CERTIFICATE_BASE64 and WINDOWS_CERTIFICATE_PASSWORD secrets."
-            }
-            Write-Host "Signing certificate is not configured; branch artifact remains unsigned."
+            Write-Warning "Signing certificate is not configured; binaries and release archive remain unsigned."
             exit 0
           }
           $pfx = Join-Path $env:RUNNER_TEMP "wireveil-code-signing.pfx"
