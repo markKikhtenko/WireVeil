@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import queue
+import re
 import sys
 import threading
 import urllib.parse
@@ -74,12 +75,20 @@ class WireVeilChecker(tk.Tk):
         self.report: local_checker.CheckReport | None = None
         self.imported: local_checker.ImportedSubscription | None = None
         self.table_items: dict[int, str] = {}
+        self.item_uris: dict[str, str] = {}
         self.live_results: dict[int, dict[str, object]] = {}
+        self.column_headings: dict[str, str] = {}
+        self.sort_column: str | None = None
+        self.sort_descending = False
+        self.sort_job: str | None = None
+        self.auto_job: str | None = None
 
         self.rounds_var = tk.IntVar(value=2)
         self.timeout_var = tk.IntVar(value=8)
         self.workers_var = tk.IntVar(value=64)
         self.latency_var = tk.IntVar(value=500)
+        self.auto_enabled_var = tk.BooleanVar(value=False)
+        self.auto_interval_var = tk.IntVar(value=30)
         self.status_var = tk.StringVar(value="Вставьте ссылку подписки или её содержимое.")
         self.summary_var = tk.StringVar(value="Результатов пока нет")
         self.progress_var = tk.DoubleVar(value=0)
@@ -103,6 +112,8 @@ class WireVeilChecker(tk.Tk):
         style.configure("TButton", background="#363636", foreground="#f4f4f4", padding=(9, 5), borderwidth=1)
         style.map("TButton", background=[("active", "#444444"), ("pressed", "#1f78a8")])
         style.configure("TSpinbox", fieldbackground="#292929", foreground="#ffffff", arrowsize=12)
+        style.configure("TCheckbutton", background="#202020", foreground="#ededed")
+        style.map("TCheckbutton", background=[("active", "#202020")])
         style.configure("Horizontal.TProgressbar", background="#2d9cdb", troughcolor="#303030", borderwidth=0)
         style.configure(
             "Treeview",
@@ -139,6 +150,13 @@ class WireVeilChecker(tk.Tk):
             toolbar, text="В буфер годные", command=self._copy_fast, state="disabled"
         )
         self.copy_button.pack(side="right", padx=(0, 4))
+        self.copy_selected_button = ttk.Button(
+            toolbar,
+            text="Копировать выбранные",
+            command=self._copy_selected,
+            state="disabled",
+        )
+        self.copy_selected_button.pack(side="right", padx=(0, 4))
 
         source_row = ttk.Frame(outer, padding=(0, 6, 0, 4))
         source_row.pack(fill="x")
@@ -166,17 +184,28 @@ class WireVeilChecker(tk.Tk):
         self._spin_setting(settings, "Потоков", self.workers_var, 1, 256, 5)
         self._spin_setting(settings, "Быстрые ≤", self.latency_var, 1, 10000, 7)
         ttk.Label(settings, text="мс", style="Dim.TLabel").grid(row=0, column=9)
-        ttk.Label(
+        ttk.Checkbutton(
             settings,
-            text="URL-test через sing-box • результат зависит от текущей сети",
-            style="Dim.TLabel",
-        ).grid(row=0, column=10, sticky="e", padx=(18, 2))
+            text="Автопроверка каждые",
+            variable=self.auto_enabled_var,
+            command=self._toggle_auto,
+        ).grid(row=0, column=10, sticky="e", padx=(18, 6))
+        ttk.Spinbox(
+            settings,
+            from_=1,
+            to=1440,
+            textvariable=self.auto_interval_var,
+            width=6,
+        ).grid(row=0, column=11, sticky="e")
+        ttk.Label(settings, text="мин", style="Dim.TLabel").grid(row=0, column=12, padx=(4, 2))
         settings.columnconfigure(10, weight=1)
 
         table_frame = ttk.Frame(outer)
         table_frame.pack(fill="both", expand=True)
         columns = ("number", "protocol", "endpoint", "name", "latency", "passes")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings")
+        self.table = ttk.Treeview(
+            table_frame, columns=columns, show="headings", selectmode="extended"
+        )
         headings = {
             "number": "#",
             "protocol": "Тип",
@@ -185,9 +214,14 @@ class WireVeilChecker(tk.Tk):
             "latency": "Результат теста",
             "passes": "Прогоны",
         }
+        self.column_headings = headings
         widths = {"number": 45, "protocol": 105, "endpoint": 280, "name": 420, "latency": 125, "passes": 85}
         for column in columns:
-            self.table.heading(column, text=headings[column])
+            self.table.heading(
+                column,
+                text=headings[column],
+                command=lambda selected=column: self._sort_table(selected),
+            )
             self.table.column(column, width=widths[column], minwidth=35, stretch=column in {"endpoint", "name"})
         self.table.tag_configure("fast", foreground="#60d35f")
         self.table.tag_configure("active", foreground="#d8ce43")
@@ -195,6 +229,8 @@ class WireVeilChecker(tk.Tk):
         self.table.tag_configure("pending", foreground="#a0a0a0")
         table_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         self.table.configure(yscrollcommand=table_scroll.set)
+        self.table.bind("<<TreeviewSelect>>", self._selection_changed)
+        self.table.bind("<Control-c>", self._copy_selected_event)
         self.table.pack(side="left", fill="both", expand=True)
         table_scroll.pack(side="right", fill="y")
 
@@ -289,6 +325,7 @@ class WireVeilChecker(tk.Tk):
             return
 
         rounds, timeout, workers, _latency = settings
+        self._cancel_auto_timer()
         self.running = True
         self.report = None
         self.cancel_event = threading.Event()
@@ -327,6 +364,8 @@ class WireVeilChecker(tk.Tk):
 
     def _stop(self) -> None:
         if self.running:
+            self.auto_enabled_var.set(False)
+            self._cancel_auto_timer()
             self.cancel_event.set()
             self.stop_button.configure(state="disabled")
             self.status_var.set("Останавливаю проверку…")
@@ -383,6 +422,7 @@ class WireVeilChecker(tk.Tk):
         state = "normal" if fast else "disabled"
         self.fast_button.configure(state=state)
         self.copy_button.configure(state=state)
+        self._schedule_auto_check()
 
     def _fail(self, detail: str) -> None:
         self.running = False
@@ -398,6 +438,8 @@ class WireVeilChecker(tk.Tk):
             self._log(f"Ошибка: {detail}")
             if not self.closing:
                 messagebox.showerror(APP_TITLE, detail)
+        if not self.closing and self.auto_enabled_var.get():
+            self._schedule_auto_check()
 
     def _set_running_controls(self, running: bool) -> None:
         self.start_button.configure(state="disabled" if running else "normal")
@@ -414,7 +456,9 @@ class WireVeilChecker(tk.Tk):
         if children:
             self.table.delete(*children)
         self.table_items.clear()
+        self.item_uris.clear()
         self.live_results.clear()
+        self.copy_selected_button.configure(state="disabled")
 
     def _clear_log(self) -> None:
         self.log.configure(state="normal")
@@ -464,7 +508,10 @@ class WireVeilChecker(tk.Tk):
         if item:
             self.table.item(item, values=values, tags=(tag,))
         else:
-            self.table_items[index] = self.table.insert("", "end", values=values, tags=(tag,))
+            item = self.table.insert("", "end", values=values, tags=(tag,))
+            self.table_items[index] = item
+            self.item_uris[item] = result.target.uri
+        self._schedule_resort()
 
     def _show_pending(self, lines: tuple[str, ...], attempts: int) -> None:
         """Display every imported server before the first network result arrives."""
@@ -481,9 +528,12 @@ class WireVeilChecker(tk.Tk):
                 "ожидание…",
                 f"0/{attempts}",
             )
-            self.table_items[index] = self.table.insert(
+            item = self.table.insert(
                 "", "end", values=values, tags=("pending",)
             )
+            self.table_items[index] = item
+            self.item_uris[item] = uri
+        self._schedule_resort()
 
     def _populate_table(self, report: local_checker.CheckReport) -> None:
         self._clear_table()
@@ -509,7 +559,7 @@ class WireVeilChecker(tk.Tk):
             detail = display_name(result.target.uri)
             if result.error and tag == "dead":
                 detail = result.error[:180]
-            self.table.insert(
+            item = self.table.insert(
                 "",
                 "end",
                 values=(
@@ -522,6 +572,77 @@ class WireVeilChecker(tk.Tk):
                 ),
                 tags=(tag,),
             )
+            self.item_uris[item] = result.target.uri
+        if self.sort_column is not None:
+            self._apply_sort()
+
+    def _sort_table(self, column: str) -> None:
+        if self.sort_column == column:
+            self.sort_descending = not self.sort_descending
+        else:
+            self.sort_column = column
+            self.sort_descending = False
+        self._apply_sort()
+
+    def _schedule_resort(self) -> None:
+        if self.sort_column is None or self.sort_job is not None:
+            return
+        self.sort_job = self.after(250, self._resort_current)
+
+    def _resort_current(self) -> None:
+        self.sort_job = None
+        if self.sort_column is not None:
+            self._apply_sort()
+
+    @staticmethod
+    def _column_sort_value(column: str, values: tuple[str, ...]) -> object | None:
+        positions = {
+            "number": 0,
+            "protocol": 1,
+            "endpoint": 2,
+            "name": 3,
+            "latency": 4,
+            "passes": 5,
+        }
+        raw = str(values[positions[column]]).strip()
+        if column == "number":
+            try:
+                return int(raw)
+            except ValueError:
+                return None
+        if column == "latency":
+            match = re.match(r"^(\d+)\s*ms$", raw, re.IGNORECASE)
+            return int(match.group(1)) if match else None
+        if column == "passes":
+            match = re.match(r"^(\d+)\s*/\s*(\d+)$", raw)
+            if not match:
+                return None
+            passed, total = int(match.group(1)), int(match.group(2))
+            return (passed / total if total else 0.0, passed, total)
+        return raw.casefold()
+
+    def _apply_sort(self) -> None:
+        column = self.sort_column
+        if column is None:
+            return
+        valid: list[tuple[object, str]] = []
+        missing: list[str] = []
+        for item in self.table.get_children(""):
+            values = tuple(str(value) for value in self.table.item(item, "values"))
+            value = self._column_sort_value(column, values)
+            if value is None:
+                missing.append(item)
+            else:
+                valid.append((value, item))
+        valid.sort(key=lambda entry: entry[0], reverse=self.sort_descending)
+        ordered = [item for _value, item in valid] + missing
+        for position, item in enumerate(ordered):
+            self.table.move(item, "", position)
+        for name, label in self.column_headings.items():
+            arrow = ""
+            if name == column:
+                arrow = " ▼" if self.sort_descending else " ▲"
+            self.table.heading(name, text=label + arrow)
 
     def _latency_limit(self) -> int:
         try:
@@ -566,7 +687,84 @@ class WireVeilChecker(tk.Tk):
         self.status_var.set(f"Годных ключей скопировано в буфер: {len(results)}")
         self._log(f"В буфер обмена экспортировано годных ключей: {len(results)}.")
 
+    def _selection_changed(self, _event: object | None = None) -> None:
+        state = "normal" if self.table.selection() else "disabled"
+        self.copy_selected_button.configure(state=state)
+
+    def _copy_selected_event(self, _event: object | None = None) -> str:
+        self._copy_selected()
+        return "break"
+
+    def _copy_selected(self) -> None:
+        selected = set(self.table.selection())
+        uris: list[str] = []
+        seen: set[str] = set()
+        for item in self.table.get_children(""):
+            if item not in selected:
+                continue
+            uri = self.item_uris.get(item)
+            if uri and uri not in seen:
+                seen.add(uri)
+                uris.append(uri)
+        if not uris:
+            return
+        self.clipboard_clear()
+        self.clipboard_append("".join(f"{uri}\n" for uri in uris))
+        self.update_idletasks()
+        self.status_var.set(f"Выбранных ключей скопировано: {len(uris)}")
+        self._log(f"В буфер обмена скопировано выбранных ключей: {len(uris)}.")
+
+    def _toggle_auto(self) -> None:
+        if not self.auto_enabled_var.get():
+            self._cancel_auto_timer()
+            self._log("Автопроверка выключена.")
+            return
+        try:
+            interval = int(self.auto_interval_var.get())
+        except (ValueError, tk.TclError):
+            interval = 0
+        if not 1 <= interval <= 1440:
+            self.auto_enabled_var.set(False)
+            messagebox.showerror(APP_TITLE, "Интервал автопроверки должен быть от 1 до 1440 минут.")
+            return
+        if self.running:
+            self._log(f"Автопроверка включена: следующий запуск через {interval} мин после текущего.")
+        elif self.report is not None:
+            self._schedule_auto_check()
+        else:
+            self._log("Автопроверка включена и начнёт отсчёт после первого ручного запуска.")
+
+    def _schedule_auto_check(self) -> None:
+        self._cancel_auto_timer()
+        if not self.auto_enabled_var.get() or self.closing:
+            return
+        try:
+            interval = int(self.auto_interval_var.get())
+        except (ValueError, tk.TclError):
+            self.auto_enabled_var.set(False)
+            return
+        if not 1 <= interval <= 1440:
+            self.auto_enabled_var.set(False)
+            return
+        self.auto_job = self.after(interval * 60_000, self._run_auto_check)
+        self._log(f"Следующая автоматическая проверка через {interval} мин.")
+
+    def _cancel_auto_timer(self) -> None:
+        if self.auto_job is not None:
+            try:
+                self.after_cancel(self.auto_job)
+            except tk.TclError:
+                pass
+            self.auto_job = None
+
+    def _run_auto_check(self) -> None:
+        self.auto_job = None
+        if self.auto_enabled_var.get() and not self.running and not self.closing:
+            self._log("Запуск автоматической проверки.")
+            self._start()
+
     def _on_close(self) -> None:
+        self._cancel_auto_timer()
         if self.running:
             self.closing = True
             self.cancel_event.set()
