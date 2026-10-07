@@ -35,6 +35,28 @@ class TableSortTests(unittest.TestCase):
             WireVeilChecker._column_sort_value(column, restricted),
         )
 
+    def test_reached_chatgpt_domain_sorts_as_available(self):
+        column = SERVICE_COLUMN_BY_NAME["ChatGPT"]
+        reached = self.row("ChatGPT", "домен отвечает · HTTP 403 · 70 ms")
+        restricted = self.row("ChatGPT", "HTTP 403 · 50 ms")
+        self.assertLess(
+            WireVeilChecker._column_sort_value(column, reached),
+            WireVeilChecker._column_sort_value(column, restricted),
+        )
+
+    def test_reached_chatgpt_domain_has_clear_label(self):
+        result = local_checker.ServiceResult(
+            mock.Mock(),
+            "ChatGPT",
+            available=True,
+            latency_ms=70,
+            http_status=403,
+        )
+        self.assertEqual(
+            "домен отвечает · HTTP 403 · 70 ms",
+            WireVeilChecker._format_service(result),
+        )
+
     def test_smart_quality_prioritizes_full_access_before_ping(self):
         full = ["—"] * len(TABLE_COLUMNS)
         partial = ["—"] * len(TABLE_COLUMNS)
@@ -104,6 +126,23 @@ class QualifiedExportTests(unittest.TestCase):
             ),
         }
         self.assertEqual((probe_results[1],), checker._qualified_results())
+
+
+class AutoCheckTests(unittest.TestCase):
+    def test_auto_check_runs_the_full_one_click_workflow(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.auto_job = "scheduled"
+        checker.auto_enabled_var = mock.Mock()
+        checker.auto_enabled_var.get.return_value = True
+        checker.running = False
+        checker.closing = False
+        checker._log = mock.Mock()
+        checker._start_one_click = mock.Mock()
+
+        checker._run_auto_check()
+
+        self.assertIsNone(checker.auto_job)
+        checker._start_one_click.assert_called_once_with()
 
 
 if __name__ == "__main__":

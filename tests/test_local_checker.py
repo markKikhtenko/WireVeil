@@ -210,7 +210,7 @@ class ServiceTestTests(unittest.TestCase):
         self.assertEqual(204, result.http_status)
         self.assertEqual(125, result.latency_ms)
 
-    def test_service_access_keeps_restriction_status(self):
+    def test_chatgpt_403_counts_as_reached_without_credentials(self):
         opener = mock.Mock()
         opener.open.side_effect = urllib.error.HTTPError(
             "https://chatgpt.com/", 403, "Forbidden", {}, io.BytesIO(b"blocked")
@@ -227,9 +227,31 @@ class ServiceTestTests(unittest.TestCase):
                 timeout=15,
                 cancel_event=None,
             )
-        self.assertFalse(result.available)
+        self.assertTrue(result.available)
         self.assertEqual(403, result.http_status)
         self.assertEqual(50, result.latency_ms)
+        self.assertIsNone(result.error)
+
+    def test_other_service_403_remains_unavailable(self):
+        opener = mock.Mock()
+        opener.open.side_effect = urllib.error.HTTPError(
+            "https://github.com/", 403, "Forbidden", {}, io.BytesIO(b"blocked")
+        )
+        service = local_checker.SERVICE_DEFINITIONS_BY_NAME["GitHub"]
+        with (
+            mock.patch("urllib.request.build_opener", return_value=opener),
+            mock.patch("time.perf_counter", side_effect=[30.0, 30.075]),
+        ):
+            result = local_checker._test_service_access(
+                self.target(),
+                21001,
+                service=service,
+                timeout=15,
+                cancel_event=None,
+            )
+        self.assertFalse(result.available)
+        self.assertEqual(403, result.http_status)
+        self.assertEqual(75, result.latency_ms)
 
 
 if __name__ == "__main__":

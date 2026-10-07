@@ -30,10 +30,16 @@ class ServiceDefinition:
     key: str
     name: str
     url: str
+    reachable_http_statuses: tuple[int, ...] = ()
 
 
 SERVICE_DEFINITIONS = (
-    ServiceDefinition("chatgpt", "ChatGPT", "https://chatgpt.com/"),
+    ServiceDefinition(
+        "chatgpt",
+        "ChatGPT",
+        "https://chatgpt.com/",
+        reachable_http_statuses=(401, 403),
+    ),
     ServiceDefinition("youtube", "YouTube", "https://www.youtube.com/generate_204"),
     ServiceDefinition("github", "GitHub", "https://github.com/"),
     ServiceDefinition("google", "Google", "https://www.google.com/generate_204"),
@@ -459,12 +465,14 @@ def _test_service_access(
     except urllib.error.HTTPError as exc:
         elapsed = time.perf_counter() - started
         exc.close()
+        available = int(exc.code) in service.reachable_http_statuses
         return ServiceResult(
             target,
             service.name,
+            available=available,
             latency_ms=max(1, round(elapsed * 1000)),
             http_status=int(exc.code),
-            error=f"HTTP {exc.code}",
+            error=None if available else f"HTTP {exc.code}",
         )
     except (OSError, ValueError, urllib.error.URLError) as exc:
         return ServiceResult(

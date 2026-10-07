@@ -94,6 +94,7 @@ class WireVeilChecker(tk.Tk):
         self.running = False
         self.activity: str | None = None
         self.one_click_mode = False
+        self.advanced_visible = False
         self.closing = False
         self.report: local_checker.CheckReport | None = None
         self.imported: local_checker.ImportedSubscription | None = None
@@ -144,18 +145,19 @@ class WireVeilChecker(tk.Tk):
         style.configure("TButton", background="#363636", foreground="#f4f4f4", padding=(9, 5), borderwidth=1)
         style.map("TButton", background=[("active", "#444444"), ("pressed", "#1f78a8")])
         style.configure(
-            "Magic.TButton",
-            background="#b52b2b",
+            "Launch.TButton",
+            background="#a81f1f",
             foreground="#ffffff",
-            font=("Segoe UI Semibold", 9),
-            padding=(7, 4),
-            borderwidth=1,
+            font=("Segoe UI Black", 14),
+            padding=(24, 11),
+            borderwidth=2,
         )
         style.map(
-            "Magic.TButton",
-            background=[("active", "#d63a3a"), ("pressed", "#8f1f1f")],
+            "Launch.TButton",
+            background=[("active", "#d63232"), ("pressed", "#761616")],
             foreground=[("disabled", "#a0a0a0"), ("!disabled", "#ffffff")],
         )
+        style.configure("Hero.TFrame", background="#2a2020")
         style.configure(
             "Stepper.TEntry",
             fieldbackground="#292929",
@@ -212,17 +214,6 @@ class WireVeilChecker(tk.Tk):
         self.paste_button.pack(side="left")
         self.file_button = ttk.Button(toolbar, text="Файл…", command=self._choose_file)
         self.file_button.pack(side="left", padx=(4, 0))
-        self.start_button = ttk.Button(toolbar, text="▶ Проверить", command=self._start)
-        self.start_button.pack(side="left", padx=(8, 0))
-        self.stop_button = ttk.Button(toolbar, text="■ Стоп", command=self._stop, state="disabled")
-        self.stop_button.pack(side="left", padx=(4, 0))
-        self.speed_button = ttk.Button(
-            toolbar,
-            text="⚡ Скорость зелёных",
-            command=self._start_speed_test,
-            state="disabled",
-        )
-        self.speed_button.pack(side="left", padx=(4, 0))
         self.active_button = ttk.Button(toolbar, text="Сохранить живые", command=self._save_active, state="disabled")
         self.active_button.pack(side="right")
         self.fast_button = ttk.Button(toolbar, text="Сохранить годные", command=self._save_fast, state="disabled")
@@ -257,29 +248,84 @@ class WireVeilChecker(tk.Tk):
         )
         self.source.pack(side="left", fill="x", expand=True)
 
-        settings = ttk.Frame(outer)
-        settings.pack(fill="x", pady=(0, 5))
+        hero = ttk.Frame(outer, style="Hero.TFrame", padding=(10, 7))
+        hero.pack(fill="x", pady=(0, 4))
+        hero.columnconfigure(0, weight=1)
+        hero.columnconfigure(3, weight=1)
+        self.magic_button = ttk.Button(
+            hero,
+            text="☢  СДЕЛАТЬ ЗАЕБИСЬ  ☢\nПОЛНАЯ АВТОПРОВЕРКА",
+            command=self._start_one_click,
+            style="Launch.TButton",
+            width=34,
+        )
+        self.magic_button.grid(row=0, column=1, padx=8)
+        self.stop_button = ttk.Button(
+            hero,
+            text="■ Аварийный стоп",
+            command=self._stop,
+            state="disabled",
+        )
+        self.stop_button.grid(row=0, column=2, padx=(8, 0))
+
+        quick = ttk.Frame(outer)
+        quick.pack(fill="x", pady=(0, 4))
+        ttk.Checkbutton(
+            quick,
+            text="Автозаебись каждые",
+            variable=self.auto_enabled_var,
+            command=self._toggle_auto,
+        ).grid(row=0, column=0, sticky="w", padx=(2, 4))
+        self._numeric_stepper(quick, self.auto_interval_var, 1, 1440, 1, width=5)
+        ttk.Label(quick, text="мин", style="Dim.TLabel").grid(row=0, column=2, padx=(0, 8))
+        quick.columnconfigure(3, weight=1)
+        self.advanced_toggle_button = ttk.Button(
+            quick,
+            text="⚙ Дополнительные настройки…",
+            command=self._toggle_advanced_settings,
+        )
+        self.advanced_toggle_button.grid(row=0, column=4, sticky="e")
+
+        self.advanced_host = ttk.Frame(outer)
+        self.advanced_host.pack(fill="x")
+        self.advanced_frame = ttk.Frame(
+            self.advanced_host, style="Panel.TFrame", padding=6
+        )
+        manual = ttk.Frame(self.advanced_frame, style="Panel.TFrame")
+        manual.pack(fill="x")
+        self.start_button = ttk.Button(manual, text="▶ Только ping", command=self._start)
+        self.start_button.pack(side="left")
+        self.speed_button = ttk.Button(
+            manual,
+            text="⚡ Скорость годных",
+            command=self._start_speed_test,
+            state="disabled",
+        )
+        self.speed_button.pack(side="left", padx=(4, 0))
+        self.service_button = ttk.Button(
+            manual,
+            text="Проверить выбранные сайты",
+            command=self._start_service_test,
+            state="disabled",
+        )
+        self.service_button.pack(side="left", padx=(4, 0))
+
+        settings = ttk.Frame(self.advanced_frame, style="Panel.TFrame")
+        settings.pack(fill="x", pady=(6, 0))
         self._spin_setting(settings, "Прогонов", self.rounds_var, 1, 5, 0)
         self._spin_setting(settings, "Тайм-аут", self.timeout_var, 1, 60, 2)
         ttk.Label(settings, text="сек", style="Dim.TLabel").grid(row=0, column=4, padx=(0, 14))
         self._spin_setting(settings, "Потоков", self.workers_var, 1, 256, 5)
         self._spin_setting(settings, "Быстрые ≤", self.latency_var, 1, 10000, 7)
         ttk.Label(settings, text="мс", style="Dim.TLabel").grid(row=0, column=9)
-        ttk.Checkbutton(
-            settings,
-            text="Автопроверка каждые",
-            variable=self.auto_enabled_var,
-            command=self._toggle_auto,
-        ).grid(row=0, column=10, sticky="e", padx=(18, 6))
-        self._numeric_stepper(settings, self.auto_interval_var, 1, 1440, 11, width=5)
-        ttk.Label(settings, text="мин", style="Dim.TLabel").grid(row=0, column=12, padx=(4, 2))
-        settings.columnconfigure(10, weight=1)
 
-        ttk.Label(settings, text="Проверка сайтов:").grid(
-            row=1, column=0, sticky="w", pady=(6, 0), padx=(0, 6)
+        services = ttk.Frame(self.advanced_frame, style="Panel.TFrame")
+        services.pack(fill="x", pady=(6, 0))
+        ttk.Label(services, text="Проверка сайтов:", style="Brand.TLabel").pack(
+            side="left", padx=(0, 6)
         )
         self.service_menu_button = ttk.Menubutton(
-            settings,
+            services,
             textvariable=self.service_menu_text_var,
             style="Service.TMenubutton",
             width=19,
@@ -300,30 +346,12 @@ class WireVeilChecker(tk.Tk):
                 command=self._service_selection_changed,
             )
         self.service_menu_button.configure(menu=service_menu)
-        self.service_menu_button.grid(
-            row=1, column=1, columnspan=2, sticky="w", pady=(6, 0)
-        )
-        self.service_button = ttk.Button(
-            settings,
-            text="Проверить доступ",
-            command=self._start_service_test,
-            state="disabled",
-        )
-        self.service_button.grid(row=1, column=3, columnspan=3, sticky="w", pady=(6, 0), padx=(8, 0))
+        self.service_menu_button.pack(side="left")
         ttk.Label(
-            settings,
+            services,
             text="можно выбрать несколько; тестируются только зелёные серверы",
             style="Dim.TLabel",
-        ).grid(row=1, column=6, columnspan=4, sticky="w", pady=(6, 0), padx=(8, 0))
-        self.magic_button = ttk.Button(
-            settings,
-            text="Сделать заебись",
-            command=self._start_one_click,
-            style="Magic.TButton",
-        )
-        self.magic_button.grid(
-            row=1, column=10, columnspan=3, sticky="e", pady=(6, 0), padx=(8, 2)
-        )
+        ).pack(side="left", padx=(8, 0))
 
         table_frame = ttk.Frame(outer)
         table_frame.pack(fill="both", expand=True)
@@ -348,16 +376,16 @@ class WireVeilChecker(tk.Tk):
         )
         self.column_headings = headings
         widths = {
-            "number": 45,
-            "protocol": 100,
-            "endpoint": 220,
-            "name": 285,
-            "latency": 90,
-            "speed": 110,
-            "quality": 125,
-            "passes": 80,
+            "number": 42,
+            "protocol": 80,
+            "endpoint": 190,
+            "name": 230,
+            "latency": 80,
+            "speed": 100,
+            "quality": 110,
+            "passes": 70,
         }
-        widths.update({column: 145 for column in SERVICE_NAME_BY_COLUMN})
+        widths.update({column: 125 for column in SERVICE_NAME_BY_COLUMN})
         for column in TABLE_COLUMNS:
             self.table.heading(
                 column,
@@ -413,6 +441,18 @@ class WireVeilChecker(tk.Tk):
         statusbar.pack(fill="x")
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         ttk.Label(statusbar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
+
+    def _toggle_advanced_settings(self) -> None:
+        if self.advanced_visible:
+            self.advanced_frame.pack_forget()
+            self.advanced_visible = False
+            self.advanced_toggle_button.configure(
+                text="⚙ Дополнительные настройки…"
+            )
+        else:
+            self.advanced_frame.pack(fill="x", pady=(0, 5))
+            self.advanced_visible = True
+            self.advanced_toggle_button.configure(text="Скрыть настройки ▲")
 
     def _spin_setting(
         self, parent: ttk.Frame, label: str, variable: tk.IntVar, start: int, end: int, column: int
@@ -854,6 +894,8 @@ class WireVeilChecker(tk.Tk):
             return "—"
         delay = f" · {result.latency_ms} ms" if result.latency_ms is not None else ""
         if result.available:
+            if result.http_status is not None and result.http_status >= 400:
+                return f"домен отвечает · HTTP {result.http_status}{delay}"
             return f"доступен{delay}"
         if result.http_status is not None:
             return f"HTTP {result.http_status}{delay}"
@@ -1363,7 +1405,7 @@ class WireVeilChecker(tk.Tk):
             return (-(passed / total if total else 0.0), latency)
         if column in SERVICE_NAME_BY_COLUMN:
             match = re.search(r"(\d+)\s*ms$", raw, re.IGNORECASE)
-            if raw.casefold().startswith("доступен"):
+            if raw.casefold().startswith(("доступен", "домен отвечает")):
                 return (0, int(match.group(1)) if match else sys.maxsize)
             if raw.upper().startswith("HTTP"):
                 status = re.match(r"^HTTP\s+(\d+)", raw, re.IGNORECASE)
@@ -1472,7 +1514,7 @@ class WireVeilChecker(tk.Tk):
     def _toggle_auto(self) -> None:
         if not self.auto_enabled_var.get():
             self._cancel_auto_timer()
-            self._log("Автопроверка выключена.")
+            self._log("Автозаебись выключен.")
             return
         try:
             interval = int(self.auto_interval_var.get())
@@ -1480,14 +1522,14 @@ class WireVeilChecker(tk.Tk):
             interval = 0
         if not 1 <= interval <= 1440:
             self.auto_enabled_var.set(False)
-            messagebox.showerror(APP_TITLE, "Интервал автопроверки должен быть от 1 до 1440 минут.")
+            messagebox.showerror(APP_TITLE, "Интервал автозапуска должен быть от 1 до 1440 минут.")
             return
         if self.running:
-            self._log(f"Автопроверка включена: следующий запуск через {interval} мин после текущего.")
+            self._log(f"Автозаебись включён: полный цикл через {interval} мин после текущего.")
         elif self.report is not None:
             self._schedule_auto_check()
         else:
-            self._log("Автопроверка включена и начнёт отсчёт после первого ручного запуска.")
+            self._log("Автозаебись включён и начнёт отсчёт после первого полного запуска.")
 
     def _schedule_auto_check(self) -> None:
         self._cancel_auto_timer()
@@ -1502,7 +1544,7 @@ class WireVeilChecker(tk.Tk):
             self.auto_enabled_var.set(False)
             return
         self.auto_job = self.after(interval * 60_000, self._run_auto_check)
-        self._log(f"Следующая автоматическая проверка через {interval} мин.")
+        self._log(f"Следующий полный автозапуск через {interval} мин.")
 
     def _cancel_auto_timer(self) -> None:
         if self.auto_job is not None:
@@ -1515,8 +1557,8 @@ class WireVeilChecker(tk.Tk):
     def _run_auto_check(self) -> None:
         self.auto_job = None
         if self.auto_enabled_var.get() and not self.running and not self.closing:
-            self._log("Запуск автоматической проверки.")
-            self._start()
+            self._log("Запуск полного автоматического цикла.")
+            self._start_one_click()
 
     def _on_close(self) -> None:
         self._cancel_auto_timer()
