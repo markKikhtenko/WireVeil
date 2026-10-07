@@ -27,17 +27,18 @@ SPEED_TEST_URL = "https://speed.cloudflare.com/__down"
 
 @dataclasses.dataclass(frozen=True)
 class ServiceDefinition:
+    key: str
     name: str
     url: str
 
 
 SERVICE_DEFINITIONS = (
-    ServiceDefinition("ChatGPT", "https://chatgpt.com/"),
-    ServiceDefinition("YouTube", "https://www.youtube.com/generate_204"),
-    ServiceDefinition("GitHub", "https://github.com/"),
-    ServiceDefinition("Google", "https://www.google.com/generate_204"),
-    ServiceDefinition("Discord", "https://discord.com/api/v10/gateway"),
-    ServiceDefinition("Telegram Web", "https://web.telegram.org/"),
+    ServiceDefinition("chatgpt", "ChatGPT", "https://chatgpt.com/"),
+    ServiceDefinition("youtube", "YouTube", "https://www.youtube.com/generate_204"),
+    ServiceDefinition("github", "GitHub", "https://github.com/"),
+    ServiceDefinition("google", "Google", "https://www.google.com/generate_204"),
+    ServiceDefinition("discord", "Discord", "https://discord.com/api/v10/gateway"),
+    ServiceDefinition("telegram", "Telegram Web", "https://web.telegram.org/"),
 )
 SERVICE_DEFINITIONS_BY_NAME = {service.name: service for service in SERVICE_DEFINITIONS}
 DEFAULT_SERVICE_NAME = SERVICE_DEFINITIONS[0].name
@@ -486,18 +487,26 @@ def run_service_tests(
     *,
     binary: Path,
     targets: Sequence[healthcheck.ProbeTarget],
-    service_name: str,
+    service_name: str | None = None,
+    service_names: Sequence[str] | None = None,
     workers: int = 16,
     timeout: float = 15.0,
     progress_callback: Callable[[int, int, ServiceResult], None] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> tuple[ServiceResult, ...]:
-    """Check one selected website through every pre-qualified green target."""
+    """Check one or more selected websites through every green target."""
     if not binary.is_file():
         raise LocalCheckError(f"Не найден sing-box: {binary}")
-    service = SERVICE_DEFINITIONS_BY_NAME.get(service_name)
-    if service is None:
-        raise LocalCheckError(f"Неизвестный сервис: {service_name}")
+    requested = tuple(service_names or (() if service_name is None else (service_name,)))
+    requested = tuple(dict.fromkeys(requested))
+    if not requested:
+        raise LocalCheckError("Не выбран ни один сервис.")
+    services: list[ServiceDefinition] = []
+    for requested_name in requested:
+        service = SERVICE_DEFINITIONS_BY_NAME.get(requested_name)
+        if service is None:
+            raise LocalCheckError(f"Неизвестный сервис: {requested_name}")
+        services.append(service)
     if not targets:
         return ()
     if not 1 <= workers <= 32:
@@ -543,6 +552,7 @@ def run_service_tests(
                         cancel_event=cancel_event,
                     )
                     for target, port in zip(targets, ports)
+                    for service in services
                 ]
                 cancelled = False
                 results: list[ServiceResult] = []
@@ -567,7 +577,16 @@ def run_service_tests(
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait(timeout=5)
-    return tuple(sorted(results, key=lambda result: result.target.index))
+    service_order = {service.name: position for position, service in enumerate(services)}
+    return tuple(
+        sorted(
+            results,
+            key=lambda result: (
+                result.target.index,
+                service_order[result.service_name],
+            ),
+        )
+    )
 
 
 def write_subscription(path: Path, results: Sequence[healthcheck.ProbeResult]) -> None:

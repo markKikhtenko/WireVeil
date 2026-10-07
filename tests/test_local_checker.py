@@ -168,6 +168,19 @@ class ServiceTestTests(unittest.TestCase):
     def test_service_catalog_contains_requested_sites(self):
         names = set(local_checker.SERVICE_DEFINITIONS_BY_NAME)
         self.assertTrue({"ChatGPT", "YouTube", "GitHub"}.issubset(names))
+        keys = [service.key for service in local_checker.SERVICE_DEFINITIONS]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_multiple_services_are_accepted_together(self):
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "sing-box.exe"
+            binary.touch()
+            results = local_checker.run_service_tests(
+                binary=binary,
+                targets=(),
+                service_names=("ChatGPT", "YouTube", "GitHub"),
+            )
+        self.assertEqual((), results)
 
     def test_service_access_reports_http_success_and_latency(self):
         class Response(io.BytesIO):
