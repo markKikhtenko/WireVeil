@@ -79,6 +79,7 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "auto_interval": 30,
         "services": (local_checker.DEFAULT_SERVICE_NAME,),
         "advanced_visible": False,
+        "subscription": "",
     }
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -115,6 +116,9 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "advanced_visible": raw.get("advanced_visible")
         if isinstance(raw.get("advanced_visible"), bool)
         else False,
+        "subscription": raw.get("subscription")
+        if isinstance(raw.get("subscription"), str)
+        else "",
     }
 
 
@@ -173,6 +177,7 @@ class WireVeilChecker(tk.Tk):
         self.settings_path = checker_settings_path()
         saved_settings = load_checker_settings(self.settings_path)
         restore_advanced = bool(saved_settings["advanced_visible"])
+        restore_subscription = str(saved_settings["subscription"])
         self.settings_save_job: str | None = None
         self.settings_save_error_reported = False
 
@@ -220,6 +225,9 @@ class WireVeilChecker(tk.Tk):
 
         self._configure_style()
         self._build_ui()
+        if restore_subscription:
+            self.source.insert("1.0", restore_subscription)
+            self.status_var.set("Сохранённая подписка загружена из конфига.")
         if restore_advanced:
             self._toggle_advanced_settings(persist=False)
         self._watch_settings()
@@ -554,6 +562,14 @@ class WireVeilChecker(tk.Tk):
         )
         for variable in variables:
             variable.trace_add("write", self._queue_settings_save)
+        self.source.bind("<<Modified>>", self._source_settings_changed, add=True)
+        self.source.edit_modified(False)
+
+    def _source_settings_changed(self, _event: object | None = None) -> None:
+        if not self.source.edit_modified():
+            return
+        self.source.edit_modified(False)
+        self._queue_settings_save()
 
     def _queue_settings_save(self, *_args: object) -> None:
         if self.closing:
@@ -587,6 +603,7 @@ class WireVeilChecker(tk.Tk):
             ),
             "services": list(self._selected_service_names()),
             "advanced_visible": self.advanced_visible,
+            "subscription": self.source.get("1.0", "end-1c"),
         }
         try:
             write_checker_settings(self.settings_path, settings)

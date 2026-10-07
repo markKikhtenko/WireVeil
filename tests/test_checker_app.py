@@ -161,6 +161,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             "auto_interval": 17,
             "services": ["ChatGPT", "GitHub", "YouTube"],
             "advanced_visible": True,
+            "subscription": "https://example.com/subscription",
         }
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "WireVeilChecker.config.json"
@@ -177,6 +178,9 @@ class SettingsPersistenceTests(unittest.TestCase):
                 ("ChatGPT", "YouTube", "GitHub"), loaded["services"]
             )
             self.assertTrue(loaded["advanced_visible"])
+            self.assertEqual(
+                "https://example.com/subscription", loaded["subscription"]
+            )
             self.assertEqual(1, json.loads(path.read_text(encoding="utf-8"))["version"])
 
     def test_invalid_settings_fall_back_to_safe_defaults(self):
@@ -193,6 +197,7 @@ class SettingsPersistenceTests(unittest.TestCase):
                         "auto_interval": 0,
                         "services": ["Unknown"],
                         "advanced_visible": "yes",
+                        "subscription": 123,
                     }
                 ),
                 encoding="utf-8",
@@ -208,6 +213,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual(30, loaded["auto_interval"])
             self.assertEqual((), loaded["services"])
             self.assertFalse(loaded["advanced_visible"])
+            self.assertEqual("", loaded["subscription"])
 
 
 if __name__ == "__main__":
