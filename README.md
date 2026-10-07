@@ -115,6 +115,8 @@ xychart-beta
 
 Готовый `WireVeilChecker-windows-x64.zip` публикуется в [GitHub Releases](https://github.com/markKikhtenko/WireVeil/releases) для тегов `checker-v*`. Достаточно распаковать архив и запустить `WireVeilChecker.exe`; Python, NekoBox и права администратора для самой проверки не нужны. Исходный код интерфейса находится в [`checker_app.py`](./checker_app.py), подробная инструкция — в [`PORTABLE-CHECKER.md`](./PORTABLE-CHECKER.md).
 
+Следующий tagged-релиз будет опубликован только с действительной Authenticode-подписью и временной меткой. Настройка сертификата описана в [`SIGNING.md`](./SIGNING.md); workflow не опубликует новый неподписанный ZIP под видом доверенного. Уже выпущенные `v1.0.0` и `v1.1.0` остаются неподписанными.
+
 Поддерживаются VLESS, Trojan, Shadowsocks, VMess, Hysteria2 и TUIC в виде share-ссылок, в том числе Base64-подписки. Клиентские JSON/YAML-конфигурации без share-ссылок, WireGuard и AmneziaWG пока не поддерживаются.
 
 ## Локальная сборка

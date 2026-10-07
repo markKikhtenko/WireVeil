@@ -78,7 +78,7 @@ class WireVeilChecker(tk.Tk):
         self.item_uris: dict[str, str] = {}
         self.live_results: dict[int, dict[str, object]] = {}
         self.column_headings: dict[str, str] = {}
-        self.sort_column: str | None = None
+        self.sort_column: str | None = "latency"
         self.sort_descending = False
         self.sort_job: str | None = None
         self.auto_job: str | None = None
@@ -111,7 +111,22 @@ class WireVeilChecker(tk.Tk):
         style.configure("Summary.TLabel", background="#202020", foreground="#d8d8d8")
         style.configure("TButton", background="#363636", foreground="#f4f4f4", padding=(9, 5), borderwidth=1)
         style.map("TButton", background=[("active", "#444444"), ("pressed", "#1f78a8")])
-        style.configure("TSpinbox", fieldbackground="#292929", foreground="#ffffff", arrowsize=12)
+        style.configure(
+            "Stepper.TEntry",
+            fieldbackground="#292929",
+            foreground="#ffffff",
+            insertcolor="#ffffff",
+            borderwidth=1,
+            padding=(5, 3),
+        )
+        style.configure(
+            "Stepper.TButton",
+            background="#424242",
+            foreground="#ffffff",
+            font=("Segoe UI Semibold", 10),
+            padding=(4, 1),
+        )
+        style.map("Stepper.TButton", background=[("active", "#575757"), ("pressed", "#278dcc")])
         style.configure("TCheckbutton", background="#202020", foreground="#ededed")
         style.map("TCheckbutton", background=[("active", "#202020")])
         style.configure("Horizontal.TProgressbar", background="#2d9cdb", troughcolor="#303030", borderwidth=0)
@@ -190,13 +205,7 @@ class WireVeilChecker(tk.Tk):
             variable=self.auto_enabled_var,
             command=self._toggle_auto,
         ).grid(row=0, column=10, sticky="e", padx=(18, 6))
-        ttk.Spinbox(
-            settings,
-            from_=1,
-            to=1440,
-            textvariable=self.auto_interval_var,
-            width=6,
-        ).grid(row=0, column=11, sticky="e")
+        self._numeric_stepper(settings, self.auto_interval_var, 1, 1440, 11, width=5)
         ttk.Label(settings, text="мин", style="Dim.TLabel").grid(row=0, column=12, padx=(4, 2))
         settings.columnconfigure(10, weight=1)
 
@@ -223,6 +232,7 @@ class WireVeilChecker(tk.Tk):
                 command=lambda selected=column: self._sort_table(selected),
             )
             self.table.column(column, width=widths[column], minwidth=35, stretch=column in {"endpoint", "name"})
+        self._refresh_sort_headers()
         self.table.tag_configure("fast", foreground="#60d35f")
         self.table.tag_configure("active", foreground="#d8ce43")
         self.table.tag_configure("dead", foreground="#e26b6b")
@@ -262,9 +272,49 @@ class WireVeilChecker(tk.Tk):
         self, parent: ttk.Frame, label: str, variable: tk.IntVar, start: int, end: int, column: int
     ) -> None:
         ttk.Label(parent, text=label).grid(row=0, column=column, sticky="w", padx=(0, 6))
-        ttk.Spinbox(parent, from_=start, to=end, textvariable=variable, width=7).grid(
-            row=0, column=column + 1, sticky="w", padx=(0, 18)
-        )
+        self._numeric_stepper(parent, variable, start, end, column + 1)
+
+    def _numeric_stepper(
+        self,
+        parent: ttk.Frame,
+        variable: tk.IntVar,
+        minimum: int,
+        maximum: int,
+        column: int,
+        *,
+        width: int = 5,
+    ) -> None:
+        frame = ttk.Frame(parent, style="Panel.TFrame")
+        frame.grid(row=0, column=column, sticky="w", padx=(0, 18))
+        ttk.Entry(
+            frame,
+            textvariable=variable,
+            width=width,
+            justify="center",
+            style="Stepper.TEntry",
+        ).pack(side="left")
+        ttk.Button(
+            frame,
+            text="−",
+            width=2,
+            style="Stepper.TButton",
+            command=lambda: self._step_value(variable, minimum, maximum, -1),
+        ).pack(side="left", padx=(2, 1))
+        ttk.Button(
+            frame,
+            text="+",
+            width=2,
+            style="Stepper.TButton",
+            command=lambda: self._step_value(variable, minimum, maximum, 1),
+        ).pack(side="left")
+
+    @staticmethod
+    def _step_value(variable: tk.IntVar, minimum: int, maximum: int, delta: int) -> None:
+        try:
+            current = int(variable.get())
+        except (ValueError, tk.TclError):
+            current = minimum
+        variable.set(min(maximum, max(minimum, current + delta)))
 
     def _paste(self) -> None:
         try:
@@ -638,9 +688,12 @@ class WireVeilChecker(tk.Tk):
         ordered = [item for _value, item in valid] + missing
         for position, item in enumerate(ordered):
             self.table.move(item, "", position)
+        self._refresh_sort_headers()
+
+    def _refresh_sort_headers(self) -> None:
         for name, label in self.column_headings.items():
-            arrow = ""
-            if name == column:
+            arrow = " ↕"
+            if name == self.sort_column:
                 arrow = " ▼" if self.sort_descending else " ▲"
             self.table.heading(name, text=label + arrow)
 
