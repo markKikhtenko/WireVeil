@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
+import concurrent.futures
 import json
+import socket
+import subprocess
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,6 +22,7 @@ from scripts import build, healthcheck
 
 MAX_SUBSCRIPTION_BYTES = 32 * 1024 * 1024
 USER_AGENT = "WireVeil-Portable-Checker/1.0"
+SPEED_TEST_URL = "https://speed.cloudflare.com/__down"
 
 
 class LocalCheckError(RuntimeError):
@@ -56,6 +61,15 @@ class CheckReport:
     @property
     def unsupported_count(self) -> int:
         return sum(self.conversion_unsupported.values()) + sum(self.runtime_rejected.values())
+
+
+@dataclasses.dataclass(frozen=True)
+class SpeedResult:
+    target: healthcheck.ProbeTarget
+    speed_mbps: float | None = None
+    bytes_received: int = 0
+    duration_ms: int | None = None
+    error: str | None = None
 
 
 def parse_subscription_text(text: str) -> ImportedSubscription:
@@ -179,6 +193,202 @@ def run_local_check(
         engine_version=version,
         attempts=attempts,
     )
+
+
+def _speed_test_config(
+    targets: Sequence[healthcheck.ProbeTarget], ports: Sequence[int]
+) -> dict:
+    inbounds = []
+    rules = []
+    for position, (target, port) in enumerate(zip(targets, ports)):
+        inbound_tag = f"wv-speed-in-{position}"
+        inbounds.append(
+            {
+                "type": "mixed",
+                "tag": inbound_tag,
+                "listen": "127.0.0.1",
+                "listen_port": port,
+            }
+        )
+        rules.append(
+            {
+                "inbound": [inbound_tag],
+                "action": "route",
+                "outbound": target.tag,
+            }
+        )
+    return {
+        "log": {"level": "warn", "timestamp": True},
+        "dns": {"servers": [{"type": "local", "tag": "local"}]},
+        "inbounds": inbounds,
+        "outbounds": [target.outbound for target in targets],
+        "route": {"rules": rules, "default_domain_resolver": "local"},
+    }
+
+
+def _allocate_ports(count: int) -> list[int]:
+    reservations: list[socket.socket] = []
+    try:
+        for _index in range(count):
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            listener.bind(("127.0.0.1", 0))
+            reservations.append(listener)
+        return [int(listener.getsockname()[1]) for listener in reservations]
+    finally:
+        for listener in reservations:
+            listener.close()
+
+
+def _wait_for_speed_runtime(
+    process: subprocess.Popen, port: int, timeout: float = 20.0
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise LocalCheckError("sing-box остановился до запуска теста скорости.")
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return
+        except OSError:
+            time.sleep(0.15)
+    raise LocalCheckError("Локальный proxy для теста скорости не запустился.")
+
+
+def _test_download_speed(
+    target: healthcheck.ProbeTarget,
+    port: int,
+    *,
+    download_bytes: int,
+    timeout: float,
+    cancel_event: threading.Event | None,
+) -> SpeedResult:
+    proxy = f"http://127.0.0.1:{port}"
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+    )
+    query = urllib.parse.urlencode(
+        {"bytes": download_bytes, "cache": f"{time.time_ns()}-{target.index}"}
+    )
+    request = urllib.request.Request(
+        f"{SPEED_TEST_URL}?{query}",
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept-Encoding": "identity",
+            "Cache-Control": "no-cache",
+        },
+    )
+    received = 0
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            started = time.perf_counter()
+            while received < download_bytes:
+                if cancel_event is not None and cancel_event.is_set():
+                    return SpeedResult(target, error="cancelled")
+                block = response.read(min(131072, download_bytes - received))
+                if not block:
+                    break
+                received += len(block)
+            elapsed = time.perf_counter() - started
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return SpeedResult(target, error=f"{type(exc).__name__}: {str(exc)[:240]}")
+    if received < download_bytes:
+        return SpeedResult(target, bytes_received=received, error="неполный ответ")
+    if elapsed <= 0:
+        return SpeedResult(target, bytes_received=received, error="некорректное время")
+    speed_mbps = round((received * 8) / elapsed / 1_000_000, 2)
+    return SpeedResult(
+        target,
+        speed_mbps=speed_mbps,
+        bytes_received=received,
+        duration_ms=max(1, round(elapsed * 1000)),
+    )
+
+
+def run_speed_tests(
+    *,
+    binary: Path,
+    targets: Sequence[healthcheck.ProbeTarget],
+    download_bytes: int = 1_000_000,
+    workers: int = 8,
+    timeout: float = 15.0,
+    progress_callback: Callable[[int, int, SpeedResult], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> tuple[SpeedResult, ...]:
+    """Measure download throughput only for targets pre-qualified as green."""
+    if not binary.is_file():
+        raise LocalCheckError(f"Не найден sing-box: {binary}")
+    if not targets:
+        return ()
+    if not 100_000 <= download_bytes <= 10_000_000:
+        raise LocalCheckError("Объём теста скорости должен быть от 100 КБ до 10 МБ.")
+    if not 1 <= workers <= 32:
+        raise LocalCheckError("Параллельность теста скорости должна быть от 1 до 32.")
+    if not 3 <= timeout <= 60:
+        raise LocalCheckError("Тайм-аут теста скорости должен быть от 3 до 60 секунд.")
+
+    ports = _allocate_ports(len(targets))
+    with tempfile.TemporaryDirectory(prefix="wireveil-speed-") as name:
+        directory = Path(name)
+        config_path = directory / "speed.json"
+        log_path = directory / "sing-box.log"
+        config_path.write_text(
+            json.dumps(_speed_test_config(targets, ports), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        passed, detail = healthcheck._run_config_check(binary, config_path)
+        if not passed:
+            raise LocalCheckError(f"Конфигурация теста скорости отклонена: {detail[-800:]}")
+        with log_path.open("w", encoding="utf-8") as log_handle:
+            try:
+                process = subprocess.Popen(
+                    [str(binary), "run", "-c", str(config_path)],
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    **healthcheck._hidden_process_options(),
+                )
+            except OSError as exc:
+                raise LocalCheckError(f"Не удалось запустить sing-box: {exc}") from exc
+            try:
+                _wait_for_speed_runtime(process, ports[0])
+                executor = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(workers, len(targets))
+                )
+                futures = [
+                    executor.submit(
+                        _test_download_speed,
+                        target,
+                        port,
+                        download_bytes=download_bytes,
+                        timeout=timeout,
+                        cancel_event=cancel_event,
+                    )
+                    for target, port in zip(targets, ports)
+                ]
+                cancelled = False
+                results: list[SpeedResult] = []
+                try:
+                    for completed, future in enumerate(
+                        concurrent.futures.as_completed(futures), start=1
+                    ):
+                        if cancel_event is not None and cancel_event.is_set():
+                            cancelled = True
+                            raise healthcheck.HealthCheckError("speed test cancelled")
+                        result = future.result()
+                        results.append(result)
+                        if progress_callback is not None:
+                            progress_callback(completed, len(targets), result)
+                finally:
+                    executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+    return tuple(sorted(results, key=lambda result: result.target.index))
 
 
 def write_subscription(path: Path, results: Sequence[healthcheck.ProbeResult]) -> None:

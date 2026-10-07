@@ -71,12 +71,14 @@ class WireVeilChecker(tk.Tk):
         self.events: queue.Queue[tuple] = queue.Queue()
         self.cancel_event = threading.Event()
         self.running = False
+        self.activity: str | None = None
         self.closing = False
         self.report: local_checker.CheckReport | None = None
         self.imported: local_checker.ImportedSubscription | None = None
         self.table_items: dict[int, str] = {}
         self.item_uris: dict[str, str] = {}
         self.live_results: dict[int, dict[str, object]] = {}
+        self.speed_results: dict[int, local_checker.SpeedResult] = {}
         self.column_headings: dict[str, str] = {}
         self.sort_column: str | None = "latency"
         self.sort_descending = False
@@ -157,6 +159,13 @@ class WireVeilChecker(tk.Tk):
         self.start_button.pack(side="left", padx=(8, 0))
         self.stop_button = ttk.Button(toolbar, text="■ Стоп", command=self._stop, state="disabled")
         self.stop_button.pack(side="left", padx=(4, 0))
+        self.speed_button = ttk.Button(
+            toolbar,
+            text="⚡ Скорость зелёных",
+            command=self._start_speed_test,
+            state="disabled",
+        )
+        self.speed_button.pack(side="left", padx=(4, 0))
         self.active_button = ttk.Button(toolbar, text="Сохранить живые", command=self._save_active, state="disabled")
         self.active_button.pack(side="right")
         self.fast_button = ttk.Button(toolbar, text="Сохранить быстрые", command=self._save_fast, state="disabled")
@@ -211,7 +220,7 @@ class WireVeilChecker(tk.Tk):
 
         table_frame = ttk.Frame(outer)
         table_frame.pack(fill="both", expand=True)
-        columns = ("number", "protocol", "endpoint", "name", "latency", "passes")
+        columns = ("number", "protocol", "endpoint", "name", "latency", "speed", "passes")
         self.table = ttk.Treeview(
             table_frame, columns=columns, show="headings", selectmode="extended"
         )
@@ -220,11 +229,20 @@ class WireVeilChecker(tk.Tk):
             "protocol": "Тип",
             "endpoint": "Адрес",
             "name": "Имя / ошибка",
-            "latency": "Результат теста",
+            "latency": "Пинг",
+            "speed": "Скорость",
             "passes": "Прогоны",
         }
         self.column_headings = headings
-        widths = {"number": 45, "protocol": 105, "endpoint": 280, "name": 420, "latency": 125, "passes": 85}
+        widths = {
+            "number": 45,
+            "protocol": 100,
+            "endpoint": 245,
+            "name": 360,
+            "latency": 100,
+            "speed": 115,
+            "passes": 80,
+        }
         for column in columns:
             self.table.heading(
                 column,
@@ -377,7 +395,9 @@ class WireVeilChecker(tk.Tk):
         rounds, timeout, workers, _latency = settings
         self._cancel_auto_timer()
         self.running = True
+        self.activity = "ping"
         self.report = None
+        self.speed_results.clear()
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.summary_var.set("Подготовка конфигураций…")
@@ -420,6 +440,136 @@ class WireVeilChecker(tk.Tk):
             self.stop_button.configure(state="disabled")
             self.status_var.set("Останавливаю проверку…")
 
+    def _start_speed_test(self) -> None:
+        if self.running or self.report is None:
+            return
+        targets = tuple(result.target for result in self.report.fast_results(self._latency_limit()))
+        if not targets:
+            messagebox.showinfo(APP_TITLE, "Нет зелёных серверов для теста скорости.")
+            return
+        binary = find_sing_box()
+        if binary is None:
+            messagebox.showerror(APP_TITLE, "Не найден вложенный sing-box.")
+            return
+        try:
+            timeout = max(10, min(60, int(self.timeout_var.get())))
+            workers = max(1, min(8, int(self.workers_var.get())))
+        except (ValueError, tk.TclError):
+            timeout, workers = 15, 8
+
+        self._cancel_auto_timer()
+        self.running = True
+        self.activity = "speed"
+        self.cancel_event = threading.Event()
+        self.progress_var.set(0)
+        self.status_var.set(f"Подготовка теста скорости для {len(targets)} зелёных серверов…")
+        self._set_running_controls(True)
+        for target in targets:
+            self._set_speed_cell(target.index, "ожидание…")
+        self._log(
+            f"Тест скорости: {len(targets)} зелёных серверов, "
+            "по 1 МБ загрузки на сервер."
+        )
+
+        def work() -> None:
+            try:
+                def progress(
+                    done: int, total: int, result: local_checker.SpeedResult
+                ) -> None:
+                    self.events.put(("speed_progress", done, total, result))
+
+                results = local_checker.run_speed_tests(
+                    binary=binary,
+                    targets=targets,
+                    download_bytes=1_000_000,
+                    workers=workers,
+                    timeout=float(timeout),
+                    progress_callback=progress,
+                    cancel_event=self.cancel_event,
+                )
+                self.events.put(("speed_done", results))
+            except (local_checker.LocalCheckError, healthcheck.HealthCheckError, OSError) as exc:
+                self.events.put(("speed_error", str(exc)))
+            except Exception as exc:
+                self.events.put(
+                    ("speed_error", f"Непредвиденная ошибка: {type(exc).__name__}: {exc}")
+                )
+
+        threading.Thread(target=work, name="wireveil-speed", daemon=True).start()
+
+    @staticmethod
+    def _format_speed(result: local_checker.SpeedResult | None) -> str:
+        if result is None:
+            return "—"
+        if result.speed_mbps is not None:
+            return f"{result.speed_mbps:.2f} Мбит/с"
+        return "ошибка"
+
+    def _set_speed_cell(self, index: int, value: str) -> None:
+        item = self.table_items.get(index)
+        if not item:
+            return
+        values = list(self.table.item(item, "values"))
+        if len(values) >= 7:
+            values[5] = value
+            self.table.item(item, values=values)
+            self._schedule_resort()
+
+    def _update_speed_result(self, result: local_checker.SpeedResult) -> None:
+        self.speed_results[result.target.index] = result
+        self._set_speed_cell(result.target.index, self._format_speed(result))
+
+    def _restore_result_buttons(self) -> None:
+        if self.report is None:
+            return
+        active = self.report.active_results
+        fast = self.report.fast_results(self._latency_limit())
+        self.active_button.configure(state="normal" if active else "disabled")
+        state = "normal" if fast else "disabled"
+        self.fast_button.configure(state=state)
+        self.copy_button.configure(state=state)
+        self.speed_button.configure(state=state)
+
+    def _finish_speed_test(
+        self, results: tuple[local_checker.SpeedResult, ...]
+    ) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(100)
+        self._set_running_controls(False)
+        for result in results:
+            self._update_speed_result(result)
+        measured = [result for result in results if result.speed_mbps is not None]
+        self.status_var.set("Тест скорости завершён")
+        if measured:
+            fastest = max(result.speed_mbps or 0 for result in measured)
+            self.summary_var.set(
+                f"Скорость измерена: {len(measured)}/{len(results)}  |  "
+                f"максимум {fastest:.2f} Мбит/с"
+            )
+        else:
+            self.summary_var.set(f"Скорость не измерена ни для одного из {len(results)} серверов")
+        self._log(f"Тест скорости завершён: успешно {len(measured)}/{len(results)}.")
+        self._restore_result_buttons()
+        self._schedule_auto_check()
+
+    def _fail_speed_test(self, detail: str) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(0)
+        self._set_running_controls(False)
+        if "cancelled" in detail.lower():
+            self.status_var.set("Тест скорости остановлен")
+            self._log("Тест скорости остановлен пользователем.")
+        else:
+            self.status_var.set("Ошибка теста скорости")
+            self._log(f"Ошибка теста скорости: {detail}")
+            if not self.closing:
+                messagebox.showerror(APP_TITLE, detail)
+        self._restore_result_buttons()
+        if not self.closing and self.auto_enabled_var.get():
+            self._schedule_auto_check()
+
     def _poll_events(self) -> None:
         try:
             while True:
@@ -448,12 +598,28 @@ class WireVeilChecker(tk.Tk):
                     if self.closing:
                         self.destroy()
                         return
+                elif kind == "speed_progress":
+                    done, total, result = event[1], event[2], event[3]
+                    self.progress_var.set((done / total) * 100 if total else 0)
+                    self.status_var.set(f"Проверка скорости: {done} / {total}")
+                    self._update_speed_result(result)
+                elif kind == "speed_done":
+                    self._finish_speed_test(event[1])
+                    if self.closing:
+                        self.destroy()
+                        return
+                elif kind == "speed_error":
+                    self._fail_speed_test(event[1])
+                    if self.closing:
+                        self.destroy()
+                        return
         except queue.Empty:
             pass
         self.after(100, self._poll_events)
 
     def _finish(self, report: local_checker.CheckReport) -> None:
         self.running = False
+        self.activity = None
         self.report = report
         self.progress_var.set(100)
         self._set_running_controls(False)
@@ -472,10 +638,12 @@ class WireVeilChecker(tk.Tk):
         state = "normal" if fast else "disabled"
         self.fast_button.configure(state=state)
         self.copy_button.configure(state=state)
+        self.speed_button.configure(state=state)
         self._schedule_auto_check()
 
     def _fail(self, detail: str) -> None:
         self.running = False
+        self.activity = None
         self._set_running_controls(False)
         self.progress_var.set(0)
         if "cancelled" in detail.lower():
@@ -500,6 +668,7 @@ class WireVeilChecker(tk.Tk):
             self.active_button.configure(state="disabled")
             self.fast_button.configure(state="disabled")
             self.copy_button.configure(state="disabled")
+            self.speed_button.configure(state="disabled")
 
     def _clear_table(self) -> None:
         children = self.table.get_children()
@@ -552,6 +721,7 @@ class WireVeilChecker(tk.Tk):
             endpoint,
             name,
             test,
+            "—",
             f"{state['successes']}/{attempts}",
         )
         item = self.table_items.get(index)
@@ -576,6 +746,7 @@ class WireVeilChecker(tk.Tk):
                 f"{parsed.server}:{parsed.port}",
                 display_name(uri),
                 "ожидание…",
+                "—",
                 f"0/{attempts}",
             )
             item = self.table.insert(
@@ -618,10 +789,12 @@ class WireVeilChecker(tk.Tk):
                     endpoint,
                     detail,
                     f"{result.delay_ms} ms" if result.delay_ms is not None else "timeout",
+                    self._format_speed(self.speed_results.get(result.target.index)),
                     f"{result.successes}/{result.attempts}",
                 ),
                 tags=(tag,),
             )
+            self.table_items[result.target.index] = item
             self.item_uris[item] = result.target.uri
         if self.sort_column is not None:
             self._apply_sort()
@@ -652,7 +825,8 @@ class WireVeilChecker(tk.Tk):
             "endpoint": 2,
             "name": 3,
             "latency": 4,
-            "passes": 5,
+            "speed": 5,
+            "passes": 6,
         }
         raw = str(values[positions[column]]).strip()
         if column == "number":
@@ -669,6 +843,9 @@ class WireVeilChecker(tk.Tk):
                 return None
             passed, total = int(match.group(1)), int(match.group(2))
             return (passed / total if total else 0.0, passed, total)
+        if column == "speed":
+            match = re.match(r"^(\d+(?:[.,]\d+)?)\s*Мбит/с$", raw, re.IGNORECASE)
+            return float(match.group(1).replace(",", ".")) if match else None
         return raw.casefold()
 
     def _apply_sort(self) -> None:

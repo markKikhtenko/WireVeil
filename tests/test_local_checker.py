@@ -1,8 +1,10 @@
 import base64
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import healthcheck, local_checker
 from tests.test_build import UUID1, UUID2
@@ -101,6 +103,54 @@ class RepeatedProbeTests(unittest.TestCase):
         self.assertFalse(failed.active)
         self.assertIsNone(failed.delay_ms)
         self.assertIn("1/2 successful", failed.error)
+
+
+class SpeedTestTests(unittest.TestCase):
+    def target(self, index: int = 0):
+        uri = vless(UUID1, f"speed{index}.example.com")
+        return healthcheck.ProbeTarget(
+            index,
+            f"wv-{index:04d}",
+            uri,
+            "vless",
+            {"type": "vless", "tag": f"wv-{index:04d}"},
+        )
+
+    def test_speed_config_routes_each_local_inbound_to_its_green_target(self):
+        targets = (self.target(0), self.target(1))
+        config = local_checker._speed_test_config(targets, (21001, 21002))
+        self.assertEqual(2, len(config["inbounds"]))
+        self.assertEqual("mixed", config["inbounds"][0]["type"])
+        self.assertEqual("wv-0000", config["route"]["rules"][0]["outbound"])
+        self.assertEqual("wv-0001", config["route"]["rules"][1]["outbound"])
+
+    def test_download_speed_uses_body_transfer_time_and_reports_mbps(self):
+        target = self.target()
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(b"x" * 1_000_000)
+        with (
+            mock.patch("urllib.request.build_opener", return_value=opener),
+            mock.patch("time.perf_counter", side_effect=[10.0, 10.5]),
+        ):
+            result = local_checker._test_download_speed(
+                target,
+                21001,
+                download_bytes=1_000_000,
+                timeout=15,
+                cancel_event=None,
+            )
+        self.assertEqual(16.0, result.speed_mbps)
+        self.assertEqual(1_000_000, result.bytes_received)
+        self.assertEqual(500, result.duration_ms)
+        self.assertIsNone(result.error)
 
 
 if __name__ == "__main__":
