@@ -19,6 +19,8 @@ from scripts import build, healthcheck, local_checker
 
 
 APP_TITLE = "WireVeil Checker"
+CONFIG_FILENAME = "WireVeilChecker.config.json"
+CONFIG_VERSION = 1
 SERVICE_COLUMN_BY_NAME = {
     service.name: f"service_{service.key}"
     for service in local_checker.SERVICE_DEFINITIONS
@@ -45,6 +47,85 @@ TABLE_COLUMN_POSITIONS = {
 def resource_root() -> Path:
     bundled = getattr(sys, "_MEIPASS", None)
     return Path(bundled) if bundled else Path(__file__).resolve().parent
+
+
+def application_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def checker_settings_path() -> Path:
+    return application_root() / CONFIG_FILENAME
+
+
+def _bounded_int(value: object, default: int, minimum: int, maximum: int) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if minimum <= parsed <= maximum else default
+
+
+def load_checker_settings(path: Path) -> dict[str, object]:
+    defaults: dict[str, object] = {
+        "rounds": 2,
+        "timeout": 8,
+        "workers": 64,
+        "latency": 500,
+        "auto_enabled": False,
+        "auto_interval": 30,
+        "services": (local_checker.DEFAULT_SERVICE_NAME,),
+        "advanced_visible": False,
+    }
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return defaults
+    if not isinstance(raw, dict):
+        return defaults
+
+    known_services = {
+        service.name for service in local_checker.SERVICE_DEFINITIONS
+    }
+    requested_services = raw.get("services")
+    if isinstance(requested_services, list) and all(
+        isinstance(name, str) for name in requested_services
+    ):
+        selected_services = tuple(
+            service.name
+            for service in local_checker.SERVICE_DEFINITIONS
+            if service.name in requested_services and service.name in known_services
+        )
+    else:
+        selected_services = defaults["services"]
+
+    return {
+        "rounds": _bounded_int(raw.get("rounds"), 2, 1, 5),
+        "timeout": _bounded_int(raw.get("timeout"), 8, 1, 60),
+        "workers": _bounded_int(raw.get("workers"), 64, 1, 256),
+        "latency": _bounded_int(raw.get("latency"), 500, 1, 10_000),
+        "auto_enabled": raw.get("auto_enabled")
+        if isinstance(raw.get("auto_enabled"), bool)
+        else False,
+        "auto_interval": _bounded_int(raw.get("auto_interval"), 30, 1, 1440),
+        "services": selected_services,
+        "advanced_visible": raw.get("advanced_visible")
+        if isinstance(raw.get("advanced_visible"), bool)
+        else False,
+    }
+
+
+def write_checker_settings(path: Path, settings: dict[str, object]) -> None:
+    payload = {"version": CONFIG_VERSION, **settings}
+    temporary = path.with_name(f"{path.name}.tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
 
 
 def find_sing_box() -> Path | None:
@@ -89,6 +170,12 @@ class WireVeilChecker(tk.Tk):
         self.minsize(820, 600)
         self.option_add("*Font", ("Segoe UI", 10))
 
+        self.settings_path = checker_settings_path()
+        saved_settings = load_checker_settings(self.settings_path)
+        restore_advanced = bool(saved_settings["advanced_visible"])
+        self.settings_save_job: str | None = None
+        self.settings_save_error_reported = False
+
         self.events: queue.Queue[tuple] = queue.Queue()
         self.cancel_event = threading.Event()
         self.running = False
@@ -109,15 +196,20 @@ class WireVeilChecker(tk.Tk):
         self.sort_job: str | None = None
         self.auto_job: str | None = None
 
-        self.rounds_var = tk.IntVar(value=2)
-        self.timeout_var = tk.IntVar(value=8)
-        self.workers_var = tk.IntVar(value=64)
-        self.latency_var = tk.IntVar(value=500)
-        self.auto_enabled_var = tk.BooleanVar(value=False)
-        self.auto_interval_var = tk.IntVar(value=30)
+        self.rounds_var = tk.IntVar(value=int(saved_settings["rounds"]))
+        self.timeout_var = tk.IntVar(value=int(saved_settings["timeout"]))
+        self.workers_var = tk.IntVar(value=int(saved_settings["workers"]))
+        self.latency_var = tk.IntVar(value=int(saved_settings["latency"]))
+        self.auto_enabled_var = tk.BooleanVar(
+            value=bool(saved_settings["auto_enabled"])
+        )
+        self.auto_interval_var = tk.IntVar(
+            value=int(saved_settings["auto_interval"])
+        )
+        selected_services = set(saved_settings["services"])
         self.service_vars = {
             service.name: tk.BooleanVar(
-                value=service.name == local_checker.DEFAULT_SERVICE_NAME
+                value=service.name in selected_services
             )
             for service in local_checker.SERVICE_DEFINITIONS
         }
@@ -128,6 +220,12 @@ class WireVeilChecker(tk.Tk):
 
         self._configure_style()
         self._build_ui()
+        if restore_advanced:
+            self._toggle_advanced_settings(persist=False)
+        self._watch_settings()
+        self._log(f"Настройки: {self.settings_path}")
+        if self.auto_enabled_var.get():
+            self._log("Автозаебись сохранён и продолжит работу после полного запуска.")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._poll_events)
 
@@ -442,7 +540,61 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         ttk.Label(statusbar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
 
-    def _toggle_advanced_settings(self) -> None:
+    def _watch_settings(self) -> None:
+        variables = (
+            self.rounds_var,
+            self.timeout_var,
+            self.workers_var,
+            self.latency_var,
+            self.auto_enabled_var,
+            self.auto_interval_var,
+            *self.service_vars.values(),
+        )
+        for variable in variables:
+            variable.trace_add("write", self._queue_settings_save)
+
+    def _queue_settings_save(self, *_args: object) -> None:
+        if self.closing:
+            return
+        if self.settings_save_job is not None:
+            try:
+                self.after_cancel(self.settings_save_job)
+            except tk.TclError:
+                pass
+        self.settings_save_job = self.after(400, self._save_settings)
+
+    @staticmethod
+    def _saved_int(variable: tk.Variable, default: int) -> int:
+        try:
+            return int(variable.get())
+        except (TypeError, ValueError, tk.TclError):
+            return default
+
+    def _save_settings(self) -> None:
+        self.settings_save_job = None
+        settings: dict[str, object] = {
+            "rounds": _bounded_int(self._saved_int(self.rounds_var, 2), 2, 1, 5),
+            "timeout": _bounded_int(self._saved_int(self.timeout_var, 8), 8, 1, 60),
+            "workers": _bounded_int(self._saved_int(self.workers_var, 64), 64, 1, 256),
+            "latency": _bounded_int(
+                self._saved_int(self.latency_var, 500), 500, 1, 10_000
+            ),
+            "auto_enabled": bool(self.auto_enabled_var.get()),
+            "auto_interval": _bounded_int(
+                self._saved_int(self.auto_interval_var, 30), 30, 1, 1440
+            ),
+            "services": list(self._selected_service_names()),
+            "advanced_visible": self.advanced_visible,
+        }
+        try:
+            write_checker_settings(self.settings_path, settings)
+            self.settings_save_error_reported = False
+        except OSError as exc:
+            if not self.settings_save_error_reported:
+                self._log(f"Не удалось сохранить настройки: {exc}")
+                self.settings_save_error_reported = True
+
+    def _toggle_advanced_settings(self, *, persist: bool = True) -> None:
         if self.advanced_visible:
             self.advanced_frame.pack_forget()
             self.advanced_visible = False
@@ -453,6 +605,8 @@ class WireVeilChecker(tk.Tk):
             self.advanced_frame.pack(fill="x", pady=(0, 5))
             self.advanced_visible = True
             self.advanced_toggle_button.configure(text="Скрыть настройки ▲")
+        if persist:
+            self._queue_settings_save()
 
     def _spin_setting(
         self, parent: ttk.Frame, label: str, variable: tk.IntVar, start: int, end: int, column: int
@@ -1562,6 +1716,13 @@ class WireVeilChecker(tk.Tk):
 
     def _on_close(self) -> None:
         self._cancel_auto_timer()
+        if self.settings_save_job is not None:
+            try:
+                self.after_cancel(self.settings_save_job)
+            except tk.TclError:
+                pass
+            self.settings_save_job = None
+        self._save_settings()
         if self.running:
             self.closing = True
             self.cancel_event.set()

@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from checker_app import (
@@ -6,6 +9,8 @@ from checker_app import (
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
     WireVeilChecker,
+    load_checker_settings,
+    write_checker_settings,
 )
 from scripts import healthcheck, local_checker
 
@@ -143,6 +148,66 @@ class AutoCheckTests(unittest.TestCase):
 
         self.assertIsNone(checker.auto_job)
         checker._start_one_click.assert_called_once_with()
+
+
+class SettingsPersistenceTests(unittest.TestCase):
+    def test_settings_round_trip_next_to_application(self):
+        settings = {
+            "rounds": 4,
+            "timeout": 12,
+            "workers": 24,
+            "latency": 350,
+            "auto_enabled": True,
+            "auto_interval": 17,
+            "services": ["ChatGPT", "GitHub", "YouTube"],
+            "advanced_visible": True,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeilChecker.config.json"
+            write_checker_settings(path, settings)
+            loaded = load_checker_settings(path)
+
+            self.assertEqual(4, loaded["rounds"])
+            self.assertEqual(12, loaded["timeout"])
+            self.assertEqual(24, loaded["workers"])
+            self.assertEqual(350, loaded["latency"])
+            self.assertTrue(loaded["auto_enabled"])
+            self.assertEqual(17, loaded["auto_interval"])
+            self.assertEqual(
+                ("ChatGPT", "YouTube", "GitHub"), loaded["services"]
+            )
+            self.assertTrue(loaded["advanced_visible"])
+            self.assertEqual(1, json.loads(path.read_text(encoding="utf-8"))["version"])
+
+    def test_invalid_settings_fall_back_to_safe_defaults(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeilChecker.config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "rounds": 99,
+                        "timeout": "broken",
+                        "workers": 0,
+                        "latency": -1,
+                        "auto_enabled": "yes",
+                        "auto_interval": 0,
+                        "services": ["Unknown"],
+                        "advanced_visible": "yes",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = load_checker_settings(path)
+
+            self.assertEqual(2, loaded["rounds"])
+            self.assertEqual(8, loaded["timeout"])
+            self.assertEqual(64, loaded["workers"])
+            self.assertEqual(500, loaded["latency"])
+            self.assertFalse(loaded["auto_enabled"])
+            self.assertEqual(30, loaded["auto_interval"])
+            self.assertEqual((), loaded["services"])
+            self.assertFalse(loaded["advanced_visible"])
 
 
 if __name__ == "__main__":
