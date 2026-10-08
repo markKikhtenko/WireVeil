@@ -59,6 +59,15 @@ def checker_settings_path() -> Path:
     return application_root() / CONFIG_FILENAME
 
 
+def find_app_icon() -> Path | None:
+    candidates = (
+        resource_root() / "wireveil-icon.ico",
+        resource_root() / "assets" / "wireveil-icon.ico",
+        application_root() / "assets" / "wireveil-icon.ico",
+    )
+    return next((path for path in candidates if path.is_file()), None)
+
+
 def _bounded_int(value: object, default: int, minimum: int, maximum: int) -> int:
     if isinstance(value, bool):
         return default
@@ -188,6 +197,13 @@ class WireVeilChecker(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
+        icon_path = find_app_icon()
+        if icon_path is not None:
+            try:
+                self.iconbitmap(str(icon_path))
+                self.iconbitmap(default=str(icon_path))
+            except tk.TclError:
+                pass
         self.geometry("1080x720")
         self.minsize(820, 600)
         self.option_add("*Font", ("Segoe UI", 10))

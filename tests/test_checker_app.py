@@ -9,6 +9,7 @@ from checker_app import (
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
     WireVeilChecker,
+    find_app_icon,
     load_checker_settings,
     write_checker_settings,
 )
@@ -81,6 +82,14 @@ class TableSortTests(unittest.TestCase):
             WireVeilChecker._column_sort_value("quality", tuple(fast)),
             WireVeilChecker._column_sort_value("quality", tuple(slow)),
         )
+
+
+class AppIconTests(unittest.TestCase):
+    def test_multisize_windows_icon_is_available(self):
+        icon = find_app_icon()
+        self.assertIsNotNone(icon)
+        self.assertEqual("wireveil-icon.ico", icon.name)
+        self.assertGreater(icon.stat().st_size, 0)
 
 
 class QualifiedExportTests(unittest.TestCase):
