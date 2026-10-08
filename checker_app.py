@@ -20,7 +20,7 @@ from scripts import build, healthcheck, local_checker
 
 APP_TITLE = "WireVeil Checker"
 CONFIG_FILENAME = "WireVeilChecker.config.json"
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 SERVICE_COLUMN_BY_NAME = {
     service.name: f"service_{service.key}"
     for service in local_checker.SERVICE_DEFINITIONS
@@ -77,6 +77,9 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "latency": 500,
         "auto_enabled": False,
         "auto_interval": 30,
+        "watch_enabled": False,
+        "watch_interval": 30,
+        "watched_uris": (),
         "services": (local_checker.DEFAULT_SERVICE_NAME,),
         "advanced_visible": False,
         "subscription": "",
@@ -103,6 +106,16 @@ def load_checker_settings(path: Path) -> dict[str, object]:
     else:
         selected_services = defaults["services"]
 
+    requested_watched = raw.get("watched_uris")
+    if isinstance(requested_watched, list) and all(
+        isinstance(uri, str) for uri in requested_watched
+    ):
+        watched_uris = tuple(
+            dict.fromkeys(uri.strip() for uri in requested_watched if uri.strip())
+        )
+    else:
+        watched_uris = defaults["watched_uris"]
+
     return {
         "rounds": _bounded_int(raw.get("rounds"), 2, 1, 5),
         "timeout": _bounded_int(raw.get("timeout"), 8, 1, 60),
@@ -112,6 +125,11 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         if isinstance(raw.get("auto_enabled"), bool)
         else False,
         "auto_interval": _bounded_int(raw.get("auto_interval"), 30, 1, 1440),
+        "watch_enabled": raw.get("watch_enabled")
+        if isinstance(raw.get("watch_enabled"), bool)
+        else False,
+        "watch_interval": _bounded_int(raw.get("watch_interval"), 30, 1, 1440),
+        "watched_uris": watched_uris,
         "services": selected_services,
         "advanced_visible": raw.get("advanced_visible")
         if isinstance(raw.get("advanced_visible"), bool)
@@ -200,6 +218,8 @@ class WireVeilChecker(tk.Tk):
         self.sort_descending = False
         self.sort_job: str | None = None
         self.auto_job: str | None = None
+        self.watch_job: str | None = None
+        self.watched_uris = tuple(str(uri) for uri in saved_settings["watched_uris"])
 
         self.rounds_var = tk.IntVar(value=int(saved_settings["rounds"]))
         self.timeout_var = tk.IntVar(value=int(saved_settings["timeout"]))
@@ -210,6 +230,12 @@ class WireVeilChecker(tk.Tk):
         )
         self.auto_interval_var = tk.IntVar(
             value=int(saved_settings["auto_interval"])
+        )
+        self.watch_enabled_var = tk.BooleanVar(
+            value=bool(saved_settings["watch_enabled"])
+        )
+        self.watch_interval_var = tk.IntVar(
+            value=int(saved_settings["watch_interval"])
         )
         selected_services = set(saved_settings["services"])
         self.service_vars = {
@@ -234,6 +260,15 @@ class WireVeilChecker(tk.Tk):
         self._log(f"Настройки: {self.settings_path}")
         if self.auto_enabled_var.get():
             self._log("Автозаебись сохранён и продолжит работу после полного запуска.")
+        if self.watch_enabled_var.get():
+            if self.watched_uris:
+                self._log(
+                    f"Контроль живости восстановлен: {len(self.watched_uris)} "
+                    "скопированных серверов."
+                )
+                self.after_idle(self._schedule_watch_check)
+            else:
+                self._log("Контроль живости ждёт первого копирования годных серверов.")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._poll_events)
 
@@ -396,12 +431,30 @@ class WireVeilChecker(tk.Tk):
         self._numeric_stepper(quick, self.auto_interval_var, 1, 1440, 1, width=5)
         ttk.Label(quick, text="мин", style="Dim.TLabel").grid(row=0, column=2, padx=(0, 8))
         quick.columnconfigure(3, weight=1)
+        ttk.Checkbutton(
+            quick,
+            text="Контроль скопированных зелёных каждые",
+            variable=self.watch_enabled_var,
+            command=self._toggle_watch,
+        ).grid(row=1, column=0, sticky="w", padx=(2, 4), pady=(3, 0))
+        self._numeric_stepper(
+            quick,
+            self.watch_interval_var,
+            1,
+            1440,
+            1,
+            width=5,
+            row=1,
+        )
+        ttk.Label(quick, text="мин · только живость", style="Dim.TLabel").grid(
+            row=1, column=2, columnspan=2, sticky="w", padx=(0, 8), pady=(3, 0)
+        )
         self.advanced_toggle_button = ttk.Button(
             quick,
             text="⚙ Дополнительные настройки…",
             command=self._toggle_advanced_settings,
         )
-        self.advanced_toggle_button.grid(row=0, column=4, sticky="e")
+        self.advanced_toggle_button.grid(row=0, column=4, rowspan=2, sticky="e")
 
         self.advanced_host = ttk.Frame(outer)
         self.advanced_host.pack(fill="x")
@@ -567,6 +620,8 @@ class WireVeilChecker(tk.Tk):
             self.latency_var,
             self.auto_enabled_var,
             self.auto_interval_var,
+            self.watch_enabled_var,
+            self.watch_interval_var,
             *self.service_vars.values(),
         )
         for variable in variables:
@@ -610,6 +665,11 @@ class WireVeilChecker(tk.Tk):
             "auto_interval": _bounded_int(
                 self._saved_int(self.auto_interval_var, 30), 30, 1, 1440
             ),
+            "watch_enabled": bool(self.watch_enabled_var.get()),
+            "watch_interval": _bounded_int(
+                self._saved_int(self.watch_interval_var, 30), 30, 1, 1440
+            ),
+            "watched_uris": list(self.watched_uris),
             "services": list(self._selected_service_names()),
             "advanced_visible": self.advanced_visible,
             "subscription": self.source.get("1.0", "end-1c"),
@@ -651,9 +711,10 @@ class WireVeilChecker(tk.Tk):
         column: int,
         *,
         width: int = 5,
+        row: int = 0,
     ) -> None:
         frame = ttk.Frame(parent, style="Panel.TFrame")
-        frame.grid(row=0, column=column, sticky="w", padx=(0, 18))
+        frame.grid(row=row, column=column, sticky="w", padx=(0, 18))
         ttk.Entry(
             frame,
             textvariable=variable,
@@ -830,7 +891,7 @@ class WireVeilChecker(tk.Tk):
             return
 
         rounds, timeout, workers, _latency = settings
-        self._cancel_auto_timer()
+        self._cancel_background_timers()
         self.running = True
         self.activity = "ping"
         self.report = None
@@ -875,11 +936,87 @@ class WireVeilChecker(tk.Tk):
 
         threading.Thread(target=work, name="wireveil-check", daemon=True).start()
 
+    def _start_watch_check(self) -> None:
+        if self.running:
+            return
+        watched = self.watched_uris
+        if not watched:
+            self._log("Контроль живости: пока нет скопированных годных серверов.")
+            return
+        binary = find_sing_box()
+        if binary is None:
+            self._log("Контроль живости: не найден вложенный sing-box.")
+            self._schedule_watch_check()
+            return
+        try:
+            timeout = max(1, min(60, int(self.timeout_var.get())))
+            workers = max(1, min(256, int(self.workers_var.get())))
+        except (ValueError, tk.TclError):
+            timeout, workers = 8, 64
+
+        self._cancel_watch_timer()
+        self.running = True
+        self.activity = "watch"
+        self.one_click_mode = False
+        self.report = None
+        self.speed_results.clear()
+        self.service_results.clear()
+        self.cancel_event = threading.Event()
+        self.progress_var.set(0)
+        self.status_var.set(
+            f"Быстрый контроль живости: {len(watched)} скопированных серверов…"
+        )
+        self.summary_var.set("Один HTTPS-прогон без скорости и проверки сайтов")
+        self._clear_table()
+        self._set_running_controls(True)
+        self._log(
+            f"Контроль живости: один прогон для {len(watched)} "
+            "скопированных зелёных серверов."
+        )
+
+        def work() -> None:
+            try:
+                imported = local_checker.import_subscription("\n".join(watched))
+                self.events.put(("watch_imported", imported))
+
+                def progress(
+                    done: int, total: int, result: healthcheck.ProbeResult
+                ) -> None:
+                    self.events.put(("watch_progress", done, total, result))
+
+                report = local_checker.run_local_check(
+                    binary=binary,
+                    lines=imported.lines,
+                    timeout_ms=timeout * 1000,
+                    workers=workers,
+                    attempts=1,
+                    progress_callback=progress,
+                    cancel_event=self.cancel_event,
+                )
+                self.events.put(("watch_done", report))
+            except (
+                local_checker.LocalCheckError,
+                healthcheck.HealthCheckError,
+                build.BuildError,
+                OSError,
+            ) as exc:
+                self.events.put(("watch_error", str(exc)))
+            except Exception as exc:
+                self.events.put(
+                    (
+                        "watch_error",
+                        f"Непредвиденная ошибка: {type(exc).__name__}: {exc}",
+                    )
+                )
+
+        threading.Thread(target=work, name="wireveil-watch", daemon=True).start()
+
     def _stop(self) -> None:
         if self.running:
             self.one_click_mode = False
             self.auto_enabled_var.set(False)
-            self._cancel_auto_timer()
+            self.watch_enabled_var.set(False)
+            self._cancel_background_timers()
             self.cancel_event.set()
             self.stop_button.configure(state="disabled")
             self.status_var.set("Останавливаю проверку…")
@@ -1016,7 +1153,7 @@ class WireVeilChecker(tk.Tk):
         except (ValueError, tk.TclError):
             timeout, workers = 15, 16
 
-        self._cancel_auto_timer()
+        self._cancel_background_timers()
         self.running = True
         self.activity = "service"
         self.cancel_event = threading.Event()
@@ -1084,7 +1221,7 @@ class WireVeilChecker(tk.Tk):
         except (ValueError, tk.TclError):
             timeout, workers = 15, 8
 
-        self._cancel_auto_timer()
+        self._cancel_background_timers()
         self.running = True
         self.activity = "speed"
         self.cancel_event = threading.Event()
@@ -1278,9 +1415,9 @@ class WireVeilChecker(tk.Tk):
         if self.one_click_mode:
             self.one_click_mode = False
             self._copy_fast()
-            self._schedule_auto_check()
+            self._schedule_background_checks()
             return
-        self._schedule_auto_check()
+        self._schedule_background_checks()
 
     def _fail_service_test(self, service_names: tuple[str, ...], detail: str) -> None:
         self.running = False
@@ -1298,8 +1435,8 @@ class WireVeilChecker(tk.Tk):
                 messagebox.showerror(APP_TITLE, detail)
         self.one_click_mode = False
         self._restore_result_buttons()
-        if not self.closing and self.auto_enabled_var.get():
-            self._schedule_auto_check()
+        if not self.closing:
+            self._schedule_background_checks()
 
     def _finish_speed_test(
         self, results: tuple[local_checker.SpeedResult, ...]
@@ -1325,7 +1462,7 @@ class WireVeilChecker(tk.Tk):
         if self.one_click_mode:
             self.after_idle(self._start_service_test)
             return
-        self._schedule_auto_check()
+        self._schedule_background_checks()
 
     def _fail_speed_test(self, detail: str) -> None:
         self.running = False
@@ -1342,8 +1479,45 @@ class WireVeilChecker(tk.Tk):
                 messagebox.showerror(APP_TITLE, detail)
         self.one_click_mode = False
         self._restore_result_buttons()
-        if not self.closing and self.auto_enabled_var.get():
-            self._schedule_auto_check()
+        if not self.closing:
+            self._schedule_background_checks()
+
+    def _finish_watch_check(self, report: local_checker.CheckReport) -> None:
+        self.running = False
+        self.activity = None
+        self.report = report
+        self.progress_var.set(100)
+        self._set_running_controls(False)
+        self.sort_column = "latency"
+        self.sort_descending = False
+        self._populate_table(report)
+        active = report.active_results
+        fast = report.fast_results(self._latency_limit())
+        self.status_var.set("Быстрый контроль живости завершён")
+        self.summary_var.set(
+            f"Скопировано {len(self.watched_uris)}  |  живых сейчас {len(active)}  |  "
+            f"быстрых {len(fast)}"
+        )
+        self._log(
+            f"Контроль живости завершён: живых {len(active)}/"
+            f"{len(report.candidates)}, быстрых {len(fast)}."
+        )
+        self._restore_result_buttons()
+        self._schedule_watch_check()
+
+    def _fail_watch_check(self, detail: str) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(0)
+        self._set_running_controls(False)
+        if "cancelled" in detail.lower():
+            self.status_var.set("Контроль живости остановлен")
+            self._log("Контроль живости остановлен пользователем.")
+        else:
+            self.status_var.set("Ошибка контроля живости")
+            self._log(f"Ошибка контроля живости: {detail}")
+        if not self.closing:
+            self._schedule_watch_check()
 
     def _poll_events(self) -> None:
         try:
@@ -1370,6 +1544,27 @@ class WireVeilChecker(tk.Tk):
                         return
                 elif kind == "error":
                     self._fail(event[1])
+                    if self.closing:
+                        self.destroy()
+                        return
+                elif kind == "watch_imported":
+                    imported = event[1]
+                    self._show_pending(imported.lines, 1)
+                    self.status_var.set(
+                        f"Контроль живости: подготовлено {len(imported.lines)} серверов"
+                    )
+                elif kind == "watch_progress":
+                    done, total, result = event[1], event[2], event[3]
+                    self.progress_var.set((done / total) * 100 if total else 0)
+                    self.status_var.set(f"Контроль живости: {done} / {total}")
+                    self._update_live_result(result, 1)
+                elif kind == "watch_done":
+                    self._finish_watch_check(event[1])
+                    if self.closing:
+                        self.destroy()
+                        return
+                elif kind == "watch_error":
+                    self._fail_watch_check(event[1])
                     if self.closing:
                         self.destroy()
                         return
@@ -1433,9 +1628,9 @@ class WireVeilChecker(tk.Tk):
             else:
                 self.one_click_mode = False
                 self.status_var.set("Нет быстрых серверов для полного теста")
-                self._schedule_auto_check()
+                self._schedule_background_checks()
             return
-        self._schedule_auto_check()
+        self._schedule_background_checks()
 
     def _fail(self, detail: str) -> None:
         self.running = False
@@ -1453,8 +1648,8 @@ class WireVeilChecker(tk.Tk):
             if not self.closing:
                 messagebox.showerror(APP_TITLE, detail)
         self.one_click_mode = False
-        if not self.closing and self.auto_enabled_var.get():
-            self._schedule_auto_check()
+        if not self.closing:
+            self._schedule_background_checks()
 
     def _set_running_controls(self, running: bool) -> None:
         self.start_button.configure(state="disabled" if running else "normal")
@@ -1740,8 +1935,15 @@ class WireVeilChecker(tk.Tk):
         self.clipboard_clear()
         self.clipboard_append(value)
         self.update_idletasks()
+        self.watched_uris = tuple(result.target.uri for result in results)
+        self._queue_settings_save()
         self.status_var.set(f"Годных ключей скопировано в буфер: {len(results)}")
-        self._log(f"В буфер обмена экспортировано годных ключей: {len(results)}.")
+        self._log(
+            f"В буфер обмена экспортировано годных ключей: {len(results)}; "
+            "этот набор сохранён для быстрого контроля живости."
+        )
+        if self.watch_enabled_var.get():
+            self._schedule_watch_check()
 
     def _selection_changed(self, _event: object | None = None) -> None:
         state = "normal" if self.table.selection() else "disabled"
@@ -1790,6 +1992,42 @@ class WireVeilChecker(tk.Tk):
         else:
             self._log("Автозаебись включён и начнёт отсчёт после первого полного запуска.")
 
+    def _toggle_watch(self) -> None:
+        if not self.watch_enabled_var.get():
+            self._cancel_watch_timer()
+            self._log("Контроль скопированных зелёных выключен.")
+            return
+        try:
+            interval = int(self.watch_interval_var.get())
+        except (ValueError, tk.TclError):
+            interval = 0
+        if not 1 <= interval <= 1440:
+            self.watch_enabled_var.set(False)
+            messagebox.showerror(
+                APP_TITLE,
+                "Интервал контроля живости должен быть от 1 до 1440 минут.",
+            )
+            return
+        if not self.watched_uris:
+            self._log(
+                "Контроль живости включён и начнётся после копирования годных серверов."
+            )
+            return
+        if self.running:
+            self._log(
+                f"Контроль живости включён: запуск через {interval} мин после текущей проверки."
+            )
+            return
+        self._schedule_watch_check()
+
+    def _schedule_background_checks(self) -> None:
+        self._schedule_auto_check()
+        self._schedule_watch_check()
+
+    def _cancel_background_timers(self) -> None:
+        self._cancel_auto_timer()
+        self._cancel_watch_timer()
+
     def _schedule_auto_check(self) -> None:
         self._cancel_auto_timer()
         if not self.auto_enabled_var.get() or self.closing:
@@ -1815,12 +2053,61 @@ class WireVeilChecker(tk.Tk):
 
     def _run_auto_check(self) -> None:
         self.auto_job = None
-        if self.auto_enabled_var.get() and not self.running and not self.closing:
-            self._log("Запуск полного автоматического цикла.")
-            self._start_one_click()
+        if not self.auto_enabled_var.get() or self.closing:
+            return
+        if self.running:
+            self._log("Полный автозапуск отложен: сейчас выполняется другая проверка.")
+            self._schedule_auto_check()
+            return
+        self._log("Запуск полного автоматического цикла.")
+        self._start_one_click()
+
+    def _schedule_watch_check(self) -> None:
+        self._cancel_watch_timer()
+        if (
+            not self.watch_enabled_var.get()
+            or not self.watched_uris
+            or self.closing
+        ):
+            return
+        try:
+            interval = int(self.watch_interval_var.get())
+        except (ValueError, tk.TclError):
+            self.watch_enabled_var.set(False)
+            return
+        if not 1 <= interval <= 1440:
+            self.watch_enabled_var.set(False)
+            return
+        self.watch_job = self.after(interval * 60_000, self._run_watch_check)
+        self._log(
+            f"Следующий контроль {len(self.watched_uris)} скопированных серверов "
+            f"через {interval} мин."
+        )
+
+    def _cancel_watch_timer(self) -> None:
+        if self.watch_job is not None:
+            try:
+                self.after_cancel(self.watch_job)
+            except tk.TclError:
+                pass
+            self.watch_job = None
+
+    def _run_watch_check(self) -> None:
+        self.watch_job = None
+        if (
+            not self.watch_enabled_var.get()
+            or not self.watched_uris
+            or self.closing
+        ):
+            return
+        if self.running:
+            self._log("Контроль живости отложен: сейчас выполняется другая проверка.")
+            self._schedule_watch_check()
+            return
+        self._start_watch_check()
 
     def _on_close(self) -> None:
-        self._cancel_auto_timer()
+        self._cancel_background_timers()
         if self.settings_save_job is not None:
             try:
                 self.after_cancel(self.settings_save_job)
