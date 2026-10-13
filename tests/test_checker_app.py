@@ -143,6 +143,31 @@ class QualifiedExportTests(unittest.TestCase):
 
 
 class AutoCheckTests(unittest.TestCase):
+    def test_countdown_formats_minutes_and_hours(self):
+        self.assertEqual("00:01", WireVeilChecker._format_countdown(0.1))
+        self.assertEqual("29:59", WireVeilChecker._format_countdown(1798.2))
+        self.assertEqual("1:01:01", WireVeilChecker._format_countdown(3660.1))
+
+    @mock.patch("checker_app.time.monotonic", return_value=1000.0)
+    def test_watch_schedule_records_real_deadline(self, _monotonic):
+        checker = object.__new__(WireVeilChecker)
+        checker.watch_job = None
+        checker.watch_due_at = None
+        checker.watch_enabled_var = mock.Mock()
+        checker.watch_enabled_var.get.return_value = True
+        checker.watch_interval_var = mock.Mock()
+        checker.watch_interval_var.get.return_value = 30
+        checker.watched_uris = ("vless://saved-one",)
+        checker.closing = False
+        checker.after = mock.Mock(return_value="timer-id")
+        checker._log = mock.Mock()
+
+        checker._schedule_watch_check()
+
+        checker.after.assert_called_once_with(1_800_000, checker._run_watch_check)
+        self.assertEqual("timer-id", checker.watch_job)
+        self.assertEqual(2800.0, checker.watch_due_at)
+
     def test_auto_check_runs_the_full_one_click_workflow(self):
         checker = object.__new__(WireVeilChecker)
         checker.auto_job = "scheduled"

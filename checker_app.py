@@ -9,6 +9,7 @@ import queue
 import re
 import sys
 import threading
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -204,8 +205,8 @@ class WireVeilChecker(tk.Tk):
                 self.iconbitmap(default=str(icon_path))
             except tk.TclError:
                 pass
-        self.geometry("1080x720")
-        self.minsize(820, 600)
+        self.geometry("1180x760")
+        self.minsize(940, 640)
         self.option_add("*Font", ("Segoe UI", 10))
 
         self.settings_path = checker_settings_path()
@@ -235,6 +236,10 @@ class WireVeilChecker(tk.Tk):
         self.sort_job: str | None = None
         self.auto_job: str | None = None
         self.watch_job: str | None = None
+        self.countdown_job: str | None = None
+        self.timer_refresh_job: str | None = None
+        self.auto_due_at: float | None = None
+        self.watch_due_at: float | None = None
         self.watched_uris = tuple(str(uri) for uri in saved_settings["watched_uris"])
 
         self.rounds_var = tk.IntVar(value=int(saved_settings["rounds"]))
@@ -263,6 +268,8 @@ class WireVeilChecker(tk.Tk):
         self.service_menu_text_var = tk.StringVar(value=local_checker.DEFAULT_SERVICE_NAME)
         self.status_var = tk.StringVar(value="Вставьте ссылку подписки или её содержимое.")
         self.summary_var = tk.StringVar(value="Результатов пока нет")
+        self.auto_countdown_var = tk.StringVar(value="○ ждёт первого полного запуска")
+        self.watch_countdown_var = tk.StringVar(value="○ ждёт копирования годных серверов")
         self.progress_var = tk.DoubleVar(value=0)
 
         self._configure_style()
@@ -275,52 +282,66 @@ class WireVeilChecker(tk.Tk):
         self._watch_settings()
         self._log(f"Настройки: {self.settings_path}")
         if self.auto_enabled_var.get():
-            self._log("Автозаебись сохранён и продолжит работу после полного запуска.")
+            self._log("Полный автоцикл сохранён и продолжит работу после первого запуска.")
         if self.watch_enabled_var.get():
             if self.watched_uris:
                 self._log(
-                    f"Контроль живости восстановлен: {len(self.watched_uris)} "
+                    f"Контроль доступности восстановлен: {len(self.watched_uris)} "
                     "скопированных серверов."
                 )
                 self.after_idle(self._schedule_watch_check)
             else:
-                self._log("Контроль живости ждёт первого копирования годных серверов.")
+                self._log("Контроль доступности ждёт первого копирования годных серверов.")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._poll_events)
+        self.after_idle(self._update_countdowns)
 
     def _configure_style(self) -> None:
         style = ttk.Style(self)
         style.theme_use("clam")
-        self.configure(background="#202020")
-        style.configure(".", background="#2b2b2b", foreground="#f0f0f0")
-        style.configure("TFrame", background="#202020")
-        style.configure("Panel.TFrame", background="#2b2b2b")
-        style.configure("TLabel", background="#202020", foreground="#ededed")
-        style.configure("Dim.TLabel", background="#202020", foreground="#a8a8a8")
-        style.configure("Brand.TLabel", background="#303030", foreground="#ffffff", font=("Segoe UI Semibold", 11))
-        style.configure("Summary.TLabel", background="#202020", foreground="#d8d8d8")
-        style.configure("TButton", background="#363636", foreground="#f4f4f4", padding=(9, 5), borderwidth=1)
-        style.map("TButton", background=[("active", "#444444"), ("pressed", "#1f78a8")])
+        self.configure(background="#0f151c")
+        style.configure(".", background="#151d26", foreground="#e8f0f7")
+        style.configure("TFrame", background="#0f151c")
+        style.configure("Panel.TFrame", background="#151d26")
+        style.configure("Card.TFrame", background="#18222d", relief="flat")
+        style.configure("Header.TFrame", background="#111922")
+        style.configure("TLabel", background="#0f151c", foreground="#e8f0f7")
+        style.configure("Panel.TLabel", background="#151d26", foreground="#e8f0f7")
+        style.configure("PanelTitle.TLabel", background="#151d26", foreground="#f3f7fa", font=("Segoe UI Semibold", 10))
+        style.configure("PanelDim.TLabel", background="#151d26", foreground="#8999a9")
+        style.configure("Card.TLabel", background="#18222d", foreground="#e8f0f7")
+        style.configure("Dim.TLabel", background="#0f151c", foreground="#8999a9")
+        style.configure("CardDim.TLabel", background="#18222d", foreground="#8999a9")
+        style.configure("Brand.TLabel", background="#111922", foreground="#f5f9fc", font=("Segoe UI Semibold", 14))
+        style.configure("Subtitle.TLabel", background="#111922", foreground="#7f93a6", font=("Segoe UI", 9))
+        style.configure("Section.TLabel", background="#18222d", foreground="#a9bbca", font=("Segoe UI Semibold", 9))
+        style.configure("CardTitle.TLabel", background="#18222d", foreground="#f3f7fa", font=("Segoe UI Semibold", 11))
+        style.configure("Countdown.TLabel", background="#18222d", foreground="#43c4ff", font=("Segoe UI Semibold", 10))
+        style.configure("Summary.TLabel", background="#0f151c", foreground="#aebdca")
+        style.configure("TButton", background="#263442", foreground="#ecf3f8", padding=(10, 6), borderwidth=0, focusthickness=1, focuscolor="#39aee8")
+        style.map("TButton", background=[("active", "#324558"), ("pressed", "#187aab"), ("disabled", "#1c2630")], foreground=[("disabled", "#617181")])
+        style.configure("Secondary.TButton", background="#1e2a35", foreground="#dce7ef", padding=(9, 5), borderwidth=0)
+        style.map("Secondary.TButton", background=[("active", "#2a3b4a"), ("pressed", "#187aab")], foreground=[("disabled", "#617181")])
+        style.configure("Accent.TButton", background="#176f9d", foreground="#ffffff", font=("Segoe UI Semibold", 9), padding=(10, 6), borderwidth=0)
+        style.map("Accent.TButton", background=[("active", "#218bc0"), ("pressed", "#0f5a81")], foreground=[("disabled", "#71808c")])
         style.configure(
             "Launch.TButton",
-            background="#b52b2b",
+            background="#d93a36",
             foreground="#ffffff",
-            font=("Segoe UI Semibold", 10),
-            padding=(10, 5),
-            borderwidth=1,
-            relief="raised",
-            focuscolor="#e26060",
+            font=("Segoe UI Semibold", 12),
+            padding=(18, 9),
+            borderwidth=0,
+            focuscolor="#ff7772",
         )
         style.map(
             "Launch.TButton",
-            background=[("active", "#cf3838"), ("pressed", "#8d2020")],
-            foreground=[("disabled", "#a0a0a0"), ("!disabled", "#ffffff")],
-            relief=[("pressed", "sunken"), ("!pressed", "raised")],
+            background=[("active", "#f04b46"), ("pressed", "#a92421"), ("disabled", "#512d30")],
+            foreground=[("disabled", "#9a7475"), ("!disabled", "#ffffff")],
         )
-        style.configure("Hero.TFrame", background="#272222")
+        style.configure("Hero.TFrame", background="#181b21")
         style.configure(
             "Stepper.TEntry",
-            fieldbackground="#292929",
+            fieldbackground="#111923",
             foreground="#ffffff",
             insertcolor="#ffffff",
             borderwidth=1,
@@ -328,17 +349,19 @@ class WireVeilChecker(tk.Tk):
         )
         style.configure(
             "Stepper.TButton",
-            background="#424242",
+            background="#2a3948",
             foreground="#ffffff",
             font=("Segoe UI Semibold", 10),
             padding=(4, 1),
         )
-        style.map("Stepper.TButton", background=[("active", "#575757"), ("pressed", "#278dcc")])
-        style.configure("TCheckbutton", background="#202020", foreground="#ededed")
-        style.map("TCheckbutton", background=[("active", "#202020")])
+        style.map("Stepper.TButton", background=[("active", "#3a5065"), ("pressed", "#1687bd")])
+        style.configure("TCheckbutton", background="#0f151c", foreground="#e8f0f7")
+        style.map("TCheckbutton", background=[("active", "#0f151c")])
+        style.configure("Card.TCheckbutton", background="#18222d", foreground="#e8f0f7", font=("Segoe UI Semibold", 10))
+        style.map("Card.TCheckbutton", background=[("active", "#18222d")], foreground=[("disabled", "#697887")])
         style.configure(
             "Service.TMenubutton",
-            background="#424242",
+            background="#263746",
             foreground="#ffffff",
             arrowcolor="#ffffff",
             borderwidth=1,
@@ -346,131 +369,238 @@ class WireVeilChecker(tk.Tk):
         )
         style.map(
             "Service.TMenubutton",
-            background=[("active", "#575757"), ("pressed", "#278dcc")],
+            background=[("active", "#345064"), ("pressed", "#1687bd")],
             foreground=[("disabled", "#888888"), ("!disabled", "#ffffff")],
             arrowcolor=[("disabled", "#777777"), ("!disabled", "#ffffff")],
         )
-        style.configure("Horizontal.TProgressbar", background="#2d9cdb", troughcolor="#303030", borderwidth=0)
+        style.configure("Horizontal.TProgressbar", background="#2ab1e9", troughcolor="#19232d", borderwidth=0)
         style.configure(
             "Treeview",
-            background="#242424",
-            fieldbackground="#242424",
-            foreground="#f0f0f0",
-            rowheight=25,
+            background="#121a22",
+            fieldbackground="#121a22",
+            foreground="#dce7ee",
+            rowheight=27,
             borderwidth=0,
+            font=("Segoe UI", 9),
         )
-        style.map("Treeview", background=[("selected", "#278dcc")], foreground=[("selected", "#ffffff")])
-        style.configure("Treeview.Heading", background="#333333", foreground="#f4f4f4", relief="flat")
-        style.map("Treeview.Heading", background=[("active", "#414141")])
+        style.map("Treeview", background=[("selected", "#166f9c")], foreground=[("selected", "#ffffff")])
+        style.configure("Treeview.Heading", background="#1d2934", foreground="#b9c8d4", relief="flat", padding=(6, 7), font=("Segoe UI Semibold", 9))
+        style.map("Treeview.Heading", background=[("active", "#293a49")])
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self, padding=8)
+        outer = ttk.Frame(self, padding=10)
         outer.pack(fill="both", expand=True)
 
-        toolbar = ttk.Frame(outer, style="Panel.TFrame", padding=5)
-        toolbar.pack(fill="x")
-        ttk.Label(toolbar, text=" WireVeil ", style="Brand.TLabel").pack(side="left", padx=(0, 6))
-        self.paste_button = ttk.Button(toolbar, text="Вставить", command=self._paste)
-        self.paste_button.pack(side="left")
-        self.file_button = ttk.Button(toolbar, text="Файл…", command=self._choose_file)
-        self.file_button.pack(side="left", padx=(4, 0))
-        self.active_button = ttk.Button(toolbar, text="Сохранить живые", command=self._save_active, state="disabled")
-        self.active_button.pack(side="right")
-        self.fast_button = ttk.Button(toolbar, text="Сохранить годные", command=self._save_fast, state="disabled")
-        self.fast_button.pack(side="right", padx=(0, 4))
-        self.copy_button = ttk.Button(
-            toolbar, text="В буфер годные", command=self._copy_fast, state="disabled"
+        header = ttk.Frame(outer, style="Header.TFrame", padding=(12, 9))
+        header.pack(fill="x")
+        brand = ttk.Frame(header, style="Header.TFrame")
+        brand.pack(side="left")
+        ttk.Label(brand, text="WireVeil Checker", style="Brand.TLabel").pack(anchor="w")
+        ttk.Label(
+            brand,
+            text="Проверка прокси из вашей сети",
+            style="Subtitle.TLabel",
+        ).pack(anchor="w")
+        self.active_button = ttk.Button(
+            header,
+            text="Сохранить доступные",
+            command=self._save_active,
+            state="disabled",
+            style="Secondary.TButton",
         )
-        self.copy_button.pack(side="right", padx=(0, 4))
+        self.active_button.pack(side="right")
+        self.fast_button = ttk.Button(
+            header,
+            text="Сохранить годные",
+            command=self._save_fast,
+            state="disabled",
+            style="Secondary.TButton",
+        )
+        self.fast_button.pack(side="right", padx=(0, 5))
+        self.copy_button = ttk.Button(
+            header,
+            text="В буфер годные",
+            command=self._copy_fast,
+            state="disabled",
+            style="Secondary.TButton",
+        )
+        self.copy_button.pack(side="right", padx=(0, 5))
         self.copy_selected_button = ttk.Button(
-            toolbar,
+            header,
             text="Копировать выбранные",
             command=self._copy_selected,
             state="disabled",
+            style="Secondary.TButton",
         )
-        self.copy_selected_button.pack(side="right", padx=(0, 4))
+        self.copy_selected_button.pack(side="right", padx=(0, 5))
 
-        source_row = ttk.Frame(outer, padding=(0, 6, 0, 4))
-        source_row.pack(fill="x")
-        ttk.Label(source_row, text="Подписка:").pack(side="left", padx=(2, 6))
+        source_card = ttk.Frame(outer, style="Card.TFrame", padding=(10, 8))
+        source_card.pack(fill="x", pady=(8, 6))
+        source_header = ttk.Frame(source_card, style="Card.TFrame")
+        source_header.pack(fill="x", pady=(0, 6))
+        ttk.Label(source_header, text="ПОДПИСКА", style="Section.TLabel").pack(side="left")
         self.clear_source_button = ttk.Button(
-            source_row,
+            source_header,
             text="Очистить",
             command=self._clear_source,
+            style="Secondary.TButton",
         )
-        self.clear_source_button.pack(side="right", padx=(5, 0))
+        self.clear_source_button.pack(side="right")
+        self.file_button = ttk.Button(
+            source_header,
+            text="Открыть файл…",
+            command=self._choose_file,
+            style="Secondary.TButton",
+        )
+        self.file_button.pack(side="right", padx=(0, 5))
+        self.paste_button = ttk.Button(
+            source_header,
+            text="Вставить из буфера",
+            command=self._paste,
+            style="Accent.TButton",
+        )
+        self.paste_button.pack(side="right", padx=(0, 5))
         self.source = tk.Text(
-            source_row,
-            height=2,
+            source_card,
+            height=1,
             wrap="word",
             undo=True,
-            background="#292929",
-            foreground="#f2f2f2",
+            background="#101821",
+            foreground="#eaf2f7",
             insertbackground="#ffffff",
-            selectbackground="#278dcc",
+            selectbackground="#166f9c",
             relief="flat",
-            padx=7,
-            pady=5,
+            padx=9,
+            pady=7,
+            highlightthickness=1,
+            highlightbackground="#2b3a48",
+            highlightcolor="#2ab1e9",
         )
-        self.source.pack(side="left", fill="x", expand=True)
+        self.source.pack(fill="x")
         self.source.bind("<Control-KeyPress>", self._source_keyboard_shortcut)
         self.source.bind("<Control-Insert>", self._source_copy_event)
         self.source.bind("<Shift-Insert>", self._source_paste_event)
 
-        hero = ttk.Frame(outer, style="Hero.TFrame", padding=(7, 5))
-        hero.pack(fill="x", pady=(0, 4))
-        hero.columnconfigure(0, weight=1)
-        hero.columnconfigure(3, weight=1)
+        hero = ttk.Frame(outer, style="Hero.TFrame", padding=(10, 8))
+        hero.pack(fill="x", pady=(0, 6))
+        ttk.Label(
+            hero,
+            text="PING  →  СКОРОСТЬ  →  САЙТЫ  →  ГОТОВЫЕ КЛЮЧИ",
+            style="Panel.TLabel",
+        ).pack(side="left", padx=(4, 0))
         self.magic_button = ttk.Button(
             hero,
-            text="☢  Сделать заебись",
+            text="☢  СДЕЛАТЬ ЗАЕБИСЬ",
             command=self._start_one_click,
             style="Launch.TButton",
         )
-        self.magic_button.grid(row=0, column=1, padx=8)
+        self.magic_button.pack(side="right")
         self.stop_button = ttk.Button(
             hero,
             text="■ Аварийный стоп",
             command=self._stop,
             state="disabled",
+            style="Secondary.TButton",
         )
-        self.stop_button.grid(row=0, column=2, padx=(8, 0))
+        self.stop_button.pack(side="right", padx=(0, 8))
 
-        quick = ttk.Frame(outer)
-        quick.pack(fill="x", pady=(0, 4))
+        automation = ttk.Frame(outer)
+        automation.pack(fill="x", pady=(0, 6))
+        automation.columnconfigure(0, weight=1, uniform="automation")
+        automation.columnconfigure(1, weight=1, uniform="automation")
+
+        auto_card = ttk.Frame(automation, style="Card.TFrame", padding=(12, 9))
+        auto_card.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        auto_top = ttk.Frame(auto_card, style="Card.TFrame")
+        auto_top.pack(fill="x")
         ttk.Checkbutton(
-            quick,
-            text="Автозаебись каждые",
+            auto_top,
+            text="Полный автоцикл",
             variable=self.auto_enabled_var,
             command=self._toggle_auto,
-        ).grid(row=0, column=0, sticky="w", padx=(2, 4))
-        self._numeric_stepper(quick, self.auto_interval_var, 1, 1440, 1, width=5)
-        ttk.Label(quick, text="мин", style="Dim.TLabel").grid(row=0, column=2, padx=(0, 8))
-        quick.columnconfigure(3, weight=1)
+            style="Card.TCheckbutton",
+        ).pack(side="left")
+        auto_interval = ttk.Frame(auto_top, style="Card.TFrame")
+        auto_interval.pack(side="right")
+        self._numeric_stepper(
+            auto_interval,
+            self.auto_interval_var,
+            1,
+            1440,
+            0,
+            width=4,
+            frame_style="Card.TFrame",
+        )
+        ttk.Label(auto_interval, text="мин", style="CardDim.TLabel").grid(row=0, column=1)
+        ttk.Label(
+            auto_card,
+            textvariable=self.auto_countdown_var,
+            style="Countdown.TLabel",
+        ).pack(anchor="w", pady=(5, 1))
+        ttk.Label(
+            auto_card,
+            text="Полная проверка, скорость, все сайты и экспорт",
+            style="CardDim.TLabel",
+        ).pack(anchor="w")
+
+        watch_card = ttk.Frame(automation, style="Card.TFrame", padding=(12, 9))
+        watch_card.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        watch_top = ttk.Frame(watch_card, style="Card.TFrame")
+        watch_top.pack(fill="x")
         ttk.Checkbutton(
-            quick,
-            text="Контроль скопированных зелёных каждые",
+            watch_top,
+            text="Контроль доступности",
             variable=self.watch_enabled_var,
             command=self._toggle_watch,
-        ).grid(row=1, column=0, sticky="w", padx=(2, 4), pady=(3, 0))
+            style="Card.TCheckbutton",
+        ).pack(side="left")
+        watch_interval = ttk.Frame(watch_top, style="Card.TFrame")
+        watch_interval.pack(side="right")
         self._numeric_stepper(
-            quick,
+            watch_interval,
             self.watch_interval_var,
             1,
             1440,
-            1,
+            0,
             width=5,
-            row=1,
+            frame_style="Card.TFrame",
         )
-        ttk.Label(quick, text="мин · только живость", style="Dim.TLabel").grid(
-            row=1, column=2, columnspan=2, sticky="w", padx=(0, 8), pady=(3, 0)
+        ttk.Label(watch_interval, text="мин", style="CardDim.TLabel").grid(row=0, column=1)
+        watch_status = ttk.Frame(watch_card, style="Card.TFrame")
+        watch_status.pack(fill="x", pady=(5, 1))
+        ttk.Label(
+            watch_status,
+            textvariable=self.watch_countdown_var,
+            style="Countdown.TLabel",
+        ).pack(side="left")
+        self.watch_now_button = ttk.Button(
+            watch_status,
+            text="Проверить сейчас",
+            command=self._start_watch_check,
+            state="normal" if self.watched_uris else "disabled",
+            style="Secondary.TButton",
         )
+        self.watch_now_button.pack(side="right")
+        ttk.Label(
+            watch_card,
+            text="Один HTTPS-тест скопированных серверов — без скорости и сайтов",
+            style="CardDim.TLabel",
+        ).pack(anchor="w")
+
+        advanced_bar = ttk.Frame(outer)
+        advanced_bar.pack(fill="x", pady=(0, 5))
+        ttk.Label(
+            advanced_bar,
+            text="Ручные режимы и тонкая настройка",
+            style="Dim.TLabel",
+        ).pack(side="left")
         self.advanced_toggle_button = ttk.Button(
-            quick,
-            text="⚙ Дополнительные настройки…",
+            advanced_bar,
+            text="⚙ Открыть настройки",
             command=self._toggle_advanced_settings,
+            style="Secondary.TButton",
         )
-        self.advanced_toggle_button.grid(row=0, column=4, rowspan=2, sticky="e")
+        self.advanced_toggle_button.pack(side="right")
 
         self.advanced_host = ttk.Frame(outer)
         self.advanced_host.pack(fill="x")
@@ -500,14 +630,14 @@ class WireVeilChecker(tk.Tk):
         settings.pack(fill="x", pady=(6, 0))
         self._spin_setting(settings, "Прогонов", self.rounds_var, 1, 5, 0)
         self._spin_setting(settings, "Тайм-аут", self.timeout_var, 1, 60, 2)
-        ttk.Label(settings, text="сек", style="Dim.TLabel").grid(row=0, column=4, padx=(0, 14))
+        ttk.Label(settings, text="сек", style="PanelDim.TLabel").grid(row=0, column=4, padx=(0, 14))
         self._spin_setting(settings, "Потоков", self.workers_var, 1, 256, 5)
         self._spin_setting(settings, "Быстрые ≤", self.latency_var, 1, 10000, 7)
-        ttk.Label(settings, text="мс", style="Dim.TLabel").grid(row=0, column=9)
+        ttk.Label(settings, text="мс", style="PanelDim.TLabel").grid(row=0, column=9)
 
         services = ttk.Frame(self.advanced_frame, style="Panel.TFrame")
         services.pack(fill="x", pady=(6, 0))
-        ttk.Label(services, text="Проверка сайтов:", style="Brand.TLabel").pack(
+        ttk.Label(services, text="Проверка сайтов:", style="PanelTitle.TLabel").pack(
             side="left", padx=(0, 6)
         )
         self.service_menu_button = ttk.Menubutton(
@@ -536,7 +666,7 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(
             services,
             text="можно выбрать несколько; тестируются только зелёные серверы",
-            style="Dim.TLabel",
+            style="PanelDim.TLabel",
         ).pack(side="left", padx=(8, 0))
 
         table_frame = ttk.Frame(outer)
@@ -587,9 +717,9 @@ class WireVeilChecker(tk.Tk):
         self._refresh_sort_headers()
         self._refresh_service_columns()
         self.table.tag_configure("fast", foreground="#60d35f")
-        self.table.tag_configure("active", foreground="#d8ce43")
-        self.table.tag_configure("dead", foreground="#e26b6b")
-        self.table.tag_configure("pending", foreground="#a0a0a0")
+        self.table.tag_configure("active", foreground="#e1c95c")
+        self.table.tag_configure("dead", foreground="#ee716c")
+        self.table.tag_configure("pending", foreground="#718292")
         table_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         table_scroll_x = ttk.Scrollbar(table_frame, orient="horizontal", command=self.table.xview)
         self.table.configure(
@@ -604,14 +734,14 @@ class WireVeilChecker(tk.Tk):
         table_scroll.grid(row=0, column=1, sticky="ns")
         table_scroll_x.grid(row=1, column=0, sticky="ew")
 
-        log_frame = ttk.Frame(outer)
+        log_frame = ttk.Frame(outer, style="Card.TFrame", padding=(8, 6))
         log_frame.pack(fill="x", pady=(5, 0))
-        ttk.Label(log_frame, text="Журнал", style="Dim.TLabel").pack(anchor="w")
+        ttk.Label(log_frame, text="ЖУРНАЛ", style="Section.TLabel").pack(anchor="w")
         self.log = tk.Text(
             log_frame,
-            height=4,
-            background="#191919",
-            foreground="#cfcfcf",
+            height=3,
+            background="#101820",
+            foreground="#afbfcc",
             insertbackground="#ffffff",
             relief="flat",
             state="disabled",
@@ -642,8 +772,27 @@ class WireVeilChecker(tk.Tk):
         )
         for variable in variables:
             variable.trace_add("write", self._queue_settings_save)
+        self.auto_interval_var.trace_add("write", self._queue_timer_refresh)
+        self.watch_interval_var.trace_add("write", self._queue_timer_refresh)
         self.source.bind("<<Modified>>", self._source_settings_changed, add=True)
         self.source.edit_modified(False)
+
+    def _queue_timer_refresh(self, *_args: object) -> None:
+        if self.closing or self.running:
+            return
+        if self.timer_refresh_job is not None:
+            try:
+                self.after_cancel(self.timer_refresh_job)
+            except tk.TclError:
+                pass
+        self.timer_refresh_job = self.after(500, self._refresh_scheduled_intervals)
+
+    def _refresh_scheduled_intervals(self) -> None:
+        self.timer_refresh_job = None
+        if self.auto_job is not None:
+            self._schedule_auto_check()
+        if self.watch_job is not None:
+            self._schedule_watch_check()
 
     def _source_settings_changed(self, _event: object | None = None) -> None:
         if not self.source.edit_modified():
@@ -703,19 +852,21 @@ class WireVeilChecker(tk.Tk):
             self.advanced_frame.pack_forget()
             self.advanced_visible = False
             self.advanced_toggle_button.configure(
-                text="⚙ Дополнительные настройки…"
+                text="⚙ Открыть настройки"
             )
         else:
             self.advanced_frame.pack(fill="x", pady=(0, 5))
             self.advanced_visible = True
-            self.advanced_toggle_button.configure(text="Скрыть настройки ▲")
+            self.advanced_toggle_button.configure(text="Скрыть настройки  ▲")
         if persist:
             self._queue_settings_save()
 
     def _spin_setting(
         self, parent: ttk.Frame, label: str, variable: tk.IntVar, start: int, end: int, column: int
     ) -> None:
-        ttk.Label(parent, text=label).grid(row=0, column=column, sticky="w", padx=(0, 6))
+        ttk.Label(parent, text=label, style="Panel.TLabel").grid(
+            row=0, column=column, sticky="w", padx=(0, 6)
+        )
         self._numeric_stepper(parent, variable, start, end, column + 1)
 
     def _numeric_stepper(
@@ -728,8 +879,9 @@ class WireVeilChecker(tk.Tk):
         *,
         width: int = 5,
         row: int = 0,
+        frame_style: str = "Panel.TFrame",
     ) -> None:
-        frame = ttk.Frame(parent, style="Panel.TFrame")
+        frame = ttk.Frame(parent, style=frame_style)
         frame.grid(row=row, column=column, sticky="w", padx=(0, 18))
         ttk.Entry(
             frame,
@@ -957,11 +1109,11 @@ class WireVeilChecker(tk.Tk):
             return
         watched = self.watched_uris
         if not watched:
-            self._log("Контроль живости: пока нет скопированных годных серверов.")
+            self._log("Контроль доступности: пока нет скопированных годных серверов.")
             return
         binary = find_sing_box()
         if binary is None:
-            self._log("Контроль живости: не найден вложенный sing-box.")
+            self._log("Контроль доступности: не найден вложенный sing-box.")
             self._schedule_watch_check()
             return
         try:
@@ -980,13 +1132,13 @@ class WireVeilChecker(tk.Tk):
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.status_var.set(
-            f"Быстрый контроль живости: {len(watched)} скопированных серверов…"
+            f"Быстрый контроль доступности: {len(watched)} скопированных серверов…"
         )
         self.summary_var.set("Один HTTPS-прогон без скорости и проверки сайтов")
         self._clear_table()
         self._set_running_controls(True)
         self._log(
-            f"Контроль живости: один прогон для {len(watched)} "
+            f"Контроль доступности: один прогон для {len(watched)} "
             "скопированных зелёных серверов."
         )
 
@@ -1509,13 +1661,13 @@ class WireVeilChecker(tk.Tk):
         self._populate_table(report)
         active = report.active_results
         fast = report.fast_results(self._latency_limit())
-        self.status_var.set("Быстрый контроль живости завершён")
+        self.status_var.set("Быстрый контроль доступности завершён")
         self.summary_var.set(
-            f"Скопировано {len(self.watched_uris)}  |  живых сейчас {len(active)}  |  "
+            f"На контроле {len(self.watched_uris)}  |  доступны сейчас {len(active)}  |  "
             f"быстрых {len(fast)}"
         )
         self._log(
-            f"Контроль живости завершён: живых {len(active)}/"
+            f"Контроль доступности завершён: доступны {len(active)}/"
             f"{len(report.candidates)}, быстрых {len(fast)}."
         )
         self._restore_result_buttons()
@@ -1527,11 +1679,11 @@ class WireVeilChecker(tk.Tk):
         self.progress_var.set(0)
         self._set_running_controls(False)
         if "cancelled" in detail.lower():
-            self.status_var.set("Контроль живости остановлен")
-            self._log("Контроль живости остановлен пользователем.")
+            self.status_var.set("Контроль доступности остановлен")
+            self._log("Контроль доступности остановлен пользователем.")
         else:
-            self.status_var.set("Ошибка контроля живости")
-            self._log(f"Ошибка контроля живости: {detail}")
+            self.status_var.set("Ошибка контроля доступности")
+            self._log(f"Ошибка контроля доступности: {detail}")
         if not self.closing:
             self._schedule_watch_check()
 
@@ -1567,12 +1719,12 @@ class WireVeilChecker(tk.Tk):
                     imported = event[1]
                     self._show_pending(imported.lines, 1)
                     self.status_var.set(
-                        f"Контроль живости: подготовлено {len(imported.lines)} серверов"
+                        f"Контроль доступности: подготовлено {len(imported.lines)} серверов"
                     )
                 elif kind == "watch_progress":
                     done, total, result = event[1], event[2], event[3]
                     self.progress_var.set((done / total) * 100 if total else 0)
-                    self.status_var.set(f"Контроль живости: {done} / {total}")
+                    self.status_var.set(f"Контроль доступности: {done} / {total}")
                     self._update_live_result(result, 1)
                 elif kind == "watch_done":
                     self._finish_watch_check(event[1])
@@ -1631,11 +1783,11 @@ class WireVeilChecker(tk.Tk):
         active = report.active_results
         self.status_var.set("Проверка завершена")
         self.summary_var.set(
-            f"Всего {len(report.candidates)}  |  живых {len(active)}  |  "
+            f"Всего {len(report.candidates)}  |  доступны {len(active)}  |  "
             f"быстрых {len(fast)}  |  не поддержано {report.unsupported_count}"
         )
         self._log(
-            f"Готово: живых {len(active)}, быстрых до {self._latency_limit()} мс — {len(fast)}."
+            f"Готово: доступны {len(active)}, быстрых до {self._latency_limit()} мс — {len(fast)}."
         )
         self._restore_result_buttons()
         if self.one_click_mode:
@@ -1675,6 +1827,9 @@ class WireVeilChecker(tk.Tk):
         self.clear_source_button.configure(state="disabled" if running else "normal")
         self.service_menu_button.configure(state="disabled" if running else "normal")
         self.magic_button.configure(state="disabled" if running else "normal")
+        self.watch_now_button.configure(
+            state="disabled" if running or not self.watched_uris else "normal"
+        )
         if running:
             self.active_button.configure(state="disabled")
             self.fast_button.configure(state="disabled")
@@ -1952,11 +2107,17 @@ class WireVeilChecker(tk.Tk):
         self.clipboard_append(value)
         self.update_idletasks()
         self.watched_uris = tuple(result.target.uri for result in results)
+        if "watch_now_button" in self.__dict__:
+            self.watch_now_button.configure(
+                state="normal"
+                if self.watched_uris and not self.__dict__.get("running", False)
+                else "disabled"
+            )
         self._queue_settings_save()
         self.status_var.set(f"Годных ключей скопировано в буфер: {len(results)}")
         self._log(
             f"В буфер обмена экспортировано годных ключей: {len(results)}; "
-            "этот набор сохранён для быстрого контроля живости."
+            "этот набор сохранён для быстрого контроля доступности."
         )
         if self.watch_enabled_var.get():
             self._schedule_watch_check()
@@ -1988,10 +2149,58 @@ class WireVeilChecker(tk.Tk):
         self.status_var.set(f"Выбранных ключей скопировано: {len(uris)}")
         self._log(f"В буфер обмена скопировано выбранных ключей: {len(uris)}.")
 
+    @staticmethod
+    def _format_countdown(seconds: float) -> str:
+        remaining = max(0, int(seconds + 0.999))
+        hours, tail = divmod(remaining, 3600)
+        minutes, secs = divmod(tail, 60)
+        if hours:
+            return f"{hours}:{minutes:02}:{secs:02}"
+        return f"{minutes:02}:{secs:02}"
+
+    def _update_countdowns(self) -> None:
+        self.countdown_job = None
+        if self.closing:
+            return
+        now = time.monotonic()
+
+        if not self.auto_enabled_var.get():
+            auto_text = "○ выключен"
+        elif self.running and self.one_click_mode:
+            auto_text = "● полный цикл выполняется"
+        elif self.auto_due_at is not None:
+            auto_text = (
+                "● следующий запуск через "
+                f"{self._format_countdown(self.auto_due_at - now)}"
+            )
+        elif self.report is None:
+            auto_text = "○ ждёт первого полного запуска"
+        else:
+            auto_text = "○ ожидает завершения текущей проверки"
+
+        watched_count = len(self.watched_uris)
+        if not self.watch_enabled_var.get():
+            watch_text = "○ выключен"
+        elif not watched_count:
+            watch_text = "○ ждёт копирования годных серверов"
+        elif self.running and self.activity == "watch":
+            watch_text = f"● проверка выполняется · {watched_count} серверов"
+        elif self.watch_due_at is not None:
+            watch_text = (
+                f"● через {self._format_countdown(self.watch_due_at - now)}"
+                f" · {watched_count} серверов"
+            )
+        else:
+            watch_text = f"○ ожидает запуска · {watched_count} серверов"
+
+        self.auto_countdown_var.set(auto_text)
+        self.watch_countdown_var.set(watch_text)
+        self.countdown_job = self.after(1000, self._update_countdowns)
+
     def _toggle_auto(self) -> None:
         if not self.auto_enabled_var.get():
             self._cancel_auto_timer()
-            self._log("Автозаебись выключен.")
+            self._log("Полный автоцикл выключен.")
             return
         try:
             interval = int(self.auto_interval_var.get())
@@ -2002,16 +2211,16 @@ class WireVeilChecker(tk.Tk):
             messagebox.showerror(APP_TITLE, "Интервал автозапуска должен быть от 1 до 1440 минут.")
             return
         if self.running:
-            self._log(f"Автозаебись включён: полный цикл через {interval} мин после текущего.")
+            self._log(f"Полный автоцикл включён: запуск через {interval} мин после текущего.")
         elif self.report is not None:
             self._schedule_auto_check()
         else:
-            self._log("Автозаебись включён и начнёт отсчёт после первого полного запуска.")
+            self._log("Полный автоцикл включён и начнёт отсчёт после первого запуска.")
 
     def _toggle_watch(self) -> None:
         if not self.watch_enabled_var.get():
             self._cancel_watch_timer()
-            self._log("Контроль скопированных зелёных выключен.")
+            self._log("Контроль доступности выключен.")
             return
         try:
             interval = int(self.watch_interval_var.get())
@@ -2021,17 +2230,17 @@ class WireVeilChecker(tk.Tk):
             self.watch_enabled_var.set(False)
             messagebox.showerror(
                 APP_TITLE,
-                "Интервал контроля живости должен быть от 1 до 1440 минут.",
+                "Интервал контроля доступности должен быть от 1 до 1440 минут.",
             )
             return
         if not self.watched_uris:
             self._log(
-                "Контроль живости включён и начнётся после копирования годных серверов."
+                "Контроль доступности включён и начнётся после копирования годных серверов."
             )
             return
         if self.running:
             self._log(
-                f"Контроль живости включён: запуск через {interval} мин после текущей проверки."
+                f"Контроль доступности включён: запуск через {interval} мин после текущей проверки."
             )
             return
         self._schedule_watch_check()
@@ -2057,6 +2266,7 @@ class WireVeilChecker(tk.Tk):
             self.auto_enabled_var.set(False)
             return
         self.auto_job = self.after(interval * 60_000, self._run_auto_check)
+        self.auto_due_at = time.monotonic() + interval * 60
         self._log(f"Следующий полный автозапуск через {interval} мин.")
 
     def _cancel_auto_timer(self) -> None:
@@ -2066,9 +2276,11 @@ class WireVeilChecker(tk.Tk):
             except tk.TclError:
                 pass
             self.auto_job = None
+        self.auto_due_at = None
 
     def _run_auto_check(self) -> None:
         self.auto_job = None
+        self.auto_due_at = None
         if not self.auto_enabled_var.get() or self.closing:
             return
         if self.running:
@@ -2095,6 +2307,7 @@ class WireVeilChecker(tk.Tk):
             self.watch_enabled_var.set(False)
             return
         self.watch_job = self.after(interval * 60_000, self._run_watch_check)
+        self.watch_due_at = time.monotonic() + interval * 60
         self._log(
             f"Следующий контроль {len(self.watched_uris)} скопированных серверов "
             f"через {interval} мин."
@@ -2107,9 +2320,11 @@ class WireVeilChecker(tk.Tk):
             except tk.TclError:
                 pass
             self.watch_job = None
+        self.watch_due_at = None
 
     def _run_watch_check(self) -> None:
         self.watch_job = None
+        self.watch_due_at = None
         if (
             not self.watch_enabled_var.get()
             or not self.watched_uris
@@ -2117,13 +2332,21 @@ class WireVeilChecker(tk.Tk):
         ):
             return
         if self.running:
-            self._log("Контроль живости отложен: сейчас выполняется другая проверка.")
+            self._log("Контроль доступности отложен: сейчас выполняется другая проверка.")
             self._schedule_watch_check()
             return
         self._start_watch_check()
 
     def _on_close(self) -> None:
         self._cancel_background_timers()
+        for job_name in ("countdown_job", "timer_refresh_job"):
+            job = getattr(self, job_name, None)
+            if job is not None:
+                try:
+                    self.after_cancel(job)
+                except tk.TclError:
+                    pass
+                setattr(self, job_name, None)
         if self.settings_save_job is not None:
             try:
                 self.after_cancel(self.settings_save_job)
