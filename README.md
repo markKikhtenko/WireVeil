@@ -7,17 +7,17 @@ WireVeil — автономный, автоматически обновляем
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-10-18T09:07:28+03:00** (UTC: 2026-10-18T06:07:28Z).
+Последнее успешное обновление: **2026-10-18T14:26:28+03:00** (UTC: 2026-10-18T11:26:28Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2922 | 599.8 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 985 | 232.5 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 794 | 111.8 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 218 | 17.5 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 422 | 139.9 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 2416 | 467.1 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 826 | 195.3 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 707 | 97.3 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 208 | 17.1 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 169 | 59.0 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 245 | 29.5 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 248 | 29.8 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 258 | 68.6 KiB |
 
 ### Вклад источников в текущую сборку
@@ -26,14 +26,14 @@ WireVeil — автономный, автоматически обновляем
 
 | Источник | Статус | Распознано | Валидно | В итоговой подписке |
 |---|---|---:|---:|---:|
-| igareck Blacklist Mobile Top | ok | 149 | 149 | 45 |
-| igareck Blacklist Mixed | ok | 126 | 125 | 15 |
-| WLUnlocker Blacklist VPN 1 | ok | 175 | 169 | 33 |
-| FLAT447 Blacklist LTE | ok | 179 | 179 | 98 |
+| igareck Blacklist Mobile Top | ok | 148 | 148 | 35 |
+| igareck Blacklist Mixed | ok | 70 | 70 | 3 |
+| WLUnlocker Blacklist VPN 1 | ok | 146 | 127 | 4 |
+| FLAT447 Blacklist LTE | ok | 179 | 179 | 102 |
 | WLUnlocker Blacklist VPN 2 | ok | 200 | 200 | 74 |
-| 0xRadikal Verified | ok | 1834 | 1823 | 1046 |
+| 0xRadikal Verified | ok | 1359 | 1343 | 761 |
 | morpheusadam TUIC | ok | 261 | 261 | 258 |
-| Argh94 All Config | ok | 2917 | 2852 | 1353 |
+| Argh94 All Config | ok | 2929 | 2583 | 1179 |
 
 ### История обновлений
 
@@ -41,7 +41,6 @@ WireVeil — автономный, автоматически обновляем
 
 | Обновлено (МСК) | Всего | Добавлено | Удалено | Δ | Что изменилось |
 |---|---:|---:|---:|---:|---|
-| 17.10.2026 00:26 МСК | 2674 | +866 | −619 | +247 | VLESS +357/−326; Trojan +229/−183; SS +66/−42; VMess +59/−39; Hysteria2 +147/−22; TUIC +8/−7 |
 | 17.10.2026 03:37 МСК | 2804 | +842 | −712 | +130 | VLESS +340/−291; Trojan +204/−169; SS +39/−56; VMess +242/−52; Hysteria2 +17/−144 |
 | 17.10.2026 08:44 МСК | 2863 | +629 | −570 | +59 | VLESS +359/−308; Trojan +154/−151; SS +26/−25; VMess +52/−33; Hysteria2 +38/−53 |
 | 17.10.2026 14:00 МСК | 2727 | +669 | −805 | -136 | VLESS +400/−441; Trojan +171/−240; SS +26/−44; VMess +33/−47; Hysteria2 +39/−33 |
@@ -51,13 +50,14 @@ WireVeil — автономный, автоматически обновляем
 | 18.10.2026 01:28 МСК | 2758 | +738 | −584 | +154 | VLESS +379/−292; Trojan +260/−211; SS +32/−26; VMess +56/−41; Hysteria2 +11/−14 |
 | 18.10.2026 04:15 МСК | 2845 | +522 | −435 | +87 | VLESS +322/−276; Trojan +107/−80; SS +17/−14; VMess +63/−51; Hysteria2 +13/−14 |
 | 18.10.2026 09:07 МСК | 2922 | +1135 | −1058 | +77 | VLESS +428/−321; Trojan +389/−508; SS +24/−21; VMess +219/−201; Hysteria2 +75/−7 |
+| 18.10.2026 14:26 МСК | 2416 | +493 | −999 | -506 | VLESS +320/−479; Trojan +111/−198; SS +16/−26; VMess +34/−287; Hysteria2 +12/−9 |
 
 ```mermaid
 xychart-beta
     title "Количество ключей в последних обновлениях"
-    x-axis ["17.10 00:26", "17.10 03:37", "17.10 08:44", "17.10 14:00", "17.10 17:18", "17.10 20:22", "17.10 22:36", "18.10 01:28", "18.10 04:15", "18.10 09:07"]
-    y-axis "Ключи" 2493 --> 2961
-    line [2674, 2804, 2863, 2727, 2532, 2605, 2604, 2758, 2845, 2922]
+    x-axis ["17.10 03:37", "17.10 08:44", "17.10 14:00", "17.10 17:18", "17.10 20:22", "17.10 22:36", "18.10 01:28", "18.10 04:15", "18.10 09:07", "18.10 14:26"]
+    y-axis "Ключи" 2365 --> 2973
+    line [2804, 2863, 2727, 2532, 2605, 2604, 2758, 2845, 2922, 2416]
 ```
 <!-- WIREVEIL_STATS_END -->
 
@@ -66,12 +66,12 @@ xychart-beta
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-10-18T09:11:17+03:00** (UTC: 2026-10-18T06:11:17Z). Проверено через `sing-box version 1.14.0`: **927 из 2922** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **927**.
+Последняя проверка реального подключения: **2026-10-18T14:30:02+03:00** (UTC: 2026-10-18T11:30:02Z). Проверено через `sing-box version 1.14.0`: **682 из 2416** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **682**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 927 | 183.8 KiB |
-| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 612 | 106.7 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 682 | 143.2 KiB |
+| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 446 | 82.4 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 Подписки образуют три уровня:
