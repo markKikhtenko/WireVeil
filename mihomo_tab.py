@@ -44,12 +44,20 @@ def _application_root() -> Path:
 
 
 class _MultilineDialog(tk.Toplevel):
-    def __init__(self, parent: tk.Misc, title: str, prompt: str):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        title: str,
+        prompt: str,
+        *,
+        multiline: bool = True,
+    ):
         super().__init__(parent)
         self.result: str | None = None
+        self.multiline = multiline
         self.title(title)
-        self.geometry("720x430")
-        self.minsize(520, 320)
+        self.geometry("720x430" if multiline else "720x210")
+        self.minsize(520, 320 if multiline else 190)
         self.transient(parent.winfo_toplevel())
         self.configure(background="#0f151c")
         ttk.Label(self, text=prompt, wraplength=680, justify="left").pack(
@@ -68,8 +76,34 @@ class _MultilineDialog(tk.Toplevel):
             pady=7,
         )
         self.text.pack(fill="both", expand=True, padx=12)
+        self.text.bind("<Control-KeyPress>", self._keyboard_shortcut)
+        self.text.bind("<Control-Insert>", self._copy_event)
+        self.text.bind("<Shift-Insert>", self._paste_event)
+        self.text.bind("<Button-3>", self._show_context_menu)
+        if not multiline:
+            self.text.bind("<Return>", self._accept_event)
+
+        self.context_menu = tk.Menu(
+            self,
+            tearoff=False,
+            background="#202a35",
+            foreground="#ffffff",
+            activebackground="#166f9c",
+            activeforeground="#ffffff",
+        )
+        self.context_menu.add_command(label="Вставить", command=self._paste_clipboard)
+        self.context_menu.add_command(label="Копировать", command=self._copy_selection)
+        self.context_menu.add_command(label="Вырезать", command=self._cut_selection)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Выделить всё", command=self._select_all)
+
         controls = ttk.Frame(self)
         controls.pack(fill="x", padx=12, pady=12)
+        ttk.Button(
+            controls,
+            text="Вставить из буфера",
+            command=self._paste_clipboard,
+        ).pack(side="left")
         ttk.Button(controls, text="Отмена", command=self.destroy).pack(side="right")
         ttk.Button(controls, text="Добавить", command=self._accept, style="Accent.TButton").pack(
             side="right", padx=(0, 6)
@@ -78,6 +112,95 @@ class _MultilineDialog(tk.Toplevel):
         self.bind("<Escape>", lambda _event: self.destroy())
         self.after_idle(self.text.focus_set)
         self.grab_set()
+
+    @staticmethod
+    def _shortcut_action(event: object) -> str | None:
+        """Map physical Windows keys and Tk keysyms in EN/RU layouts."""
+        keycode_actions = {65: "select_all", 67: "copy", 86: "paste", 88: "cut"}
+        try:
+            keycode = int(getattr(event, "keycode", -1))
+        except (TypeError, ValueError):
+            keycode = -1
+        if keycode in keycode_actions:
+            return keycode_actions[keycode]
+        keysym = str(getattr(event, "keysym", "")).casefold()
+        return {
+            "a": "select_all",
+            "c": "copy",
+            "v": "paste",
+            "x": "cut",
+            "cyrillic_ef": "select_all",
+            "cyrillic_es": "copy",
+            "cyrillic_em": "paste",
+            "cyrillic_che": "cut",
+        }.get(keysym)
+
+    def _copy_selection(self) -> bool:
+        selection = self.text.tag_ranges("sel")
+        if not selection:
+            return False
+        self.clipboard_clear()
+        self.clipboard_append(self.text.get(selection[0], selection[1]))
+        self.update_idletasks()
+        return True
+
+    def _paste_clipboard(self) -> None:
+        try:
+            value = self.clipboard_get()
+        except tk.TclError:
+            return
+        selection = self.text.tag_ranges("sel")
+        if selection:
+            self.text.delete(selection[0], selection[1])
+        if not self.multiline:
+            value = " ".join(value.splitlines())
+        self.text.insert("insert", value)
+        self.text.see("insert")
+
+    def _cut_selection(self) -> None:
+        selection = self.text.tag_ranges("sel")
+        if selection and self._copy_selection():
+            self.text.delete(selection[0], selection[1])
+
+    def _select_all(self) -> None:
+        self.text.tag_add("sel", "1.0", "end-1c")
+        self.text.mark_set("insert", "end-1c")
+        self.text.see("insert")
+
+    def _keyboard_shortcut(self, event: object) -> str | None:
+        action = self._shortcut_action(event)
+        if action == "copy":
+            self._copy_selection()
+        elif action == "paste":
+            self._paste_clipboard()
+        elif action == "cut":
+            self._cut_selection()
+        elif action == "select_all":
+            self._select_all()
+        else:
+            return None
+        return "break"
+
+    def _copy_event(self, _event: object | None = None) -> str:
+        self._copy_selection()
+        return "break"
+
+    def _paste_event(self, _event: object | None = None) -> str:
+        self._paste_clipboard()
+        return "break"
+
+    def _show_context_menu(self, event: object) -> str:
+        self.text.focus_set()
+        try:
+            self.text.mark_set("insert", f"@{event.x},{event.y}")
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.context_menu.grab_release()
+        return "break"
+
+    def _accept_event(self, _event: object | None = None) -> str:
+        self._accept()
+        return "break"
 
     def _accept(self) -> None:
         value = self.text.get("1.0", "end-1c")
@@ -336,8 +459,14 @@ class MihomoCheckerTab(ttk.Frame):
         ttk.Label(status_bar, textvariable=self.status_var).pack(side="left")
         ttk.Label(status_bar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
 
-    def _dialog_text(self, title: str, prompt: str) -> str | None:
-        dialog = _MultilineDialog(self, title, prompt)
+    def _dialog_text(
+        self,
+        title: str,
+        prompt: str,
+        *,
+        multiline: bool = True,
+    ) -> str | None:
+        dialog = _MultilineDialog(self, title, prompt, multiline=multiline)
         self.wait_window(dialog)
         return dialog.result
 
@@ -351,7 +480,11 @@ class MihomoCheckerTab(ttk.Frame):
         self.status_var.set(f"Добавлено источников: {len(additions)}. Всего: {len(self.sources)}.")
 
     def _add_url(self) -> None:
-        value = simpledialog.askstring("Добавить URL", "URL Mihomo/Clash YAML подписки:", parent=self)
+        value = self._dialog_text(
+            "Добавить URL",
+            "URL Mihomo/Clash YAML подписки:",
+            multiline=False,
+        )
         if not value or not value.strip():
             return
         url = value.strip()
@@ -384,12 +517,17 @@ class MihomoCheckerTab(ttk.Frame):
             title="Добавить Mihomo/Clash YAML",
             filetypes=(("Подписки", "*.yaml *.yml *.txt"), ("Все файлы", "*.*")),
         )
-        additions = [
-            mihomo_checker.SourceSpec(mihomo_checker.new_source_id(), Path(name).stem, "file", str(Path(name)))
-            for name in names
-        ]
+        additions: list[mihomo_checker.SourceSpec] = []
+        errors: list[str] = []
+        for name in names:
+            try:
+                additions.extend(mihomo_checker.source_specs_from_file(Path(name)))
+            except mihomo_checker.MihomoCheckError as exc:
+                errors.append(f"{Path(name).name}: {exc.summary}")
         if additions:
             self._append_sources(additions)
+        if errors:
+            messagebox.showwarning("WireVeil Checker", "\n".join(errors))
 
     def _add_text(self) -> None:
         name = simpledialog.askstring("Имя источника", "Имя / метка вставленной подписки:", parent=self)

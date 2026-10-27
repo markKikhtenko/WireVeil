@@ -192,6 +192,63 @@ def new_source_id() -> str:
     return f"src-{uuid.uuid4().hex[:12]}"
 
 
+def subscription_urls_from_text(text: str) -> list[str] | None:
+    """Return a line-oriented HTTP(S) URL list, or None for ordinary text/YAML."""
+    urls: list[str] = []
+    for raw_line in text.splitlines():
+        value = raw_line.strip()
+        if not value or value.startswith("#"):
+            continue
+        try:
+            parsed = urllib.parse.urlsplit(value)
+        except ValueError:
+            return None
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return None
+        if any(character.isspace() for character in value):
+            return None
+        urls.append(value)
+    return urls or None
+
+
+def source_specs_from_file(path: Path) -> list[SourceSpec]:
+    """Expand a TXT URL list into URL sources, otherwise keep one file source."""
+    path = Path(path)
+    file_source = SourceSpec(new_source_id(), path.stem, "file", str(path))
+    if path.suffix.casefold() != ".txt":
+        return [file_source]
+    try:
+        if path.stat().st_size > MAX_SOURCE_BYTES:
+            raise MihomoCheckError("SOURCE_TOO_LARGE", "Файл превышает лимит 5 МБ.")
+        text = path.read_text(encoding="utf-8-sig")
+    except MihomoCheckError:
+        raise
+    except UnicodeError:
+        return [file_source]
+    except OSError as exc:
+        raise MihomoCheckError("SOURCE_READ_FAILED", f"Не удалось прочитать файл: {exc}") from exc
+
+    urls = subscription_urls_from_text(text)
+    if urls is None:
+        return [file_source]
+
+    result: list[SourceSpec] = []
+    for position, url in enumerate(urls, start=1):
+        try:
+            hostname = urllib.parse.urlsplit(url).hostname or "Подписка"
+        except ValueError:
+            hostname = "Подписка"
+        result.append(
+            SourceSpec(
+                new_source_id(),
+                f"{path.stem} [{position}] · {hostname}",
+                "url",
+                url,
+            )
+        )
+    return result
+
+
 _UUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )

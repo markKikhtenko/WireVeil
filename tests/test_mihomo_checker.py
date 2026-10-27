@@ -8,7 +8,7 @@ from unittest import mock
 
 import yaml
 
-from mihomo_tab import MihomoCheckerTab
+from mihomo_tab import MihomoCheckerTab, _MultilineDialog
 from scripts import mihomo_checker
 
 
@@ -44,6 +44,45 @@ def parsed_source(spec, proxies):
 
 
 class ImportTests(unittest.TestCase):
+    def test_txt_url_list_expands_to_independent_url_sources(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "providers.txt"
+            path.write_text(
+                "# main providers\n"
+                "https://one.example/sub.yaml?token=secret-one\n"
+                "\n"
+                "https://two.example/config.yml\n",
+                encoding="utf-8",
+            )
+            sources = mihomo_checker.source_specs_from_file(path)
+
+        self.assertEqual(2, len(sources))
+        self.assertEqual(["url", "url"], [item.kind for item in sources])
+        self.assertEqual(
+            [
+                "https://one.example/sub.yaml?token=secret-one",
+                "https://two.example/config.yml",
+            ],
+            [item.value for item in sources],
+        )
+        self.assertEqual(2, len({item.source_id for item in sources}))
+        self.assertIn("one.example", sources[0].name)
+        self.assertIn("two.example", sources[1].name)
+
+    def test_txt_yaml_is_kept_as_one_file_source(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "subscription.txt"
+            path.write_text("proxies:\n  - name: Test\n", encoding="utf-8")
+            sources = mihomo_checker.source_specs_from_file(path)
+
+        self.assertEqual(1, len(sources))
+        self.assertEqual("file", sources[0].kind)
+        self.assertEqual(str(path), sources[0].value)
+
+    def test_mixed_txt_is_not_partially_imported_as_url_list(self):
+        text = "https://one.example/sub.yaml\nnot-a-url\n"
+        self.assertIsNone(mihomo_checker.subscription_urls_from_text(text))
+
     def test_mihomo_yaml_preserves_transport_and_reality_fields(self):
         proxy = vless_proxy()
         text = yaml.safe_dump(
@@ -120,6 +159,56 @@ class ImportTests(unittest.TestCase):
         self.assertNotIn("short-secret", safe)
         self.assertNotIn("long-secret-value", safe)
         self.assertNotIn(UUID_A, safe)
+
+
+class MultilineDialogTests(unittest.TestCase):
+    def test_shortcuts_work_by_windows_keycode_with_any_layout(self):
+        expected = {65: "select_all", 67: "copy", 86: "paste", 88: "cut"}
+        for keycode, action in expected.items():
+            with self.subTest(keycode=keycode):
+                event = mock.Mock(keycode=keycode, keysym="unrelated")
+                self.assertEqual(action, _MultilineDialog._shortcut_action(event))
+
+    def test_shortcuts_recognize_english_and_russian_keysyms(self):
+        expected = {
+            "a": "select_all",
+            "c": "copy",
+            "v": "paste",
+            "x": "cut",
+            "Cyrillic_ef": "select_all",
+            "Cyrillic_es": "copy",
+            "Cyrillic_em": "paste",
+            "Cyrillic_che": "cut",
+        }
+        for keysym, action in expected.items():
+            with self.subTest(keysym=keysym):
+                event = mock.Mock(keycode=-1, keysym=keysym)
+                self.assertEqual(action, _MultilineDialog._shortcut_action(event))
+
+    def test_paste_replaces_selection_and_single_line_flattens_newlines(self):
+        dialog = object.__new__(_MultilineDialog)
+        dialog.multiline = False
+        dialog.text = mock.Mock()
+        dialog.text.tag_ranges.return_value = ("1.0", "1.3")
+        dialog.clipboard_get = mock.Mock(return_value="https://one.example/\nnext")
+
+        dialog._paste_clipboard()
+
+        dialog.text.delete.assert_called_once_with("1.0", "1.3")
+        dialog.text.insert.assert_called_once_with(
+            "insert", "https://one.example/ next"
+        )
+        dialog.text.see.assert_called_once_with("insert")
+
+    def test_insert_handlers_are_explicit_and_consume_events(self):
+        dialog = object.__new__(_MultilineDialog)
+        dialog._copy_selection = mock.Mock(return_value=True)
+        dialog._paste_clipboard = mock.Mock()
+
+        self.assertEqual("break", dialog._copy_event())
+        self.assertEqual("break", dialog._paste_event())
+        dialog._copy_selection.assert_called_once_with()
+        dialog._paste_clipboard.assert_called_once_with()
 
 
 class DeduplicationTests(unittest.TestCase):
