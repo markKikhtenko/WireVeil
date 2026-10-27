@@ -42,6 +42,7 @@ SOURCE_STORE_VERSION = 1
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
 MAX_SOURCES = 200
 MAX_NODES = 20_000
+MAX_VALIDATION_CHECKS = 128
 SUPPORTED_PROTOCOLS = frozenset(
     {"vless", "trojan", "ss", "vmess", "hysteria", "hysteria2", "tuic"}
 )
@@ -186,6 +187,99 @@ class BatchReport:
     timeout_ms: int
     sources: list[ParsedSource]
     node_results: list[NodeResult]
+
+
+@dataclass(frozen=True)
+class ProgressUpdate:
+    """Credential-safe progress event emitted by the batch pipeline."""
+
+    stage: str
+    processed: int
+    total: int
+    stage_elapsed_seconds: float
+    total_elapsed_seconds: float
+    overall_percent: float
+    message: str
+
+
+STAGE_LABELS = {
+    "loading": "Загрузка",
+    "parsing": "Парсинг",
+    "deduplication": "Дедупликация",
+    "validation": "Валидация конфигураций",
+    "runtime": "Запуск ядра",
+    "https": "HTTPS-тестирование",
+    "services": "Проверки сервисов",
+    "completion": "Завершение",
+}
+STAGE_RANGES = {
+    "loading": (0.0, 8.0),
+    "parsing": (8.0, 18.0),
+    "deduplication": (18.0, 23.0),
+    "validation": (23.0, 40.0),
+    "runtime": (40.0, 45.0),
+    "https": (45.0, 78.0),
+    "services": (78.0, 98.0),
+    "completion": (98.0, 100.0),
+}
+
+
+class _ProgressReporter:
+    """Throttle high-volume updates while retaining stage boundaries and counts."""
+
+    def __init__(self, callback: Callable[[ProgressUpdate], None] | None):
+        self.callback = callback
+        self.started = time.monotonic()
+        self.stage_started = self.started
+        self.stage: str | None = None
+        self.last_emit = 0.0
+        self.last_processed = -1
+        self._lock = threading.Lock()
+
+    def emit(
+        self,
+        stage: str,
+        processed: int,
+        total: int,
+        message: str,
+        *,
+        force: bool = False,
+    ) -> None:
+        if self.callback is None:
+            return
+        now = time.monotonic()
+        with self._lock:
+            changed_stage = stage != self.stage
+            if changed_stage:
+                self.stage = stage
+                self.stage_started = now
+                self.last_processed = -1
+            processed = max(0, int(processed))
+            total = max(0, int(total))
+            interval = max(1, total // 100) if total else 1
+            should_emit = (
+                force
+                or changed_stage
+                or processed >= total
+                or processed - self.last_processed >= interval
+                or now - self.last_emit >= 0.5
+            )
+            if not should_emit:
+                return
+            start, end = STAGE_RANGES[stage]
+            fraction = min(1.0, processed / total) if total else (1.0 if processed else 0.0)
+            update = ProgressUpdate(
+                stage=stage,
+                processed=processed,
+                total=total,
+                stage_elapsed_seconds=round(now - self.stage_started, 3),
+                total_elapsed_seconds=round(now - self.started, 3),
+                overall_percent=round(start + ((end - start) * fraction), 2),
+                message=sanitize_text(message, 300),
+            )
+            self.last_emit = now
+            self.last_processed = processed
+        self.callback(update)
 
 
 def new_source_id() -> str:
@@ -496,19 +590,23 @@ def fetch_source_url(url: str, timeout: float = 15.0) -> str:
         raise MihomoCheckError("PARSE_ERROR", "Источник не является UTF-8 текстом") from exc
 
 
+def read_source_text(spec: SourceSpec, *, fetch_timeout: float = 15.0) -> str:
+    """Load source bytes without parsing so the two stages can be observed separately."""
+    if spec.kind == "url":
+        return fetch_source_url(spec.value, timeout=fetch_timeout)
+    if spec.kind == "file":
+        path = Path(spec.value)
+        if path.stat().st_size > MAX_SOURCE_BYTES:
+            raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
+        return path.read_text(encoding="utf-8-sig")
+    if spec.kind == "text":
+        return spec.value
+    raise MihomoCheckError("UNSUPPORTED_FORMAT", "Неизвестный тип источника")
+
+
 def load_source(spec: SourceSpec, *, fetch_timeout: float = 15.0) -> ParsedSource:
     try:
-        if spec.kind == "url":
-            text = fetch_source_url(spec.value, timeout=fetch_timeout)
-        elif spec.kind == "file":
-            path = Path(spec.value)
-            if path.stat().st_size > MAX_SOURCE_BYTES:
-                raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
-            text = path.read_text(encoding="utf-8-sig")
-        elif spec.kind == "text":
-            text = spec.value
-        else:
-            raise MihomoCheckError("UNSUPPORTED_FORMAT", "Неизвестный тип источника")
+        text = read_source_text(spec, fetch_timeout=fetch_timeout)
     except MihomoCheckError as exc:
         return ParsedSource(
             spec=spec,
@@ -526,17 +624,29 @@ def load_source(spec: SourceSpec, *, fetch_timeout: float = 15.0) -> ParsedSourc
     return parse_source_text(spec, text)
 
 
-def merge_nodes(parsed_sources: Sequence[ParsedSource]) -> list[NodeRecord]:
+def merge_nodes(
+    parsed_sources: Sequence[ParsedSource],
+    *,
+    cancel_event: threading.Event | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> list[NodeRecord]:
     merged: dict[str, NodeRecord] = {}
+    total = sum(len(parsed.nodes) for parsed in parsed_sources)
+    processed = 0
     for parsed in parsed_sources:
         for candidate in parsed.nodes:
+            if cancel_event is not None and cancel_event.is_set():
+                return list(merged.values())
             current = merged.get(candidate.node_id)
             if current is None:
                 merged[candidate.node_id] = candidate
-                continue
-            if candidate.source_ids[0] not in current.source_ids:
-                current.source_ids.append(candidate.source_ids[0])
-            current.source_original_names.update(candidate.source_original_names)
+            else:
+                if candidate.source_ids[0] not in current.source_ids:
+                    current.source_ids.append(candidate.source_ids[0])
+                current.source_original_names.update(candidate.source_original_names)
+            processed += 1
+            if progress_callback is not None:
+                progress_callback(processed, total)
     return list(merged.values())
 
 
@@ -574,19 +684,62 @@ def _free_local_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _check_config(binary: Path, config_path: Path, timeout: float = 30.0) -> tuple[bool, str]:
+def _terminate_process(process: subprocess.Popen[str]) -> None:
+    """Best-effort termination for a child process created by this checker."""
     try:
-        completed = subprocess.run(
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _check_config(
+    binary: Path,
+    config_path: Path,
+    timeout: float = 30.0,
+    *,
+    cancel_event: threading.Event | None = None,
+    process_callback: Callable[[subprocess.Popen[str] | None], None] | None = None,
+) -> tuple[bool, str]:
+    process: subprocess.Popen[str] | None = None
+    if cancel_event is not None and cancel_event.is_set():
+        return False, "CANCELLED"
+    try:
+        process = subprocess.Popen(
             [str(binary), "-d", str(config_path.parent), "-t", "-f", str(config_path)],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             **_hidden_process_options(),
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+        if process_callback is not None:
+            process_callback(process)
+        deadline = time.monotonic() + timeout
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                _terminate_process(process)
+                return False, "CANCELLED"
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _terminate_process(process)
+                return False, "TIMEOUT"
+            try:
+                stdout, stderr = process.communicate(timeout=min(0.2, remaining))
+                detail = sanitize_text((stdout or "") + " " + (stderr or ""), 800)
+                return process.returncode == 0, detail
+            except subprocess.TimeoutExpired:
+                continue
+    except OSError as exc:
         return False, sanitize_text(exc)
-    detail = sanitize_text((completed.stdout or "") + " " + (completed.stderr or ""), 800)
-    return completed.returncode == 0, detail
+    finally:
+        if process_callback is not None and process is not None:
+            process_callback(None)
 
 
 def _write_private_yaml(path: Path, payload: Mapping[str, object]) -> None:
@@ -602,58 +755,195 @@ def _write_private_yaml(path: Path, payload: Mapping[str, object]) -> None:
 
 
 def validate_runtime_nodes(
-    binary: Path, nodes: Sequence[NodeRecord]
+    binary: Path,
+    nodes: Sequence[NodeRecord],
+    *,
+    cancel_event: threading.Event | None = None,
+    process_callback: Callable[[subprocess.Popen[str] | None], None] | None = None,
+    progress_callback: Callable[[int, int, int, str], None] | None = None,
+    max_checks: int = MAX_VALIDATION_CHECKS,
 ) -> tuple[list[NodeRecord], list[NodeResult]]:
-    """Exclude config-rejected nodes without sacrificing the rest of a batch."""
+    """Locate config-rejected nodes by recursively splitting failed batches.
+
+    A single invalid node in a large subscription takes O(log n) Mihomo checks.
+    A hard check budget prevents a generally broken configuration from spawning
+    thousands of child processes. Unresolved nodes remain visible as not tested.
+    """
     if not binary.is_file():
         raise MihomoCheckError("MIHOMO_NOT_FOUND", f"Не найден Mihomo: {binary.name}")
     if not nodes:
         return [], []
+    if max_checks < 1:
+        raise ValueError("max_checks must be positive")
+
+    all_nodes = list(nodes)
+    position = {node.node_id: index for index, node in enumerate(all_nodes)}
+    accepted: list[NodeRecord] = []
+    results: list[NodeResult] = []
+
+    def add_unresolved(items: Sequence[NodeRecord], code: str, summary: str) -> None:
+        existing = {item.node.node_id for item in results}
+        existing.update(item.node_id for item in accepted)
+        for item in items:
+            if item.node_id in existing:
+                continue
+            results.append(
+                NodeResult(
+                    node=item,
+                    overall_status="not_tested",
+                    error_code=code,
+                    error_summary=summary,
+                )
+            )
+            existing.add(item.node_id)
+
+    def notify(checks: int, message: str) -> None:
+        if progress_callback is not None:
+            progress_callback(len(accepted) + len(results), len(all_nodes), checks, message)
+
     with tempfile.TemporaryDirectory(prefix="wireveil-mihomo-validate-") as name:
         root = Path(name)
-        combined = root / "combined.yaml"
-        _write_private_yaml(combined, _runtime_config(nodes, _free_local_port(), secrets.token_urlsafe(32)))
-        valid, _detail = _check_config(binary, combined)
-        if valid:
-            return list(nodes), []
-        accepted: list[NodeRecord] = []
-        rejected: list[NodeResult] = []
-        for index, node in enumerate(nodes):
-            single = root / f"node-{index}.yaml"
-            _write_private_yaml(single, _runtime_config((node,), _free_local_port(), secrets.token_urlsafe(32)))
-            node_valid, _node_detail = _check_config(binary, single)
-            if node_valid:
-                accepted.append(node)
-            else:
-                rejected.append(
+        pending: list[list[NodeRecord]] = [all_nodes]
+        checks = 0
+        checked_base_config = False
+        while pending:
+            if cancel_event is not None and cancel_event.is_set():
+                add_unresolved(
+                    [item for batch in pending for item in batch],
+                    "CANCELLED",
+                    "Валидация остановлена пользователем",
+                )
+                notify(checks, "Валидация остановлена; необработанные узлы сохранены")
+                break
+            batch = pending.pop()
+            if checks >= max_checks:
+                add_unresolved(
+                    [*batch, *(item for queued in pending for item in queued)],
+                    "MIHOMO_VALIDATION_LIMIT",
+                    "Достигнут безопасный предел проверок конфигурации",
+                )
+                notify(checks, "Достигнут предел запусков валидации; остаток не тестировался")
+                break
+
+            checks += 1
+            path = root / f"batch-{checks}.yaml"
+            _write_private_yaml(
+                path,
+                _runtime_config(batch, _free_local_port(), secrets.token_urlsafe(32)),
+            )
+            if cancel_event is not None and cancel_event.is_set():
+                checks -= 1
+                add_unresolved(
+                    [*batch, *(item for queued in pending for item in queued)],
+                    "CANCELLED",
+                    "Валидация остановлена пользователем",
+                )
+                notify(checks, "Валидация остановлена после подготовки пакета")
+                break
+            notify(checks, f"Проверка пакета из {len(batch)} узлов; запусков Mihomo: {checks}")
+            valid, detail = _check_config(
+                binary,
+                path,
+                cancel_event=cancel_event,
+                process_callback=process_callback,
+            )
+            if cancel_event is not None and cancel_event.is_set():
+                add_unresolved(
+                    [*batch, *(item for queued in pending for item in queued)],
+                    "CANCELLED",
+                    "Валидация остановлена пользователем",
+                )
+                notify(checks, "Дочерний процесс валидации остановлен")
+                break
+            if valid:
+                accepted.extend(batch)
+                notify(checks, f"Пакет из {len(batch)} узлов принят")
+                continue
+
+            if detail == "TIMEOUT":
+                add_unresolved(
+                    [*batch, *(item for queued in pending for item in queued)],
+                    "MIHOMO_CONFIG_TIMEOUT",
+                    "Mihomo не завершил проверку конфигурации за отведённое время",
+                )
+                notify(checks, "Валидация конфигурации превысила тайм-аут")
+                break
+
+            if not checked_base_config:
+                checked_base_config = True
+                if checks >= max_checks:
+                    add_unresolved(
+                        [*batch, *(item for queued in pending for item in queued)],
+                        "MIHOMO_VALIDATION_LIMIT",
+                        "Достигнут безопасный предел проверок конфигурации",
+                    )
+                    break
+                checks += 1
+                base_path = root / "base.yaml"
+                _write_private_yaml(
+                    base_path,
+                    _runtime_config((), _free_local_port(), secrets.token_urlsafe(32)),
+                )
+                base_valid, _base_detail = _check_config(
+                    binary,
+                    base_path,
+                    cancel_event=cancel_event,
+                    process_callback=process_callback,
+                )
+                if cancel_event is not None and cancel_event.is_set():
+                    add_unresolved(
+                        [*batch, *(item for queued in pending for item in queued)],
+                        "CANCELLED",
+                        "Валидация остановлена пользователем",
+                    )
+                    break
+                if not base_valid:
+                    add_unresolved(
+                        [*batch, *(item for queued in pending for item in queued)],
+                        "MIHOMO_COMMON_CONFIG_REJECTED",
+                        "Mihomo отклонил базовую конфигурацию без узлов",
+                    )
+                    notify(checks, "Базовая конфигурация отклонена; деление пакета остановлено")
+                    break
+
+            if len(batch) == 1:
+                results.append(
                     NodeResult(
-                        node=node,
+                        node=batch[0],
                         overall_status="unsupported",
                         error_code="MIHOMO_CONFIG_REJECTED",
                         error_summary="Mihomo отклонил параметры этого узла",
                     )
                 )
-        if accepted:
-            accepted_path = root / "accepted.yaml"
-            _write_private_yaml(
-                accepted_path,
-                _runtime_config(accepted, _free_local_port(), secrets.token_urlsafe(32)),
-            )
-            accepted_valid, accepted_detail = _check_config(binary, accepted_path)
-            if not accepted_valid:
-                raise MihomoCheckError(
-                    "MIHOMO_CONFIG_REJECTED",
-                    accepted_detail or "Mihomo отклонил объединённую конфигурацию",
-                )
-        return accepted, rejected
+                notify(checks, "Локализован узел с отклонённой конфигурацией")
+                continue
+
+            middle = len(batch) // 2
+            # Stack is LIFO: enqueue the right half first to preserve source order.
+            pending.append(batch[middle:])
+            pending.append(batch[:middle])
+            notify(checks, f"Невалидный пакет из {len(batch)} узлов разделён пополам")
+
+    accepted.sort(key=lambda item: position[item.node_id])
+    results.sort(key=lambda item: position[item.node.node_id])
+    return accepted, results
 
 
 class MihomoRuntime:
     """A single isolated Mihomo process shared by all node probes."""
 
-    def __init__(self, binary: Path, nodes: Sequence[NodeRecord]):
+    def __init__(
+        self,
+        binary: Path,
+        nodes: Sequence[NodeRecord],
+        *,
+        cancel_event: threading.Event | None = None,
+        validation_process_callback: Callable[[subprocess.Popen[str] | None], None] | None = None,
+    ):
         self.binary = binary
         self.nodes = tuple(nodes)
+        self.cancel_event = cancel_event
+        self.validation_process_callback = validation_process_callback
         self.port = _free_local_port()
         self.secret = secrets.token_urlsafe(32)
         self.process: subprocess.Popen[str] | None = None
@@ -678,26 +968,32 @@ class MihomoRuntime:
     def start(self) -> None:
         if not self.binary.is_file():
             raise MihomoCheckError("MIHOMO_NOT_FOUND", f"Не найден Mihomo: {self.binary.name}")
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise MihomoCheckError("CANCELLED", "Запуск Mihomo отменён")
         self._temporary = tempfile.TemporaryDirectory(prefix="wireveil-mihomo-")
         root = Path(self._temporary.name)
         config_path = root / "config.yaml"
         log_path = root / "mihomo.log"
         _write_private_yaml(config_path, _runtime_config(self.nodes, self.port, self.secret))
-        valid, detail = _check_config(self.binary, config_path)
+        valid, detail = _check_config(
+            self.binary,
+            config_path,
+            cancel_event=self.cancel_event,
+            process_callback=self.validation_process_callback,
+        )
         if not valid:
             self.stop()
+            if self.cancel_event is not None and self.cancel_event.is_set():
+                raise MihomoCheckError("CANCELLED", "Запуск Mihomo отменён")
+            if detail == "TIMEOUT":
+                raise MihomoCheckError(
+                    "MIHOMO_CONFIG_TIMEOUT",
+                    "Mihomo не завершил проверку конфигурации за отведённое время",
+                )
             raise MihomoCheckError("MIHOMO_CONFIG_REJECTED", detail or "Mihomo отклонил конфигурацию")
-        try:
-            completed = subprocess.run(
-                [str(self.binary), "-v"],
-                capture_output=True,
-                text=True,
-                timeout=8,
-                **_hidden_process_options(),
-            )
-            self.version = sanitize_text((completed.stdout or completed.stderr).strip(), 160) or "unknown"
-        except (OSError, subprocess.TimeoutExpired):
-            self.version = "unknown"
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            self.stop()
+            raise MihomoCheckError("CANCELLED", "Запуск Mihomo отменён")
         self._log_handle = log_path.open("w", encoding="utf-8")
         try:
             self.process = subprocess.Popen(
@@ -712,14 +1008,19 @@ class MihomoRuntime:
             raise MihomoCheckError("MIHOMO_START_FAILED", sanitize_text(exc)) from exc
         deadline = time.monotonic() + 12
         while time.monotonic() < deadline:
+            if self.cancel_event is not None and self.cancel_event.is_set():
+                self.stop()
+                raise MihomoCheckError("CANCELLED", "Запуск Mihomo отменён")
             process = self.process
             if process is None or process.poll() is not None:
                 self.stop()
                 raise MihomoCheckError("MIHOMO_START_FAILED", "Процесс Mihomo завершился при запуске")
             try:
-                self._request("/version")
+                payload = json.loads(self._request("/version").decode("utf-8"))
+                version = payload.get("version") if isinstance(payload, dict) else None
+                self.version = sanitize_text(version, 160) if version else "unknown"
                 return
-            except (OSError, urllib.error.URLError):
+            except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError):
                 time.sleep(0.1)
         self.stop()
         raise MihomoCheckError("MIHOMO_START_FAILED", "Локальный API Mihomo не запустился")
@@ -785,11 +1086,10 @@ def api_delay(
         return DelayResult(False, error_code=code, error_summary=summary)
 
 
-def _probe_node(
+def _probe_base_node(
     runtime: MihomoRuntime,
     node: NodeRecord,
     *,
-    services: Sequence[ServiceDefinition],
     attempts: int,
     timeout_ms: int,
     cancel_event: threading.Event,
@@ -803,6 +1103,10 @@ def _probe_node(
     base_errors: list[DelayResult] = []
     for attempt in range(attempts):
         if cancel_event.is_set():
+            result.base_successes = len(delays)
+            if delays:
+                result.base_latency_ms = round(statistics.median(delays))
+            result.overall_status = "not_tested"
             result.error_code = "CANCELLED"
             result.error_summary = "Проверка отменена"
             return result
@@ -823,6 +1127,18 @@ def _probe_node(
         result.error_code = result.base_error_code
         result.error_summary = result.base_error_summary
         return result
+    return result
+
+
+def _probe_services_node(
+    runtime: MihomoRuntime,
+    result: NodeResult,
+    *,
+    services: Sequence[ServiceDefinition],
+    timeout_ms: int,
+    cancel_event: threading.Event,
+    service_step_callback: Callable[[], None] | None = None,
+) -> NodeResult:
     failed_services: list[str] = []
     for service in services:
         if cancel_event.is_set():
@@ -830,7 +1146,13 @@ def _probe_node(
             result.error_code = "CANCELLED"
             result.error_summary = "Проверка отменена"
             return result
-        probe = api_delay(runtime, node, url=service.url, timeout_ms=timeout_ms, expected=service.expected)
+        probe = api_delay(
+            runtime,
+            result.node,
+            url=service.url,
+            timeout_ms=timeout_ms,
+            expected=service.expected,
+        )
         if probe.success:
             result.services[service.name] = ServiceResult("reachable", probe.latency_ms)
         else:
@@ -840,6 +1162,8 @@ def _probe_node(
                 error_code=probe.error_code,
                 error_summary=probe.error_summary,
             )
+        if service_step_callback is not None:
+            service_step_callback()
     if failed_services:
         result.overall_status = "partial"
         result.error_code = "SITE_PARTIAL"
@@ -847,6 +1171,34 @@ def _probe_node(
     else:
         result.overall_status = "good"
     return result
+
+
+def _probe_node(
+    runtime: MihomoRuntime,
+    node: NodeRecord,
+    *,
+    services: Sequence[ServiceDefinition],
+    attempts: int,
+    timeout_ms: int,
+    cancel_event: threading.Event,
+) -> NodeResult:
+    """Compatibility wrapper for a complete single-node probe."""
+    result = _probe_base_node(
+        runtime,
+        node,
+        attempts=attempts,
+        timeout_ms=timeout_ms,
+        cancel_event=cancel_event,
+    )
+    if result.base_successes != attempts or cancel_event.is_set():
+        return result
+    return _probe_services_node(
+        runtime,
+        result,
+        services=services,
+        timeout_ms=timeout_ms,
+        cancel_event=cancel_event,
+    )
 
 
 def _direct_baseline(timeout_ms: int) -> str:
@@ -865,12 +1217,23 @@ class BatchRunner:
     def __init__(self) -> None:
         self.cancel_event = threading.Event()
         self._runtime: MihomoRuntime | None = None
+        self._validation_process: subprocess.Popen[str] | None = None
         self._lock = threading.Lock()
+
+    def _set_validation_process(self, process: subprocess.Popen[str] | None) -> None:
+        with self._lock:
+            self._validation_process = process
+            should_stop = process is not None and self.cancel_event.is_set()
+        if should_stop and process is not None:
+            _terminate_process(process)
 
     def stop(self) -> None:
         self.cancel_event.set()
         with self._lock:
             runtime = self._runtime
+            validation_process = self._validation_process
+        if validation_process is not None:
+            _terminate_process(validation_process)
         if runtime is not None:
             runtime.stop()
 
@@ -883,8 +1246,10 @@ class BatchRunner:
         attempts: int = 2,
         timeout_ms: int = 8_000,
         workers: int = 8,
+        node_limit: int | None = None,
         source_callback: Callable[[ParsedSource], None] | None = None,
         node_callback: Callable[[int, int, NodeResult], None] | None = None,
+        progress_callback: Callable[[ProgressUpdate], None] | None = None,
     ) -> BatchReport:
         if not 1 <= len(source_specs) <= MAX_SOURCES:
             raise MihomoCheckError("INVALID_SOURCE_COUNT", "Добавьте от 1 до 200 источников")
@@ -894,38 +1259,151 @@ class BatchRunner:
             raise MihomoCheckError("INVALID_SETTINGS", "Тайм-аут должен быть от 1 до 60 секунд")
         if not 1 <= workers <= 32:
             raise MihomoCheckError("INVALID_SETTINGS", "Параллельность должна быть от 1 до 32")
+        if node_limit is not None and not 1 <= node_limit <= MAX_NODES:
+            raise MihomoCheckError("INVALID_SETTINGS", "Лимит узлов должен быть от 1 до 20000")
         try:
             services = tuple(SERVICE_BY_NAME[name] for name in dict.fromkeys(selected_services))
         except KeyError as exc:
             raise MihomoCheckError("INVALID_SETTINGS", f"Неизвестный сервис: {exc.args[0]}") from exc
 
-        self.cancel_event.clear()
-        parsed_sources: list[ParsedSource] = []
-        for spec in source_specs:
+        reporter = _ProgressReporter(progress_callback)
+        total_sources = len(source_specs)
+        loaded_sources: list[str | ParsedSource] = []
+        reporter.emit("loading", 0, total_sources, "Подготовка загрузки источников", force=True)
+        for index, spec in enumerate(source_specs, start=1):
             if self.cancel_event.is_set():
+                loaded: str | ParsedSource = ParsedSource(
+                    spec=spec,
+                    fetch_status="cancelled",
+                    parse_status="not_started",
+                    issues=[SourceIssue("CANCELLED", "Загрузка отменена")],
+                )
+            else:
+                try:
+                    loaded = read_source_text(spec)
+                except MihomoCheckError as exc:
+                    loaded = ParsedSource(
+                        spec=spec,
+                        fetch_status="failed",
+                        parse_status="not_started",
+                        issues=[SourceIssue(exc.code, exc.summary)],
+                    )
+                except (OSError, UnicodeError) as exc:
+                    loaded = ParsedSource(
+                        spec=spec,
+                        fetch_status="failed",
+                        parse_status="not_started",
+                        issues=[SourceIssue("SOURCE_FETCH_FAILED", sanitize_text(exc))],
+                    )
+            loaded_sources.append(loaded)
+            reporter.emit(
+                "loading",
+                index,
+                total_sources,
+                f"Источников загружено или обработано: {index} из {total_sources}",
+                force=total_sources <= 20,
+            )
+
+        parsed_sources: list[ParsedSource] = []
+        reporter.emit("parsing", 0, total_sources, "Разбор YAML и параметров узлов", force=True)
+        for index, (spec, loaded) in enumerate(zip(source_specs, loaded_sources), start=1):
+            if isinstance(loaded, ParsedSource):
+                parsed = loaded
+            elif self.cancel_event.is_set():
                 parsed = ParsedSource(
                     spec=spec,
                     fetch_status="cancelled",
                     parse_status="not_started",
-                    issues=[SourceIssue("CANCELLED", "Проверка отменена")],
+                    issues=[SourceIssue("CANCELLED", "Парсинг отменён")],
                 )
             else:
-                parsed = load_source(spec)
+                parsed = parse_source_text(spec, loaded)
             parsed.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
             parsed_sources.append(parsed)
             if source_callback is not None:
                 source_callback(parsed)
+            reporter.emit(
+                "parsing",
+                index,
+                total_sources,
+                (
+                    f"Источник {index}/{total_sources}: {parsed.fetch_status}/{parsed.parse_status}, "
+                    f"записей {parsed.total_entries}, код {parsed.error_code or 'OK'}; "
+                    f"всего записей {sum(item.total_entries for item in parsed_sources)}"
+                ),
+                force=total_sources <= 20,
+            )
 
-        nodes = merge_nodes(parsed_sources)
+        candidate_count = sum(len(parsed.nodes) for parsed in parsed_sources)
+        reporter.emit(
+            "deduplication",
+            0,
+            candidate_count,
+            f"Сопоставление {candidate_count} записей узлов",
+            force=True,
+        )
+        dedup_state = {"done": 0}
+
+        def dedup_progress(done: int, total: int) -> None:
+            dedup_state["done"] = done
+            if done == total or done == 1 or done % 250 == 0:
+                reporter.emit(
+                    "deduplication",
+                    done,
+                    total,
+                    f"Обработано записей: {done} из {total}",
+                )
+
+        nodes = merge_nodes(
+            parsed_sources,
+            # If cancellation happened during parsing, finish this cheap pass so
+            # already parsed nodes remain available in the partial report.
+            cancel_event=None if self.cancel_event.is_set() else self.cancel_event,
+            progress_callback=dedup_progress,
+        )
+        dedup_done = dedup_state["done"] if candidate_count else 0
+        reporter.emit(
+            "deduplication",
+            dedup_done,
+            candidate_count,
+            (
+                f"Дедупликация остановлена после {dedup_done} записей; сохранено уникальных: {len(nodes)}"
+                if self.cancel_event.is_set()
+                else f"Уникальных узлов: {len(nodes)}; удалено дублей: {max(0, candidate_count - len(nodes))}"
+            ),
+            force=True,
+        )
         if len(nodes) > MAX_NODES:
             raise MihomoCheckError("TOO_MANY_NODES", "Суммарный пул содержит более 20000 уникальных узлов")
+
         node_results: list[NodeResult] = []
+        completed_ids: set[str] = set()
+
+        def add_result(result: NodeResult) -> None:
+            if result.node.node_id in completed_ids:
+                return
+            completed_ids.add(result.node.node_id)
+            node_results.append(result)
+            if node_callback is not None:
+                node_callback(len(node_results), len(nodes), result)
+
+        selected_nodes = nodes if node_limit is None else nodes[:node_limit]
+        for node in nodes[len(selected_nodes):]:
+            add_result(
+                NodeResult(
+                    node=node,
+                    overall_status="not_tested",
+                    error_code="QUICK_CHECK_LIMIT",
+                    error_summary=f"Узел не входит в лимит быстрой проверки {node_limit}",
+                )
+            )
+
         supported: list[NodeRecord] = []
-        for node in nodes:
+        for node in selected_nodes:
             if node.supported:
                 supported.append(node)
             else:
-                node_results.append(
+                add_result(
                     NodeResult(
                         node=node,
                         overall_status="unsupported",
@@ -933,72 +1411,276 @@ class BatchRunner:
                         error_summary=node.import_error_summary,
                     )
                 )
-        direct_baseline = (
-            _direct_baseline(timeout_ms)
-            if supported and not self.cancel_event.is_set()
-            else "skipped"
-        )
+        direct_baseline = "skipped"
         engine_version = "unknown"
+        validation_total = len(supported)
+        validation_processed = 0
+        validation_results: list[NodeResult] = []
+        reporter.emit(
+            "validation",
+            0,
+            validation_total,
+            f"Пакетная валидация {validation_total} поддерживаемых узлов",
+            force=True,
+        )
         if supported and not self.cancel_event.is_set():
-            supported, config_rejected = validate_runtime_nodes(binary, supported)
-            node_results.extend(config_rejected)
+            supported, validation_results = validate_runtime_nodes(
+                binary,
+                supported,
+                cancel_event=self.cancel_event,
+                process_callback=self._set_validation_process,
+                progress_callback=lambda done, total, checks, message: reporter.emit(
+                    "validation",
+                    done,
+                    total,
+                    f"{message}; проверок конфигурации: {checks}",
+                    force=True,
+                ),
+            )
+            for result in validation_results:
+                add_result(result)
+            validation_processed = len(supported) + len(validation_results)
+        reporter.emit(
+            "validation",
+            validation_processed,
+            validation_total,
+            (
+                f"Валидация завершена; принято {len(supported)}, отклонено "
+                f"{sum(item.overall_status == 'unsupported' for item in validation_results)}, "
+                f"не проверено {sum(item.overall_status == 'not_tested' for item in validation_results)}"
+            ),
+            force=True,
+        )
+
         if supported and not self.cancel_event.is_set():
-            runtime = MihomoRuntime(binary, supported)
+            reporter.emit(
+                "runtime", 0, 1, f"Запуск локального Mihomo с {len(supported)} узлами", force=True
+            )
+            runtime = MihomoRuntime(
+                binary,
+                supported,
+                cancel_event=self.cancel_event,
+                validation_process_callback=self._set_validation_process,
+            )
             with self._lock:
                 self._runtime = runtime
             try:
                 try:
                     runtime.start()
                 except MihomoCheckError as exc:
-                    node_results.extend(
-                        NodeResult(
-                            node,
-                            overall_status="not_tested",
-                            error_code=exc.code,
-                            error_summary=exc.summary,
+                    for node in supported:
+                        add_result(
+                            NodeResult(
+                                node,
+                                overall_status="not_tested",
+                                error_code=exc.code,
+                                error_summary=exc.summary,
+                            )
                         )
-                        for node in supported
-                    )
+                    reporter.emit("runtime", 1, 1, f"Mihomo не запущен: {exc.code}", force=True)
+                    reporter.emit("https", 1, 1, "HTTPS-тестирование не запускалось", force=True)
+                    reporter.emit("services", 1, 1, "Проверки сервисов не запускались", force=True)
                 else:
                     engine_version = runtime.version
-                    executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(workers, len(supported)))
+                    reporter.emit("runtime", 1, 1, "Локальный API Mihomo готов", force=True)
+                    reporter.emit(
+                        "https",
+                        0,
+                        len(supported),
+                        "Проверка прямого HTTPS baseline и базового трафика узлов",
+                        force=True,
+                    )
+                    if not self.cancel_event.is_set():
+                        direct_baseline = _direct_baseline(timeout_ms)
+
+                    probe_nodes = [] if self.cancel_event.is_set() else supported
+                    base_passed: dict[str, NodeResult] = {}
+                    executor = concurrent.futures.ThreadPoolExecutor(
+                        max_workers=max(1, min(workers, len(probe_nodes))),
+                        thread_name_prefix="wireveil-mihomo-https",
+                    )
                     futures = {
                         executor.submit(
-                            _probe_node,
+                            _probe_base_node,
                             runtime,
                             node,
-                            services=services,
                             attempts=attempts,
                             timeout_ms=timeout_ms,
                             cancel_event=self.cancel_event,
                         ): node
-                        for node in supported
+                        for node in probe_nodes
                     }
-                    completed = 0
+                    base_done = 0
                     try:
                         for future in concurrent.futures.as_completed(futures):
-                            completed += 1
+                            node = futures[future]
+                            if future.cancelled():
+                                continue
                             try:
                                 result = future.result()
                             except Exception as exc:  # keep one bad node from aborting the batch
                                 code, summary = classify_probe_error(exc)
-                                result = NodeResult(futures[future], overall_status="failed", error_code=code, error_summary=summary)
-                            node_results.append(result)
-                            if node_callback is not None:
-                                node_callback(completed, len(supported), result)
+                                result = NodeResult(node, overall_status="failed", error_code=code, error_summary=summary)
+                            base_done += 1
+                            if result.base_successes == attempts and not self.cancel_event.is_set():
+                                base_passed[node.node_id] = result
+                            else:
+                                if self.cancel_event.is_set() and result.error_code is None:
+                                    result.overall_status = "not_tested"
+                                    result.error_code = "CANCELLED"
+                                    result.error_summary = "Проверка остановлена пользователем"
+                                add_result(result)
+                            reporter.emit(
+                                "https",
+                                base_done,
+                                len(supported),
+                                f"Базовый HTTPS обработан: {base_done} из {len(supported)}",
+                            )
+                            if self.cancel_event.is_set():
+                                for pending in futures:
+                                    pending.cancel()
                     finally:
-                        executor.shutdown(wait=not self.cancel_event.is_set(), cancel_futures=True)
+                        executor.shutdown(wait=True, cancel_futures=True)
+
+                    for node in supported:
+                        if node.node_id in completed_ids or node.node_id in base_passed:
+                            continue
+                        add_result(
+                            NodeResult(
+                                node,
+                                overall_status="not_tested",
+                                error_code="CANCELLED" if self.cancel_event.is_set() else "HTTPS_CHECK_FAILED",
+                                error_summary="Проверка остановлена пользователем" if self.cancel_event.is_set() else "HTTPS-проверка не завершена",
+                            )
+                        )
+                    reporter.emit(
+                        "https",
+                        len(supported),
+                        len(supported),
+                        f"Базовый HTTPS завершён; прошли: {len(base_passed)}",
+                        force=True,
+                    )
+
+                    if self.cancel_event.is_set():
+                        for result in base_passed.values():
+                            result.overall_status = "not_tested"
+                            result.error_code = "CANCELLED"
+                            result.error_summary = "Проверка сервисов отменена"
+                            add_result(result)
+                    elif not services:
+                        reporter.emit("services", 0, 0, "Проверки сервисов не выбраны", force=True)
+                        for result in base_passed.values():
+                            result.overall_status = "good"
+                            add_result(result)
+                        reporter.emit("services", 1, 1, "Узлы отмечены по базовому HTTPS", force=True)
+                    elif base_passed:
+                        service_total = len(base_passed) * len(services)
+                        service_state = {"done": 0}
+                        service_lock = threading.Lock()
+
+                        def service_step() -> None:
+                            with service_lock:
+                                service_state["done"] += 1
+                                done = service_state["done"]
+                            reporter.emit(
+                                "services",
+                                done,
+                                service_total,
+                                f"Сервисных HTTPS-запросов: {done} из {service_total}",
+                            )
+
+                        reporter.emit(
+                            "services",
+                            0,
+                            service_total,
+                            f"Проверка {len(services)} сервисов для {len(base_passed)} узлов",
+                            force=True,
+                        )
+                        service_executor = concurrent.futures.ThreadPoolExecutor(
+                            max_workers=min(workers, len(base_passed)),
+                            thread_name_prefix="wireveil-mihomo-services",
+                        )
+                        service_futures = {
+                            service_executor.submit(
+                                _probe_services_node,
+                                runtime,
+                                result,
+                                services=services,
+                                timeout_ms=timeout_ms,
+                                cancel_event=self.cancel_event,
+                                service_step_callback=service_step,
+                            ): result
+                            for result in base_passed.values()
+                        }
+                        try:
+                            for future in concurrent.futures.as_completed(service_futures):
+                                original = service_futures[future]
+                                if future.cancelled():
+                                    continue
+                                try:
+                                    result = future.result()
+                                except Exception as exc:
+                                    code, summary = classify_probe_error(exc)
+                                    original.overall_status = "failed"
+                                    original.error_code = code
+                                    original.error_summary = summary
+                                    result = original
+                                add_result(result)
+                                if self.cancel_event.is_set():
+                                    for pending in service_futures:
+                                        pending.cancel()
+                        finally:
+                            service_executor.shutdown(wait=True, cancel_futures=True)
+                        for result in base_passed.values():
+                            if result.node.node_id in completed_ids:
+                                continue
+                            result.overall_status = "not_tested"
+                            result.error_code = "CANCELLED"
+                            result.error_summary = "Проверка сервисов отменена"
+                            add_result(result)
+                        reporter.emit(
+                            "services",
+                            service_state["done"],
+                            service_total,
+                            "Проверки выбранных сервисов завершены" if not self.cancel_event.is_set() else "Проверки сервисов остановлены",
+                            force=True,
+                        )
+                    else:
+                        reporter.emit("services", 1, 1, "Нет узлов для сервисных проверок", force=True)
             finally:
                 runtime.stop()
                 with self._lock:
                     self._runtime = None
         elif supported:
-            node_results.extend(
-                NodeResult(node, error_code="CANCELLED", error_summary="Проверка отменена")
-                for node in supported
-            )
+            for node in supported:
+                add_result(
+                    NodeResult(
+                        node,
+                        overall_status="not_tested",
+                        error_code="CANCELLED",
+                        error_summary="Проверка отменена",
+                    )
+                )
+            reporter.emit("runtime", 1, 1, "Запуск ядра отменён", force=True)
+            reporter.emit("https", 1, 1, "HTTPS-тестирование отменено", force=True)
+            reporter.emit("services", 1, 1, "Проверки сервисов отменены", force=True)
+        else:
+            reporter.emit("runtime", 1, 1, "Нет принятых узлов для запуска", force=True)
+            reporter.emit("https", 1, 1, "Нет узлов для HTTPS-тестирования", force=True)
+            reporter.emit("services", 1, 1, "Нет узлов для сервисных проверок", force=True)
+
+        for node in nodes:
+            if node.node_id not in completed_ids:
+                add_result(
+                    NodeResult(
+                        node,
+                        overall_status="not_tested",
+                        error_code="CANCELLED" if self.cancel_event.is_set() else "NOT_TESTED",
+                        error_summary="Проверка остановлена пользователем" if self.cancel_event.is_set() else "Проверка не выполнялась",
+                    )
+                )
         node_results.sort(key=lambda item: item.node.node_id)
-        return BatchReport(
+        report = BatchReport(
             generated_at=datetime.now().astimezone().isoformat(timespec="seconds"),
             engine_version=engine_version,
             direct_baseline=direct_baseline,
@@ -1008,6 +1690,14 @@ class BatchRunner:
             sources=parsed_sources,
             node_results=node_results,
         )
+        reporter.emit(
+            "completion",
+            1,
+            1,
+            "Частичные результаты сохранены после остановки" if self.cancel_event.is_set() else "Пакетная проверка завершена",
+            force=True,
+        )
+        return report
 
 
 def _source_counts(report: BatchReport, source_id: str) -> dict[str, int]:

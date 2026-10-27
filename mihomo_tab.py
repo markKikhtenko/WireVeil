@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import sys
 import threading
+import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -231,16 +232,21 @@ class MihomoCheckerTab(ttk.Frame):
         self.report: mihomo_checker.BatchReport | None = None
         self.parsed_by_id: dict[str, mihomo_checker.ParsedSource] = {}
         self.live_results: dict[str, mihomo_checker.NodeResult] = {}
+        self.pending_node_results: dict[str, mihomo_checker.NodeResult] = {}
+        self.active_progress: mihomo_checker.ProgressUpdate | None = None
+        self.active_progress_received_at = 0.0
         self.node_sort_column: str | None = None
         self.node_sort_descending = False
         self.source_sort_column: str | None = None
         self.source_sort_descending = False
         self.running = False
+        self.stop_requested = False
         self.closing = False
 
         self.attempts_var = tk.IntVar(value=2)
         self.timeout_var = tk.IntVar(value=8)
         self.workers_var = tk.IntVar(value=8)
+        self.node_limit_var = tk.StringVar(value="Все")
         self.service_vars = {
             item.name: tk.BooleanVar(value=item.name in mihomo_checker.DEFAULT_SERVICES)
             for item in mihomo_checker.SERVICE_DEFINITIONS
@@ -338,6 +344,15 @@ class MihomoCheckerTab(ttk.Frame):
             ttk.Spinbox(settings, from_=start, to=end, textvariable=variable, width=5).pack(
                 side="left", padx=(0, 12)
             )
+        ttk.Label(settings, text="Узлов", style="Panel.TLabel").pack(side="left", padx=(0, 4))
+        self.node_limit = ttk.Combobox(
+            settings,
+            textvariable=self.node_limit_var,
+            state="readonly",
+            width=7,
+            values=("50", "100", "500", "Все"),
+        )
+        self.node_limit.pack(side="left", padx=(0, 12))
         ttk.Label(settings, text="Сервисы:", style="PanelTitle.TLabel").pack(side="left", padx=(4, 5))
         for service in mihomo_checker.SERVICE_DEFINITIONS:
             ttk.Checkbutton(
@@ -351,8 +366,10 @@ class MihomoCheckerTab(ttk.Frame):
         views.pack(fill="both", expand=True)
         sources_page = ttk.Frame(views)
         nodes_page = ttk.Frame(views)
+        log_page = ttk.Frame(views)
         views.add(sources_page, text="Источники")
         views.add(nodes_page, text="Узлы")
+        views.add(log_page, text="Журнал выполнения")
 
         self.source_tree = ttk.Treeview(
             sources_page, columns=self.SOURCE_COLUMNS, show="headings", selectmode="extended"
@@ -442,6 +459,38 @@ class MihomoCheckerTab(ttk.Frame):
         node_y.grid(row=0, column=1, sticky="ns")
         node_x.grid(row=1, column=0, sticky="ew")
 
+        log_actions = ttk.Frame(log_page, style="Panel.TFrame", padding=(6, 4))
+        log_actions.pack(fill="x")
+        ttk.Label(
+            log_actions,
+            text="Безопасный журнал этапов — секреты и полные URL не записываются",
+            style="PanelDim.TLabel",
+        ).pack(side="left")
+        ttk.Button(
+            log_actions,
+            text="Копировать журнал",
+            command=self._copy_execution_log,
+            style="Secondary.TButton",
+        ).pack(side="right")
+        log_frame = ttk.Frame(log_page)
+        log_frame.pack(fill="both", expand=True)
+        self.execution_log = tk.Text(
+            log_frame,
+            wrap="word",
+            state="disabled",
+            background="#101821",
+            foreground="#d7e4ec",
+            insertbackground="#ffffff",
+            selectbackground="#166f9c",
+            relief="flat",
+            padx=9,
+            pady=7,
+        )
+        log_y = ttk.Scrollbar(log_frame, orient="vertical", command=self.execution_log.yview)
+        self.execution_log.configure(yscrollcommand=log_y.set)
+        self.execution_log.pack(side="left", fill="both", expand=True)
+        log_y.pack(side="right", fill="y")
+
         notice = ttk.Label(
             self,
             text=(
@@ -458,6 +507,40 @@ class MihomoCheckerTab(ttk.Frame):
         status_bar.pack(fill="x")
         ttk.Label(status_bar, textvariable=self.status_var).pack(side="left")
         ttk.Label(status_bar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
+
+    def _clear_execution_log(self) -> None:
+        self.execution_log.configure(state="normal")
+        self.execution_log.delete("1.0", "end")
+        self.execution_log.configure(state="disabled")
+
+    def _append_progress_log(self, update: mihomo_checker.ProgressUpdate) -> None:
+        label = mihomo_checker.STAGE_LABELS.get(update.stage, update.stage)
+        count = f"{update.processed}/{update.total}" if update.total else "—"
+        safe_message = mihomo_checker.sanitize_text(update.message, 300)
+        line = (
+            f"[{update.total_elapsed_seconds:8.2f} с] {label}: {count} · "
+            f"этап {update.stage_elapsed_seconds:.2f} с · {update.overall_percent:.1f}% — "
+            f"{safe_message}\n"
+        )
+        self.execution_log.configure(state="normal")
+        self.execution_log.insert("end", line)
+        try:
+            line_count = int(self.execution_log.index("end-1c").split(".", 1)[0])
+        except (ValueError, tk.TclError):
+            line_count = 0
+        if line_count > 2_000:
+            self.execution_log.delete("1.0", f"{line_count - 1_800}.0")
+        self.execution_log.see("end")
+        self.execution_log.configure(state="disabled")
+
+    def _copy_execution_log(self) -> None:
+        value = self.execution_log.get("1.0", "end-1c")
+        if not value:
+            return
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update_idletasks()
+        self.status_var.set("Безопасный журнал выполнения скопирован в буфер обмена.")
 
     def _dialog_text(
         self,
@@ -595,10 +678,20 @@ class MihomoCheckerTab(ttk.Frame):
     def _refresh_source_tree(self) -> None:
         selected = self._selected_source_ids() if hasattr(self, "source_tree") else set()
         self.source_tree.delete(*self.source_tree.get_children())
-        report_sources: dict[str, dict[str, object]] = {}
+        report_sources: dict[str, mihomo_checker.ParsedSource] = {}
+        report_counts: dict[str, dict[str, int]] = {}
         if self.report is not None:
-            payload = mihomo_checker.report_payload(self.report)
-            report_sources = {str(item["source_id"]): item for item in payload["sources"]}  # type: ignore[index]
+            report_sources = {
+                item.spec.source_id: item for item in self.report.sources
+            }
+            for result in self.report.node_results:
+                for source_id in result.node.source_ids:
+                    counts = report_counts.setdefault(
+                        source_id,
+                        {"good": 0, "partial": 0, "failed": 0},
+                    )
+                    if result.overall_status in counts:
+                        counts[result.overall_status] += 1
         for source in self.sources:
             row = report_sources.get(source.source_id)
             live = self.parsed_by_id.get(source.source_id)
@@ -616,12 +709,20 @@ class MihomoCheckerTab(ttk.Frame):
                     live.checked_at or "—",
                 )
             else:
+                counts = report_counts.get(
+                    source.source_id,
+                    {"good": 0, "partial": 0, "failed": 0},
+                )
                 values = (
                     source.name,
                     source.kind,
-                    f"{row['fetch_status']} / {row['parse_status']}",
-                    row["total_entries"], row["good_nodes"], row["partial_nodes"], row["failed_nodes"],
-                    row["error_code"] or "—", row["checked_at"] or "—",
+                    f"{row.fetch_status} / {row.parse_status}",
+                    row.total_entries,
+                    counts["good"],
+                    counts["partial"],
+                    counts["failed"],
+                    row.error_code or "—",
+                    row.checked_at or "—",
                 )
             self.source_tree.insert("", "end", iid=source.source_id, values=values)
         for source_id in selected:
@@ -660,6 +761,55 @@ class MihomoCheckerTab(ttk.Frame):
                 return False
         return True
 
+    def _node_row_values(
+        self,
+        result: mihomo_checker.NodeResult,
+        source_id: str,
+        source_names: dict[str, str],
+    ) -> tuple[object, ...]:
+        node = result.node
+        values: list[object] = [
+            source_names.get(source_id, source_id),
+            node.source_original_names.get(source_id, "—"),
+            node.protocol,
+            f"{node.server}:{node.port or '—'}",
+            result.overall_status,
+            result.base_latency_ms if result.base_latency_ms is not None else "—",
+        ]
+        values.extend(
+            self._service_cell(result.services.get(item.name))
+            for item in mihomo_checker.SERVICE_DEFINITIONS
+        )
+        values.append(result.error_code or "—")
+        return tuple(values)
+
+    def _update_node_rows(self, results: list[mihomo_checker.NodeResult]) -> None:
+        if not results:
+            return
+        source_names = {item.source_id: item.name for item in self.sources}
+        for result in results:
+            for source_id in result.node.source_ids:
+                iid = f"{source_id}:{result.node.node_id}"
+                if not self._passes_node_filters(result, source_id):
+                    if self.node_tree.exists(iid):
+                        self.node_tree.delete(iid)
+                    continue
+                values = self._node_row_values(result, source_id, source_names)
+                if self.node_tree.exists(iid):
+                    self.node_tree.item(
+                        iid,
+                        values=values,
+                        tags=(result.overall_status,),
+                    )
+                else:
+                    self.node_tree.insert(
+                        "",
+                        "end",
+                        iid=iid,
+                        values=values,
+                        tags=(result.overall_status,),
+                    )
+
     def _refresh_node_tree(self) -> None:
         self.node_tree.delete(*self.node_tree.get_children())
         source_names = {item.source_id: item.name for item in self.sources}
@@ -669,22 +819,17 @@ class MihomoCheckerTab(ttk.Frame):
             else list(self.live_results.values())
         )
         for result in results:
-            node = result.node
-            for source_id in node.source_ids:
+            for source_id in result.node.source_ids:
                 if not self._passes_node_filters(result, source_id):
                     continue
-                values: list[object] = [
-                    source_names.get(source_id, source_id),
-                    node.source_original_names.get(source_id, "—"),
-                    node.protocol,
-                    f"{node.server}:{node.port or '—'}",
-                    result.overall_status,
-                    result.base_latency_ms if result.base_latency_ms is not None else "—",
-                ]
-                values.extend(self._service_cell(result.services.get(item.name)) for item in mihomo_checker.SERVICE_DEFINITIONS)
-                values.append(result.error_code or "—")
-                iid = f"{source_id}:{node.node_id}"
-                self.node_tree.insert("", "end", iid=iid, values=values, tags=(result.overall_status,))
+                iid = f"{source_id}:{result.node.node_id}"
+                self.node_tree.insert(
+                    "",
+                    "end",
+                    iid=iid,
+                    values=self._node_row_values(result, source_id, source_names),
+                    tags=(result.overall_status,),
+                )
         if self.node_sort_column is not None:
             self._apply_tree_sort(
                 self.node_tree, self.node_sort_column, self.node_sort_descending
@@ -734,18 +879,28 @@ class MihomoCheckerTab(ttk.Frame):
             self.source_sort_descending = False
         self._apply_tree_sort(self.source_tree, column, self.source_sort_descending)
 
-    def _settings(self) -> tuple[int, int, int] | None:
+    def _settings(self) -> tuple[int, int, int, int | None] | None:
         try:
             attempts = int(self.attempts_var.get())
             timeout = int(self.timeout_var.get())
             workers = int(self.workers_var.get())
+            limit_text = self.node_limit_var.get()
+            node_limit = None if limit_text == "Все" else int(limit_text)
         except (ValueError, tk.TclError):
             messagebox.showerror("WireVeil Checker", "Проверьте числовые параметры Mihomo.")
             return None
-        if not 2 <= attempts <= 5 or not 1 <= timeout <= 60 or not 1 <= workers <= 32:
-            messagebox.showerror("WireVeil Checker", "HTTPS-прогоны: 2–5, тайм-аут: 1–60 сек, параллельность: 1–32.")
+        if (
+            not 2 <= attempts <= 5
+            or not 1 <= timeout <= 60
+            or not 1 <= workers <= 32
+            or node_limit not in {None, 50, 100, 500}
+        ):
+            messagebox.showerror(
+                "WireVeil Checker",
+                "HTTPS-прогоны: 2–5, тайм-аут: 1–60 сек, параллельность: 1–32, узлов: 50/100/500/Все.",
+            )
             return None
-        return attempts, timeout, workers
+        return attempts, timeout, workers, node_limit
 
     def _start_all(self) -> None:
         self._start(tuple(self.sources))
@@ -770,18 +925,25 @@ class MihomoCheckerTab(ttk.Frame):
                 "Не найден mihomo.exe. В портативной сборке он должен находиться рядом с приложением.",
             )
             return
-        attempts, timeout, workers = settings
+        attempts, timeout, workers, node_limit = settings
         services = tuple(name for name, variable in self.service_vars.items() if variable.get())
         self.runner = mihomo_checker.BatchRunner()
         self.report = None
         self.parsed_by_id.clear()
         self.live_results.clear()
+        self.pending_node_results.clear()
         self._refresh_node_tree()
+        self._clear_execution_log()
+        self.active_progress = None
+        self.stop_requested = False
         self.running = True
         self.progress_var.set(0)
         self._set_running_controls(True)
         self._set_export_buttons(False)
-        self.status_var.set(f"Загрузка {len(sources)} источников и подготовка локального Mihomo…")
+        limit_label = "всех узлов" if node_limit is None else f"первых {node_limit} узлов"
+        self.status_var.set(
+            f"Загрузка {len(sources)} источников; режим проверки: {limit_label}…"
+        )
 
         def work() -> None:
             assert self.runner is not None
@@ -793,8 +955,10 @@ class MihomoCheckerTab(ttk.Frame):
                     attempts=attempts,
                     timeout_ms=timeout * 1000,
                     workers=workers,
+                    node_limit=node_limit,
                     source_callback=lambda parsed: self.events.put(("source", parsed)),
                     node_callback=lambda done, total, result: self.events.put(("node", done, total, result)),
+                    progress_callback=lambda update: self.events.put(("progress", update)),
                 )
                 self.events.put(("done", report))
             except Exception as exc:
@@ -806,61 +970,140 @@ class MihomoCheckerTab(ttk.Frame):
         runner = self.runner
         if runner is not None:
             self.status_var.set("Остановка локального Mihomo и отмена проверок…")
+            self.stop_button.configure(state="disabled")
+            self.stop_requested = True
+            self.active_progress = None
             runner.stop()
 
     def _poll_events(self) -> None:
         if self.closing:
             return
-        try:
-            while True:
+        refresh_sources = False
+        finish_report: mihomo_checker.BatchReport | None = None
+        failure: object | None = None
+        processed_events = 0
+        while processed_events < 300:
+            try:
                 event = self.events.get_nowait()
-                kind = event[0]
-                if kind == "source":
-                    parsed = event[1]
-                    assert isinstance(parsed, mihomo_checker.ParsedSource)
-                    self.parsed_by_id[parsed.spec.source_id] = parsed
-                    self._refresh_source_tree()
-                    self.status_var.set(f"Источник {parsed.spec.name}: {parsed.fetch_status} / {parsed.parse_status}")
-                elif kind == "node":
-                    done, total, result = int(event[1]), int(event[2]), event[3]
-                    assert isinstance(result, mihomo_checker.NodeResult)
-                    self.live_results[result.node.node_id] = result
-                    self._refresh_node_tree()
-                    self.progress_var.set((done / max(1, total)) * 100)
-                    self.status_var.set(f"Проверено уникальных узлов: {done} / {total}")
-                elif kind == "done":
-                    report = event[1]
-                    assert isinstance(report, mihomo_checker.BatchReport)
-                    self._finish(report)
-                elif kind == "error":
-                    self._fail(event[1])
-        except queue.Empty:
-            pass
-        self.after(100, self._poll_events)
+            except queue.Empty:
+                break
+            processed_events += 1
+            kind = event[0]
+            if kind == "source":
+                parsed = event[1]
+                assert isinstance(parsed, mihomo_checker.ParsedSource)
+                self.parsed_by_id[parsed.spec.source_id] = parsed
+                refresh_sources = True
+            elif kind == "node":
+                result = event[3]
+                assert isinstance(result, mihomo_checker.NodeResult)
+                self.live_results[result.node.node_id] = result
+                self.pending_node_results[result.node.node_id] = result
+            elif kind == "progress":
+                update = event[1]
+                assert isinstance(update, mihomo_checker.ProgressUpdate)
+                self.progress_var.set(update.overall_percent)
+                self._append_progress_log(update)
+                if not self.stop_requested:
+                    self.active_progress = update
+                    self.active_progress_received_at = time.monotonic()
+            elif kind == "done":
+                report = event[1]
+                assert isinstance(report, mihomo_checker.BatchReport)
+                finish_report = report
+            elif kind == "error":
+                failure = event[1]
+
+        if refresh_sources:
+            self._refresh_source_tree()
+        if self.pending_node_results:
+            pending = list(self.pending_node_results.values())
+            self.pending_node_results.clear()
+            self._update_node_rows(pending)
+        if finish_report is not None:
+            self._finish(finish_report)
+        elif failure is not None:
+            self._fail(failure)
+        if self.running and self.active_progress is not None:
+            update = self.active_progress
+            since_update = max(0.0, time.monotonic() - self.active_progress_received_at)
+            label = mihomo_checker.STAGE_LABELS.get(update.stage, update.stage)
+            count = f"{update.processed} / {update.total}" if update.total else "—"
+            self.status_var.set(
+                f"{label}: {count} · этап {update.stage_elapsed_seconds + since_update:.1f} с · "
+                f"всего {update.total_elapsed_seconds + since_update:.1f} с — {update.message}"
+            )
+        delay = 10 if not self.events.empty() else 100
+        self.after(delay, self._poll_events)
 
     def _finish(self, report: mihomo_checker.BatchReport) -> None:
         self.report = report
         self.running = False
+        self.stop_requested = False
+        self.active_progress = None
         self.runner = None
         self.progress_var.set(100)
         self._set_running_controls(False)
         self._set_export_buttons(True)
         self._refresh_source_tree()
-        self._refresh_node_tree()
-        totals = mihomo_checker.report_payload(report)["totals"]
-        self.status_var.set("Пакетная проверка завершена. Результаты относятся к текущей сети ПК.")
+        missing = [
+            result
+            for result in report.node_results
+            if result.node.node_id not in self.live_results
+        ]
+        for result in missing:
+            self.live_results[result.node.node_id] = result
+        self._update_node_rows(missing)
+        if self.node_sort_column is not None:
+            self._apply_tree_sort(
+                self.node_tree,
+                self.node_sort_column,
+                self.node_sort_descending,
+            )
+        statuses = [result.overall_status for result in report.node_results]
+        totals = {
+            "unique_nodes": len(report.node_results),
+            "good": statuses.count("good"),
+            "partial": statuses.count("partial"),
+            "failed": statuses.count("failed"),
+            "not_tested": statuses.count("not_tested"),
+        }
+        cancelled = any(
+            result.error_code == "CANCELLED" for result in report.node_results
+        ) or any(parsed.fetch_status == "cancelled" for parsed in report.sources)
+        if cancelled:
+            self.status_var.set(
+                "Проверка остановлена. Доступные частичные результаты можно экспортировать."
+            )
+        else:
+            self.status_var.set(
+                "Пакетная проверка завершена. Результаты относятся к текущей сети ПК."
+            )
         self.summary_var.set(
-            f"Узлов {totals['unique_nodes']} · good {totals['good']} · partial {totals['partial']} · failed {totals['failed']}"  # type: ignore[index]
+            f"Узлов {totals['unique_nodes']} · good {totals['good']} · partial {totals['partial']} · failed {totals['failed']} · not tested {totals['not_tested']}"  # type: ignore[index]
         )
 
     def _fail(self, error: object) -> None:
         self.running = False
+        self.stop_requested = False
+        self.active_progress = None
         self.runner = None
         self._set_running_controls(False)
         if isinstance(error, mihomo_checker.MihomoCheckError):
             detail = f"{error.code}: {error.summary}"
         else:
             detail = mihomo_checker.sanitize_text(error)
+        self._append_progress_log(
+            mihomo_checker.ProgressUpdate(
+                stage="completion",
+                processed=0,
+                total=1,
+                stage_elapsed_seconds=0.0,
+                total_elapsed_seconds=0.0,
+                overall_percent=float(self.progress_var.get()),
+                message=f"Ошибка выполнения: {detail}",
+            )
+        )
         self.status_var.set(f"Ошибка: {detail}")
         messagebox.showerror("WireVeil Checker", detail)
 
@@ -869,6 +1112,7 @@ class MihomoCheckerTab(ttk.Frame):
         self.start_all_button.configure(state=state)
         self.start_selected_button.configure(state=state)
         self.stop_button.configure(state="normal" if running else "disabled")
+        self.node_limit.configure(state="disabled" if running else "readonly")
 
     def _set_export_buttons(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"

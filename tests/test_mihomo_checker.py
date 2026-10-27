@@ -1,5 +1,8 @@
 import json
+import subprocess
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 import zipfile
@@ -41,6 +44,38 @@ def parsed_source(spec, proxies):
         spec,
         yaml.safe_dump({"proxies": proxies}, allow_unicode=True, sort_keys=False),
     )
+
+
+def source_yaml(proxies):
+    return yaml.safe_dump({"proxies": proxies}, allow_unicode=True, sort_keys=False)
+
+
+def synthetic_nodes(count: int) -> list[mihomo_checker.NodeRecord]:
+    spec = source("src-synthetic", "Synthetic")
+    result: list[mihomo_checker.NodeRecord] = []
+    for index in range(count):
+        node_id = f"{index:064x}"
+        proxy = {
+            "name": f"Synthetic {index}",
+            "type": "ss",
+            "server": f"edge-{index}.example.com",
+            "port": 10000 + (index % 50000),
+            "cipher": "aes-128-gcm",
+            "password": f"private-password-{index:08d}",
+        }
+        result.append(
+            mihomo_checker.NodeRecord(
+                node_id=node_id,
+                runtime_name=f"wv-{index:016x}",
+                protocol="ss",
+                server=str(proxy["server"]),
+                port=int(proxy["port"]),
+                proxy=proxy,
+                source_ids=[spec.source_id],
+                source_original_names={spec.source_id: str(proxy["name"])},
+            )
+        )
+    return result
 
 
 class ImportTests(unittest.TestCase):
@@ -251,7 +286,7 @@ class BatchRunnerTests(unittest.TestCase):
         )
 
         class Runtime:
-            def __init__(self, _binary, nodes):
+            def __init__(self, _binary, nodes, **_kwargs):
                 self.nodes = nodes
                 self.version = "Mihomo Meta v1.19.33"
 
@@ -262,15 +297,18 @@ class BatchRunnerTests(unittest.TestCase):
                 return None
 
         def load(item):
-            return {"src-a": parsed_a, "src-b": parsed_b, "src-bad": failed}[item.source_id]
+            if item.source_id == "src-bad":
+                raise mihomo_checker.MihomoCheckError("SOURCE_FETCH_FAILED", "offline")
+            proxy = vless_proxy("A" if item.source_id == "src-a" else "B")
+            return source_yaml([proxy])
 
         probe = mihomo_checker.DelayResult(True, 125)
         with (
-            mock.patch("scripts.mihomo_checker.load_source", side_effect=load),
+            mock.patch("scripts.mihomo_checker.read_source_text", side_effect=load),
             mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
             mock.patch(
                 "scripts.mihomo_checker.validate_runtime_nodes",
-                side_effect=lambda _binary, nodes: (list(nodes), []),
+                side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), []),
             ),
             mock.patch("scripts.mihomo_checker.api_delay", return_value=probe) as delay,
             mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
@@ -295,7 +333,7 @@ class BatchRunnerTests(unittest.TestCase):
         class Runtime:
             version = "test"
 
-            def __init__(self, *_args):
+            def __init__(self, *_args, **_kwargs):
                 pass
 
             def start(self):
@@ -309,11 +347,11 @@ class BatchRunnerTests(unittest.TestCase):
             mihomo_checker.DelayResult(False, error_code="TIMEOUT", error_summary="timeout"),
         ]
         with (
-            mock.patch("scripts.mihomo_checker.load_source", return_value=parsed),
+            mock.patch("scripts.mihomo_checker.read_source_text", return_value=source_yaml([vless_proxy()])),
             mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
             mock.patch(
                 "scripts.mihomo_checker.validate_runtime_nodes",
-                side_effect=lambda _binary, nodes: (list(nodes), []),
+                side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), []),
             ),
             mock.patch("scripts.mihomo_checker.api_delay", side_effect=probes) as delay,
             mock.patch("scripts.mihomo_checker._direct_baseline", return_value="failed"),
@@ -335,7 +373,7 @@ class BatchRunnerTests(unittest.TestCase):
             binary.touch()
             with mock.patch(
                 "scripts.mihomo_checker._check_config",
-                side_effect=[(False, "combined"), (True, ""), (False, "bad"), (True, "")],
+                side_effect=[(False, "combined"), (True, ""), (True, ""), (False, "bad")],
             ):
                 accepted, rejected = mihomo_checker.validate_runtime_nodes(binary, nodes)
         self.assertEqual([nodes[0]], accepted)
@@ -349,7 +387,7 @@ class BatchRunnerTests(unittest.TestCase):
         class Runtime:
             version = "unknown"
 
-            def __init__(self, *_args):
+            def __init__(self, *_args, **_kwargs):
                 pass
 
             def start(self):
@@ -359,8 +397,8 @@ class BatchRunnerTests(unittest.TestCase):
                 pass
 
         with (
-            mock.patch("scripts.mihomo_checker.load_source", return_value=parsed),
-            mock.patch("scripts.mihomo_checker.validate_runtime_nodes", side_effect=lambda _binary, nodes: (list(nodes), [])),
+            mock.patch("scripts.mihomo_checker.read_source_text", return_value=source_yaml([vless_proxy()])),
+            mock.patch("scripts.mihomo_checker.validate_runtime_nodes", side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), [])),
             mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
             mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
         ):
@@ -375,13 +413,237 @@ class BatchRunnerTests(unittest.TestCase):
             [{"name": "WG", "type": "wireguard", "server": "wg.example", "port": 51820}],
         )
         with (
-            mock.patch("scripts.mihomo_checker.load_source", return_value=unsupported),
+            mock.patch(
+                "scripts.mihomo_checker.read_source_text",
+                return_value=source_yaml(
+                    [{"name": "WG", "type": "wireguard", "server": "wg.example", "port": 51820}]
+                ),
+            ),
             mock.patch("scripts.mihomo_checker._direct_baseline") as baseline,
         ):
             report = mihomo_checker.BatchRunner().run(binary=Path("missing.exe"), source_specs=(spec,))
         baseline.assert_not_called()
         self.assertEqual("skipped", report.direct_baseline)
         self.assertEqual("unsupported", report.node_results[0].overall_status)
+
+    def test_progress_covers_all_stages_and_quick_limit_keeps_omitted_nodes(self):
+        spec = source("src-many")
+        proxies = [item.proxy for item in synthetic_nodes(3)]
+        updates: list[mihomo_checker.ProgressUpdate] = []
+
+        class Runtime:
+            version = "test"
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        with (
+            mock.patch("scripts.mihomo_checker.read_source_text", return_value=source_yaml(proxies)),
+            mock.patch(
+                "scripts.mihomo_checker.validate_runtime_nodes",
+                side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), []),
+            ),
+            mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
+            mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
+            mock.patch(
+                "scripts.mihomo_checker.api_delay",
+                return_value=mihomo_checker.DelayResult(True, 50),
+            ),
+        ):
+            report = mihomo_checker.BatchRunner().run(
+                binary=Path("mihomo.exe"),
+                source_specs=(spec,),
+                selected_services=("ChatGPT",),
+                node_limit=1,
+                progress_callback=updates.append,
+            )
+
+        self.assertEqual(3, len(report.node_results))
+        self.assertEqual(1, sum(item.overall_status == "good" for item in report.node_results))
+        self.assertEqual(2, sum(item.error_code == "QUICK_CHECK_LIMIT" for item in report.node_results))
+        self.assertEqual(set(mihomo_checker.STAGE_LABELS), {item.stage for item in updates})
+        self.assertEqual(100.0, updates[-1].overall_percent)
+        self.assertEqual(
+            sorted(item.overall_percent for item in updates),
+            [item.overall_percent for item in updates],
+        )
+
+    def test_cancelled_preparation_returns_partial_report(self):
+        spec = source("src-cancel")
+        runner = mihomo_checker.BatchRunner()
+
+        def load(_spec):
+            runner.stop()
+            return source_yaml([vless_proxy()])
+
+        with mock.patch("scripts.mihomo_checker.read_source_text", side_effect=load):
+            report = runner.run(binary=Path("mihomo.exe"), source_specs=(spec,))
+
+        self.assertEqual("cancelled", report.sources[0].fetch_status)
+        self.assertEqual([], report.node_results)
+
+
+class ValidationScalingTests(unittest.TestCase):
+    def test_single_bad_node_in_5257_is_localized_with_logarithmic_checks(self):
+        nodes = synthetic_nodes(5_257)
+        bad = nodes[4_321]
+        calls = 0
+
+        def check(_binary, path, **_kwargs):
+            nonlocal calls
+            calls += 1
+            if path.name == "base.yaml":
+                return True, ""
+            return bad.runtime_name not in path.read_text(encoding="utf-8"), "rejected"
+
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "mihomo.exe"
+            binary.touch()
+            with mock.patch("scripts.mihomo_checker._check_config", side_effect=check):
+                accepted, rejected = mihomo_checker.validate_runtime_nodes(binary, nodes)
+
+        self.assertEqual(5_256, len(accepted))
+        self.assertEqual([bad.node_id], [item.node.node_id for item in rejected])
+        self.assertLess(calls, 40)
+
+    def test_common_config_failure_stops_after_base_probe(self):
+        nodes = synthetic_nodes(5_000)
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "mihomo.exe"
+            binary.touch()
+            check = mock.Mock(return_value=(False, "common failure"))
+            with mock.patch("scripts.mihomo_checker._check_config", check):
+                accepted, results = mihomo_checker.validate_runtime_nodes(binary, nodes)
+
+        self.assertEqual([], accepted)
+        self.assertEqual(2, check.call_count)
+        self.assertEqual(5_000, len(results))
+        self.assertTrue(all(item.error_code == "MIHOMO_COMMON_CONFIG_REJECTED" for item in results))
+
+    def test_validation_cancel_preserves_every_unresolved_node(self):
+        nodes = synthetic_nodes(500)
+        cancel_event = threading.Event()
+
+        def check(_binary, _path, **_kwargs):
+            cancel_event.set()
+            return False, "CANCELLED"
+
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "mihomo.exe"
+            binary.touch()
+            with mock.patch("scripts.mihomo_checker._check_config", side_effect=check) as checked:
+                accepted, results = mihomo_checker.validate_runtime_nodes(
+                    binary,
+                    nodes,
+                    cancel_event=cancel_event,
+                )
+
+        self.assertEqual([], accepted)
+        self.assertEqual(1, checked.call_count)
+        self.assertEqual(500, len(results))
+        self.assertTrue(all(item.error_code == "CANCELLED" for item in results))
+
+    def test_validation_timeout_does_not_split_batch(self):
+        nodes = synthetic_nodes(500)
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "mihomo.exe"
+            binary.touch()
+            check = mock.Mock(return_value=(False, "TIMEOUT"))
+            with mock.patch("scripts.mihomo_checker._check_config", check):
+                accepted, results = mihomo_checker.validate_runtime_nodes(binary, nodes)
+
+        self.assertEqual([], accepted)
+        self.assertEqual(1, check.call_count)
+        self.assertEqual(500, len(results))
+        self.assertTrue(all(item.error_code == "MIHOMO_CONFIG_TIMEOUT" for item in results))
+
+    def test_many_invalid_nodes_respect_validation_process_budget(self):
+        nodes = synthetic_nodes(5_000)
+
+        def check(_binary, path, **_kwargs):
+            return (True, "") if path.name == "base.yaml" else (False, "node rejected")
+
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "mihomo.exe"
+            binary.touch()
+            with mock.patch("scripts.mihomo_checker._check_config", side_effect=check) as checked:
+                accepted, results = mihomo_checker.validate_runtime_nodes(
+                    binary,
+                    nodes,
+                    max_checks=12,
+                )
+
+        self.assertEqual([], accepted)
+        self.assertLessEqual(checked.call_count, 12)
+        self.assertEqual(5_000, len(results))
+        self.assertTrue(any(item.error_code == "MIHOMO_VALIDATION_LIMIT" for item in results))
+
+    def test_stop_terminates_active_validation_child(self):
+        runner = mihomo_checker.BatchRunner()
+        process = mock.Mock()
+        process.poll.return_value = None
+        process.wait.return_value = 0
+        runner._set_validation_process(process)
+
+        runner.stop()
+
+        process.terminate.assert_called_once_with()
+
+    def test_check_config_timeout_terminates_child(self):
+        process = mock.Mock()
+        process.poll.return_value = None
+        process.wait.return_value = 0
+        with mock.patch("scripts.mihomo_checker.subprocess.Popen", return_value=process):
+            valid, detail = mihomo_checker._check_config(
+                Path("mihomo.exe"),
+                Path("config.yaml"),
+                timeout=0,
+            )
+        self.assertFalse(valid)
+        self.assertEqual("TIMEOUT", detail)
+        process.terminate.assert_called_once_with()
+
+
+class LargeSubscriptionPerformanceTests(unittest.TestCase):
+    def test_parse_and_deduplicate_10000_synthetic_nodes(self):
+        proxies = [item.proxy for item in synthetic_nodes(10_000)]
+        text = source_yaml(proxies)
+        started = time.monotonic()
+
+        parsed = mihomo_checker.parse_source_text(source("src-10000"), text)
+        merged = mihomo_checker.merge_nodes([parsed])
+        elapsed = time.monotonic() - started
+
+        self.assertEqual("ok", parsed.parse_status)
+        self.assertEqual(10_000, len(merged))
+        self.assertLess(elapsed, 20.0)
+
+
+class ProgressSecurityTests(unittest.TestCase):
+    def test_progress_messages_are_sanitized_before_ui_callback(self):
+        updates: list[mihomo_checker.ProgressUpdate] = []
+        reporter = mihomo_checker._ProgressReporter(updates.append)
+        secret_url = "https://provider.example/sub?token=super-secret-token-value"
+
+        reporter.emit(
+            "loading",
+            1,
+            1,
+            f"uuid={UUID_A} password=hidden-value source={secret_url}",
+            force=True,
+        )
+
+        message = updates[0].message
+        self.assertNotIn(UUID_A, message)
+        self.assertNotIn("hidden-value", message)
+        self.assertNotIn("super-secret-token-value", message)
+        self.assertIn("https://provider.example/<redacted>", message)
 
 
 class ApiClassificationTests(unittest.TestCase):
@@ -536,6 +798,31 @@ class MockUiTests(unittest.TestCase):
             MihomoCheckerTab._tree_sort_value("доступен · 95 ms"),
             MihomoCheckerTab._tree_sort_value("доступен · 240 ms"),
         )
+
+    def test_live_result_updates_existing_tree_row_without_full_rebuild(self):
+        spec = source("src-ui", "UI")
+        node = synthetic_nodes(1)[0]
+        node.source_ids = [spec.source_id]
+        node.source_original_names = {spec.source_id: "Node"}
+        first = mihomo_checker.NodeResult(node, overall_status="failed", error_code="TIMEOUT")
+        second = mihomo_checker.NodeResult(node, overall_status="good", base_latency_ms=42)
+        tab = object.__new__(MihomoCheckerTab)
+        tab.sources = [spec]
+        tab.node_tree = mock.Mock()
+        tab.node_tree.exists.side_effect = [False, True]
+        tab.source_filter_var = mock.Mock()
+        tab.source_filter_var.get.return_value = "Все источники"
+        tab.status_filter_var = mock.Mock()
+        tab.status_filter_var.get.return_value = "Все статусы"
+        tab.service_filter_var = mock.Mock()
+        tab.service_filter_var.get.return_value = "Все сервисы"
+
+        tab._update_node_rows([first])
+        tab._update_node_rows([second])
+
+        tab.node_tree.insert.assert_called_once()
+        tab.node_tree.item.assert_called_once()
+        tab.node_tree.delete.assert_not_called()
 
 
 class PortableBuildTests(unittest.TestCase):
