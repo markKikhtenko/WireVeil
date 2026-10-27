@@ -16,6 +16,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from mihomo_tab import MihomoCheckerTab
 from scripts import build, healthcheck, local_checker
 
 
@@ -357,6 +358,8 @@ class WireVeilChecker(tk.Tk):
         style.map("Stepper.TButton", background=[("active", "#3a5065"), ("pressed", "#1687bd")])
         style.configure("TCheckbutton", background="#0f151c", foreground="#e8f0f7")
         style.map("TCheckbutton", background=[("active", "#0f151c")])
+        style.configure("Panel.TCheckbutton", background="#151d26", foreground="#e8f0f7")
+        style.map("Panel.TCheckbutton", background=[("active", "#151d26")])
         style.configure("Card.TCheckbutton", background="#18222d", foreground="#e8f0f7", font=("Segoe UI Semibold", 10))
         style.map("Card.TCheckbutton", background=[("active", "#18222d")], foreground=[("disabled", "#697887")])
         style.configure(
@@ -374,6 +377,13 @@ class WireVeilChecker(tk.Tk):
             arrowcolor=[("disabled", "#777777"), ("!disabled", "#ffffff")],
         )
         style.configure("Horizontal.TProgressbar", background="#2ab1e9", troughcolor="#19232d", borderwidth=0)
+        style.configure("TNotebook", background="#0f151c", borderwidth=0)
+        style.configure("TNotebook.Tab", background="#18222d", foreground="#9fb0bf", padding=(16, 8))
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", "#176f9d"), ("active", "#263746")],
+            foreground=[("selected", "#ffffff")],
+        )
         style.configure(
             "Treeview",
             background="#121a22",
@@ -388,7 +398,14 @@ class WireVeilChecker(tk.Tk):
         style.map("Treeview.Heading", background=[("active", "#293a49")])
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self, padding=10)
+        self.engine_tabs = ttk.Notebook(self)
+        self.engine_tabs.pack(fill="both", expand=True)
+        legacy_page = ttk.Frame(self.engine_tabs)
+        mihomo_page = ttk.Frame(self.engine_tabs)
+        self.engine_tabs.add(legacy_page, text="NekoBox / sing-box")
+        self.engine_tabs.add(mihomo_page, text="Mihomo / OpenClash")
+
+        outer = ttk.Frame(legacy_page, padding=10)
         outer.pack(fill="both", expand=True)
 
         header = ttk.Frame(outer, style="Header.TFrame", padding=(12, 9))
@@ -757,6 +774,9 @@ class WireVeilChecker(tk.Tk):
         statusbar.pack(fill="x")
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         ttk.Label(statusbar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
+
+        self.mihomo_tab = MihomoCheckerTab(mihomo_page)
+        self.mihomo_tab.pack(fill="both", expand=True)
 
     def _watch_settings(self) -> None:
         variables = (
@@ -2338,6 +2358,7 @@ class WireVeilChecker(tk.Tk):
         self._start_watch_check()
 
     def _on_close(self) -> None:
+        self.mihomo_tab.close()
         self._cancel_background_timers()
         for job_name in ("countdown_job", "timer_refresh_job"):
             job = getattr(self, job_name, None)

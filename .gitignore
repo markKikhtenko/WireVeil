@@ -13,3 +13,11 @@ Thumbs.db
 /*.spec
 /WireVeilChecker.config.json
 /WireVeilChecker.config.json.tmp
+/WireVeilChecker.mihomo-sources.json
+/WireVeilChecker.mihomo-sources.json.tmp
+/WireVeil-Mihomo-Report-*.zip
+/*-private.yaml
+/WireVeilChecker.mihomo-sources.json
+/WireVeilChecker.mihomo-sources.json.tmp
+/WireVeil-Mihomo-Report-*.zip
+/*-private.yaml
