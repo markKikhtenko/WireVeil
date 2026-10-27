@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import tkinter as tk
 import unittest
 import urllib.error
 import zipfile
@@ -11,7 +12,7 @@ from unittest import mock
 
 import yaml
 
-from mihomo_tab import MihomoCheckerTab, _MultilineDialog
+from mihomo_tab import MihomoCheckerTab, _MultilineDialog, load_ui_settings, save_ui_settings
 from scripts import mihomo_checker
 
 
@@ -117,6 +118,51 @@ class ImportTests(unittest.TestCase):
     def test_mixed_txt_is_not_partially_imported_as_url_list(self):
         text = "https://one.example/sub.yaml\nnot-a-url\n"
         self.assertIsNone(mihomo_checker.subscription_urls_from_text(text))
+
+    def test_csv_catalog_requires_subscription_url_and_preserves_provenance(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "catalog.csv"
+            rows = ["id,repository,subscription_url,last_repo_push,tier,notes"]
+            rows.extend(
+                f"{index},owner/repo-{index},https://raw.githubusercontent.com/owner/repo-{index}/main/clash.yaml,2026-10-{index:02},start,note"
+                for index in range(1, 29)
+            )
+            path.write_text("\ufeff" + "\n".join(rows), encoding="utf-8")
+            specs = mihomo_checker.source_specs_from_file(path)
+
+        self.assertEqual(28, len(specs))
+        self.assertEqual(28, len({item.source_id for item in specs}))
+        self.assertTrue(all(item.kind == "url" for item in specs))
+        self.assertEqual("owner/repo-1 — clash.yaml", specs[0].name)
+        self.assertEqual("owner/repo-1", specs[0].metadata["repository"])
+        self.assertEqual("start", specs[0].metadata["tier"])
+
+    def test_arbitrary_csv_is_never_treated_as_yaml(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "other.csv"
+            path.write_text("name,value\nalpha,beta\n", encoding="utf-8")
+            with self.assertRaises(mihomo_checker.MihomoCheckError) as raised:
+                mihomo_checker.source_specs_from_file(path)
+        self.assertEqual("CSV_SUBSCRIPTION_URL_REQUIRED", raised.exception.code)
+
+    def test_github_source_names_are_distinct_and_readable(self):
+        first = mihomo_checker.source_name_from_url(
+            "https://raw.githubusercontent.com/owner/alpha/main/clash.yaml?token=secret"
+        )
+        second = mihomo_checker.source_name_from_url(
+            "https://raw.githubusercontent.com/owner/beta/main/config.yaml"
+        )
+        self.assertEqual("owner/alpha — clash.yaml", first)
+        self.assertEqual("owner/beta — config.yaml", second)
+        self.assertNotIn("secret", first)
+
+    def test_catalog_age_is_derived_without_losing_original_provenance(self):
+        metadata = {"last_repo_push": "2026-10-20T12:00:00+00:00", "tier": "start"}
+        self.assertEqual(
+            7,
+            mihomo_checker.source_age_days(metadata, "2026-10-27T15:00:00+00:00"),
+        )
+        self.assertEqual("2026-10-20T12:00:00+00:00", metadata["last_repo_push"])
 
     def test_mihomo_yaml_preserves_transport_and_reality_fields(self):
         proxy = vless_proxy()
@@ -271,7 +317,125 @@ class DeduplicationTests(unittest.TestCase):
         self.assertEqual(5, len(ids))
 
 
+class RepresentativeSamplingTests(unittest.TestCase):
+    @staticmethod
+    def pool(source_count: int = 28, per_source: int = 30):
+        protocols = sorted(mihomo_checker.SUPPORTED_PROTOCOLS)
+        parsed = []
+        for source_index in range(source_count):
+            spec = source(f"src-{source_index:012x}", f"Source {source_index}")
+            proxies = []
+            for node_index in range(per_source):
+                proxies.append(
+                    {
+                        "name": f"Node {source_index}-{node_index}",
+                        "type": protocols[node_index % len(protocols)],
+                        "server": f"edge-{source_index}-{node_index}.example.com",
+                        "port": 10_000 + node_index,
+                        "password": f"private-{source_index}-{node_index}",
+                    }
+                )
+            parsed.append(parsed_source(spec, proxies))
+        return mihomo_checker.merge_nodes(parsed)
+
+    def test_500_slots_cover_all_28_sources_and_balance_protocols(self):
+        nodes = self.pool()
+        selected, metadata = mihomo_checker.representative_sample(
+            nodes, limit=500, seed="audit-2026"
+        )
+        per_source = metadata["per_source_selected"]
+        self.assertEqual(500, len(selected))
+        self.assertEqual(28, len(per_source))
+        self.assertGreaterEqual(min(per_source.values()), 17)
+        self.assertLessEqual(max(per_source.values()), 18)
+        self.assertEqual(set(mihomo_checker.SUPPORTED_PROTOCOLS), set(metadata["per_protocol_selected"]))
+
+    def test_sampling_is_reproducible_and_not_first_n(self):
+        nodes = self.pool(source_count=4, per_source=40)
+        first, _ = mihomo_checker.representative_sample(nodes, limit=50, seed="same")
+        again, _ = mihomo_checker.representative_sample(nodes, limit=50, seed="same")
+        other, _ = mihomo_checker.representative_sample(nodes, limit=50, seed="other")
+        self.assertEqual([item.node_id for item in first], [item.node_id for item in again])
+        self.assertNotEqual([item.node_id for item in first], [item.node_id for item in other])
+        self.assertEqual(4, len({source_id for item in first for source_id in item.source_ids}))
+
+    def test_per_source_stage_caps_each_provider(self):
+        nodes = self.pool(source_count=6, per_source=50)
+        selected, metadata = mihomo_checker.representative_sample(
+            nodes, limit=None, per_source_limit=20, seed="stage-two"
+        )
+        self.assertEqual(120, len(selected))
+        self.assertTrue(all(value == 20 for value in metadata["per_source_selected"].values()))
+
+
 class BatchRunnerTests(unittest.TestCase):
+    def test_28_sources_are_preflighted_independently_and_deduplicated(self):
+        specs = tuple(source(f"src-{index:012x}", f"Provider {index}") for index in range(28))
+
+        class Runtime:
+            version = "test"
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        def load(spec):
+            return source_yaml([vless_proxy(spec.name)])
+
+        with (
+            mock.patch("scripts.mihomo_checker.read_source_text", side_effect=load),
+            mock.patch("scripts.mihomo_checker.validate_runtime_nodes", side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), [])),
+            mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
+            mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
+            mock.patch("scripts.mihomo_checker.api_delay", return_value=mihomo_checker.DelayResult(True, 50)),
+        ):
+            report = mihomo_checker.BatchRunner().run(
+                binary=Path("mihomo.exe"), source_specs=specs, selected_services=()
+            )
+
+        self.assertEqual(28, len(report.sources))
+        self.assertTrue(all(item.fetch_status == "ok" for item in report.sources))
+        self.assertEqual(1, len(report.node_results))
+        self.assertEqual(28, len(report.node_results[0].node.source_ids))
+
+    def test_unsupported_nodes_are_classified_even_outside_sample(self):
+        spec = source("src-mixed")
+        proxies = [
+            vless_proxy("One", server="one.example.com"),
+            vless_proxy("Two", uuid=UUID_B, server="two.example.com"),
+            {"name": "WG", "type": "wireguard", "server": "wg.example.com", "port": 51820},
+        ]
+
+        class Runtime:
+            version = "test"
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        with (
+            mock.patch("scripts.mihomo_checker.read_source_text", return_value=source_yaml(proxies)),
+            mock.patch("scripts.mihomo_checker.validate_runtime_nodes", side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), [])),
+            mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
+            mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
+            mock.patch("scripts.mihomo_checker.api_delay", return_value=mihomo_checker.DelayResult(True, 50)),
+        ):
+            report = mihomo_checker.BatchRunner().run(
+                binary=Path("mihomo.exe"), source_specs=(spec,), node_limit=1, selected_services=()
+            )
+        self.assertEqual(1, sum(item.overall_status == "unsupported" for item in report.node_results))
+        self.assertEqual(1, sum(item.error_code == "SAMPLE_LIMIT" for item in report.node_results))
+
     def test_bad_source_does_not_abort_and_duplicate_node_is_probed_once(self):
         spec_a = source("src-a", "A")
         spec_b = source("src-b", "B")
@@ -379,6 +543,8 @@ class BatchRunnerTests(unittest.TestCase):
         self.assertEqual([nodes[0]], accepted)
         self.assertEqual(1, len(rejected))
         self.assertEqual("MIHOMO_CONFIG_REJECTED", rejected[0].error_code)
+        self.assertEqual("not_tested", rejected[0].overall_status)
+        self.assertEqual("invalid_configuration", rejected[0].error_category)
 
     def test_runtime_start_failure_is_reported_per_node(self):
         spec = source("src-a")
@@ -466,7 +632,8 @@ class BatchRunnerTests(unittest.TestCase):
 
         self.assertEqual(3, len(report.node_results))
         self.assertEqual(1, sum(item.overall_status == "good" for item in report.node_results))
-        self.assertEqual(2, sum(item.error_code == "QUICK_CHECK_LIMIT" for item in report.node_results))
+        self.assertEqual(2, sum(item.error_code == "SAMPLE_LIMIT" for item in report.node_results))
+        self.assertEqual("source_protocol_round_robin_v1", report.sampling["strategy"])
         self.assertEqual(set(mihomo_checker.STAGE_LABELS), {item.stage for item in updates})
         self.assertEqual(100.0, updates[-1].overall_percent)
         self.assertEqual(
@@ -624,6 +791,25 @@ class LargeSubscriptionPerformanceTests(unittest.TestCase):
         self.assertEqual(10_000, len(merged))
         self.assertLess(elapsed, 20.0)
 
+    def test_representative_sampling_scales_to_20000_nodes(self):
+        nodes = synthetic_nodes(20_000)
+        for index, node in enumerate(nodes):
+            node.source_ids = [f"src-{index % 28:012x}"]
+        started = time.monotonic()
+        selected, metadata = mihomo_checker.representative_sample(
+            nodes, limit=500, seed="load-test"
+        )
+        elapsed = time.monotonic() - started
+        self.assertEqual(500, len(selected))
+        self.assertEqual(28, len(metadata["per_source_selected"]))
+        self.assertLess(elapsed, 10.0)
+
+    def test_offline_benchmark_covers_5k_10k_and_20k(self):
+        script = (Path(__file__).resolve().parents[1] / "scripts" / "mihomo_benchmark.py").read_text(encoding="utf-8")
+        self.assertIn("default=[5_000, 10_000, 20_000]", script)
+        self.assertIn("tree_batch_update_seconds", script)
+        self.assertIn("tracemalloc", script)
+
 
 class ProgressSecurityTests(unittest.TestCase):
     def test_progress_messages_are_sanitized_before_ui_callback(self):
@@ -671,6 +857,111 @@ class ApiClassificationTests(unittest.TestCase):
         self.assertEqual("TIMEOUT", result.error_code)
         self.assertNotIn("secret-token", result.error_summary or "")
 
+    def test_controller_503_is_not_reported_as_target_http_status(self):
+        runtime = mock.Mock()
+        error = urllib.error.HTTPError(
+            "http://127.0.0.1:9090/proxies/node/delay", 503, "upstream secret", {}, None
+        )
+        runtime._request.side_effect = error
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        result = mihomo_checker.api_delay(
+            runtime, node, url="https://chatgpt.com/", timeout_ms=8000, expected="200-499"
+        )
+        self.assertFalse(result.success)
+        self.assertEqual("CONTROLLER_API_503", result.error_code)
+        self.assertEqual("controller_api", result.error_category)
+        self.assertEqual(503, result.controller_http_status)
+        self.assertNotIn("chatgpt", result.error_summary or "")
+        error.close()
+
+    def test_base_endpoints_are_kept_separately(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        cancel = threading.Event()
+        with mock.patch(
+            "scripts.mihomo_checker.api_delay",
+            side_effect=[
+                mihomo_checker.DelayResult(True, 40),
+                mihomo_checker.DelayResult(False, error_code="TIMEOUT", error_summary="timeout", error_category="network"),
+            ],
+        ):
+            strict = mihomo_checker._probe_base_node(
+                mock.Mock(), node, attempts=2, timeout_ms=8000, cancel_event=cancel
+            )
+        self.assertEqual({"gstatic", "cloudflare"}, set(strict.base_endpoint_results))
+        self.assertEqual(1, strict.base_successes)
+        self.assertEqual("failed", strict.overall_status)
+        self.assertEqual("TIMEOUT", strict.error_code)
+
+    def test_one_of_two_policy_marks_unstable_but_allows_services(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        with mock.patch(
+            "scripts.mihomo_checker.api_delay",
+            side_effect=[
+                mihomo_checker.DelayResult(True, 40),
+                mihomo_checker.DelayResult(False, error_code="TIMEOUT", error_summary="timeout", error_category="network"),
+            ],
+        ):
+            result = mihomo_checker._probe_base_node(
+                mock.Mock(), node, attempts=2, timeout_ms=8000,
+                cancel_event=threading.Event(), minimum_successes=1,
+            )
+        self.assertEqual("not_tested", result.overall_status)
+        self.assertEqual("UNSTABLE_BASE_HTTPS", result.base_error_code)
+
+    def test_timeout_storm_reduces_base_concurrency_to_eight(self):
+        nodes = synthetic_nodes(32)
+
+        def fail(_runtime, node, **_kwargs):
+            probe = mihomo_checker.DelayResult(
+                False, error_code="TIMEOUT", error_summary="timeout", error_category="network"
+            )
+            return mihomo_checker.NodeResult(
+                node,
+                overall_status="failed",
+                base_attempts=2,
+                base_error_code="TIMEOUT",
+                error_code="TIMEOUT",
+                error_category="network",
+                base_endpoint_results={"gstatic": [probe], "cloudflare": [probe]},
+            )
+
+        with mock.patch("scripts.mihomo_checker._probe_base_node", side_effect=fail):
+            results, effective, events = mihomo_checker._run_base_probes_adaptive(
+                mock.Mock(), nodes, attempts=2, timeout_ms=8000, workers=16,
+                minimum_successes=2, cancel_event=threading.Event(),
+            )
+        self.assertEqual(32, len(results))
+        self.assertEqual(8, effective)
+        self.assertEqual("concurrency_reduced", events[0]["event"])
+
+    def test_service_checks_never_exceed_eight_concurrent_nodes(self):
+        base_results = [mihomo_checker.NodeResult(node) for node in synthetic_nodes(24)]
+        active = 0
+        maximum = 0
+        lock = threading.Lock()
+
+        def probe(_runtime, result, **_kwargs):
+            nonlocal active, maximum
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+            time.sleep(0.01)
+            with lock:
+                active -= 1
+            result.overall_status = "good"
+            return result
+
+        with mock.patch("scripts.mihomo_checker._probe_services_node", side_effect=probe):
+            completed = mihomo_checker._run_service_probes_bounded(
+                mock.Mock(), base_results,
+                services=(mihomo_checker.SERVICE_DEFINITIONS[0],),
+                timeout_ms=8000,
+                cancel_event=threading.Event(),
+            )
+        self.assertEqual(24, len(completed))
+        self.assertLessEqual(maximum, 8)
+        self.assertGreater(maximum, 1)
+
 
 def diagnostic_report():
     spec = source(
@@ -696,6 +987,10 @@ def diagnostic_report():
         },
         error_code="SITE_PARTIAL",
         error_summary="Instagram timeout",
+        base_endpoint_results={
+            "gstatic": [mihomo_checker.DelayResult(True, 170)],
+            "cloudflare": [mihomo_checker.DelayResult(True, 182)],
+        },
     )
     return mihomo_checker.BatchReport(
         generated_at="2026-10-27T11:00:00+03:00",
@@ -706,20 +1001,30 @@ def diagnostic_report():
         timeout_ms=8000,
         sources=[parsed],
         node_results=[result],
+        sampling={"strategy": "source_protocol_round_robin_v1", "seed": "audit", "selected_nodes": 1},
+        requested_workers=16,
+        effective_workers=8,
+        adaptive_events=[{"event": "concurrency_reduced", "from": 16, "to": 8}],
+        mihomo_stderr_summary=f"uuid={UUID_A} token=super-secret-token-value-123456",
     )
 
 
 class ReportTests(unittest.TestCase):
-    def test_json_contract_v1_and_source_counts(self):
+    def test_json_contract_v2_and_source_counts(self):
         payload = mihomo_checker.report_payload(diagnostic_report())
-        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(2, payload["schema_version"])
         self.assertEqual("mihomo", payload["engine"]["name"])
         self.assertEqual("Windows-local", payload["engine"]["runtime_location"])
         self.assertEqual("ok", payload["test_environment"]["direct_baseline"])
         self.assertEqual(1, payload["totals"]["unique_nodes"])
         self.assertEqual(1, payload["totals"]["partial"])
         self.assertEqual(1, payload["sources"][0]["partial_nodes"])
+        self.assertIn("age_days", payload["sources"][0])
         self.assertEqual("partial", payload["nodes"][0]["overall_status"])
+        self.assertEqual(1, payload["nodes"][0]["base_https"]["endpoints"]["gstatic"]["successes"])
+        self.assertEqual("source_protocol_round_robin_v1", payload["sampling"]["strategy"])
+        self.assertEqual(8, payload["test_environment"]["base_workers_effective"])
+        self.assertIn("vless", payload["capability_matrix"]["runtime_tested_protocols"])
 
     def test_public_exports_never_contain_credentials(self):
         report = diagnostic_report()
@@ -764,7 +1069,11 @@ class ReportTests(unittest.TestCase):
 class SourceStoreTests(unittest.TestCase):
     def test_sources_round_trip_without_test_results(self):
         sources = [
-            source("src-000000000001", "URL", "url", "https://provider.example/sub?token=private"),
+            mihomo_checker.SourceSpec(
+                "src-000000000001", "URL", "url",
+                "https://provider.example/sub?token=private",
+                {"repository": "owner/repo", "last_repo_push": "2026-10-20"},
+            ),
             source("src-000000000002", "Text", "text", "proxies: []"),
         ]
         with tempfile.TemporaryDirectory() as name:
@@ -778,14 +1087,33 @@ class SourceStoreTests(unittest.TestCase):
 
 
 class MockUiTests(unittest.TestCase):
+    def test_duplicate_source_url_is_warned_and_not_added(self):
+        existing = mihomo_checker.SourceSpec(
+            "src-000000000001", "Existing", "url", "https://provider.example/sub.yaml"
+        )
+        duplicate = mihomo_checker.SourceSpec(
+            "src-000000000002", "Duplicate", "url", "https://PROVIDER.example:443/sub.yaml#copy"
+        )
+        tab = object.__new__(MihomoCheckerTab)
+        tab.sources = [existing]
+        tab._save_sources = mock.Mock()
+        tab._refresh_source_tree = mock.Mock()
+        tab.status_var = mock.Mock()
+        tab.state_var = mock.Mock()
+        with mock.patch("mihomo_tab.messagebox.showwarning") as warning:
+            tab._append_sources([duplicate])
+        self.assertEqual([existing], tab.sources)
+        warning.assert_called_once()
+        tab._save_sources.assert_not_called()
+
     def test_service_cell_formats_mock_results_without_mihomo(self):
         self.assertEqual("—", MihomoCheckerTab._service_cell(None))
         self.assertEqual(
-            "доступен · 42 ms",
+            "● 42",
             MihomoCheckerTab._service_cell(mihomo_checker.ServiceResult("reachable", 42)),
         )
         self.assertEqual(
-            "TIMEOUT",
+            "× TIMEOUT",
             MihomoCheckerTab._service_cell(mihomo_checker.ServiceResult("failed", error_code="TIMEOUT")),
         )
 
@@ -823,6 +1151,60 @@ class MockUiTests(unittest.TestCase):
         tab.node_tree.insert.assert_called_once()
         tab.node_tree.item.assert_called_once()
         tab.node_tree.delete.assert_not_called()
+
+
+class MihomoUiLayoutTests(unittest.TestCase):
+    def test_ui_settings_persist_accessibility_and_sampling_choices(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "ui.json"
+            save_ui_settings(
+                path,
+                {
+                    "font_size": 14,
+                    "workers": 24,
+                    "sample_mode": "20 на источник",
+                    "sampling_seed": "reproducible",
+                    "base_policy": "Достаточно 1/2",
+                    "table_mode": "Подробно",
+                },
+            )
+            loaded = load_ui_settings(path)
+        self.assertEqual(14, loaded["font_size"])
+        self.assertEqual(24, loaded["workers"])
+        self.assertEqual("20 на источник", loaded["sample_mode"])
+        self.assertEqual("reproducible", loaded["sampling_seed"])
+
+    def test_1280_layout_remains_usable_at_125_and_150_percent_scaling(self):
+        for scaling in (1.25, 1.5):
+            root = None
+            try:
+                root = tk.Tk()
+            except tk.TclError as exc:
+                self.skipTest(f"Tk display unavailable: {exc}")
+            try:
+                root.tk.call("tk", "scaling", scaling)
+                root.geometry("1280x720")
+                with (
+                    mock.patch("mihomo_tab.mihomo_checker.load_source_specs", return_value=[]),
+                    mock.patch.object(MihomoCheckerTab, "_save_ui_settings"),
+                ):
+                    tab = MihomoCheckerTab(root)
+                    tab.pack(fill="both", expand=True)
+                    root.update()
+                    self.assertLessEqual(tab.winfo_reqwidth(), 1280)
+                    self.assertGreaterEqual(tab.views.winfo_height(), 150)
+                    self.assertEqual(
+                        ("source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"),
+                        tuple(tab.node_tree["displaycolumns"]),
+                    )
+                    self.assertLessEqual(
+                        tab.stop_button.winfo_y() + tab.stop_button.winfo_height(),
+                        tab.check_panel.winfo_height(),
+                    )
+                    tab.close()
+            finally:
+                if root is not None:
+                    root.destroy()
 
 
 class PortableBuildTests(unittest.TestCase):
