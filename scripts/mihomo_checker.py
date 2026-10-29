@@ -37,18 +37,22 @@ from typing import Callable, Iterable, Mapping, Sequence
 import yaml
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SOURCE_STORE_VERSION = 1
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
 MAX_SOURCES = 200
 MAX_NODES = 20_000
 MAX_VALIDATION_CHECKS = 128
+BASE_WORKERS_DEFAULT = 16
+BASE_WORKERS_ALLOWED = (8, 16, 24)
+SERVICE_WORKERS_MAX = 8
+ENDPOINT_CONCURRENCY_MAX = 8
 SUPPORTED_PROTOCOLS = frozenset(
     {"vless", "trojan", "ss", "vmess", "hysteria", "hysteria2", "tuic"}
 )
 BASE_TESTS = (
-    ("https://www.gstatic.com/generate_204", "204"),
-    ("https://cp.cloudflare.com/generate_204", "204"),
+    ("gstatic", "https://www.gstatic.com/generate_204", "204"),
+    ("cloudflare", "https://cp.cloudflare.com/generate_204", "204"),
 )
 DEFAULT_SERVICES = (
     "ChatGPT",
@@ -86,6 +90,16 @@ SERVICE_DEFINITIONS = (
     ServiceDefinition("Discord", "discord", "https://discord.com/app", "200-399"),
 )
 SERVICE_BY_NAME = {service.name: service for service in SERVICE_DEFINITIONS}
+_ENDPOINT_LIMITERS: dict[str, threading.BoundedSemaphore] = {}
+_ENDPOINT_LIMITERS_LOCK = threading.Lock()
+
+
+def _endpoint_limiter(host: str) -> threading.BoundedSemaphore:
+    with _ENDPOINT_LIMITERS_LOCK:
+        return _ENDPOINT_LIMITERS.setdefault(
+            host,
+            threading.BoundedSemaphore(ENDPOINT_CONCURRENCY_MAX),
+        )
 
 
 @dataclass(frozen=True)
@@ -94,6 +108,7 @@ class SourceSpec:
     name: str
     kind: str
     value: str
+    metadata: dict[str, str] = field(default_factory=dict)
 
     @property
     def display(self) -> str:
@@ -121,6 +136,8 @@ class ParsedSource:
     issues: list[SourceIssue] = field(default_factory=list)
     original_document: object | None = None
     checked_at: str | None = None
+    download_bytes: int | None = None
+    protocol_counts: dict[str, int] = field(default_factory=dict)
 
     @property
     def error_code(self) -> str | None:
@@ -152,6 +169,8 @@ class DelayResult:
     latency_ms: int | None = None
     error_code: str | None = None
     error_summary: str | None = None
+    error_category: str | None = None
+    controller_http_status: int | None = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +180,8 @@ class ServiceResult:
     http_status: int | None = None
     error_code: str | None = None
     error_summary: str | None = None
+    error_category: str | None = None
+    controller_http_status: int | None = None
 
 
 @dataclass
@@ -175,6 +196,8 @@ class NodeResult:
     services: dict[str, ServiceResult] = field(default_factory=dict)
     error_code: str | None = None
     error_summary: str | None = None
+    error_category: str | None = None
+    base_endpoint_results: dict[str, list[DelayResult]] = field(default_factory=dict)
 
 
 @dataclass
@@ -187,6 +210,11 @@ class BatchReport:
     timeout_ms: int
     sources: list[ParsedSource]
     node_results: list[NodeResult]
+    sampling: dict[str, object] = field(default_factory=dict)
+    requested_workers: int = BASE_WORKERS_DEFAULT
+    effective_workers: int = BASE_WORKERS_DEFAULT
+    adaptive_events: list[dict[str, object]] = field(default_factory=list)
+    mihomo_stderr_summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -200,6 +228,9 @@ class ProgressUpdate:
     total_elapsed_seconds: float
     overall_percent: float
     message: str
+    rate_per_minute: float | None = None
+    eta_low_seconds: float | None = None
+    eta_high_seconds: float | None = None
 
 
 STAGE_LABELS = {
@@ -268,14 +299,29 @@ class _ProgressReporter:
                 return
             start, end = STAGE_RANGES[stage]
             fraction = min(1.0, processed / total) if total else (1.0 if processed else 0.0)
+            stage_elapsed = max(0.0, now - self.stage_started)
+            rate_per_minute: float | None = None
+            eta_low_seconds: float | None = None
+            eta_high_seconds: float | None = None
+            if stage in {"https", "services"} and processed >= 8 and stage_elapsed >= 1.0:
+                rate_per_minute = (processed / stage_elapsed) * 60.0
+                remaining = max(0, total - processed)
+                estimate = (remaining / rate_per_minute) * 60.0 if rate_per_minute else 0.0
+                # A range is intentionally shown instead of false precision while
+                # node and service timeouts can vary by a full timeout interval.
+                eta_low_seconds = estimate * 0.75
+                eta_high_seconds = estimate * 1.35
             update = ProgressUpdate(
                 stage=stage,
                 processed=processed,
                 total=total,
-                stage_elapsed_seconds=round(now - self.stage_started, 3),
+                stage_elapsed_seconds=round(stage_elapsed, 3),
                 total_elapsed_seconds=round(now - self.started, 3),
                 overall_percent=round(start + ((end - start) * fraction), 2),
                 message=sanitize_text(message, 300),
+                rate_per_minute=round(rate_per_minute, 1) if rate_per_minute else None,
+                eta_low_seconds=round(eta_low_seconds, 1) if eta_low_seconds is not None else None,
+                eta_high_seconds=round(eta_high_seconds, 1) if eta_high_seconds is not None else None,
             )
             self.last_emit = now
             self.last_processed = processed
@@ -305,11 +351,116 @@ def subscription_urls_from_text(text: str) -> list[str] | None:
     return urls or None
 
 
+def canonical_source_url(url: str) -> str:
+    """Canonical form used only for duplicate detection, never for display."""
+    try:
+        parsed = urllib.parse.urlsplit(url.strip())
+    except ValueError:
+        return url.strip()
+    hostname = (parsed.hostname or "").casefold()
+    try:
+        port = parsed.port
+    except ValueError:
+        return url.strip()
+    netloc = hostname
+    if port and not (
+        (parsed.scheme.casefold() == "https" and port == 443)
+        or (parsed.scheme.casefold() == "http" and port == 80)
+    ):
+        netloc = f"{hostname}:{port}"
+    return urllib.parse.urlunsplit(
+        (parsed.scheme.casefold(), netloc, parsed.path or "/", parsed.query, "")
+    )
+
+
+def source_name_from_url(url: str) -> str:
+    """Build a useful label without exposing query strings or subscription tokens."""
+    try:
+        parsed = urllib.parse.urlsplit(url.strip())
+    except ValueError:
+        return "Подписка"
+    host = (parsed.hostname or "Подписка").casefold()
+    parts = [urllib.parse.unquote(item) for item in parsed.path.split("/") if item]
+    filename = sanitize_text(parts[-1], 80) if parts else "subscription.yaml"
+    owner_repo: str | None = None
+    if host == "raw.githubusercontent.com" and len(parts) >= 4:
+        owner_repo = f"{parts[0]}/{parts[1]}"
+    elif host in {"github.com", "www.github.com"} and len(parts) >= 2:
+        owner_repo = f"{parts[0]}/{parts[1]}"
+    elif host.endswith(".github.io"):
+        owner = host.removesuffix(".github.io")
+        repo = parts[0] if len(parts) >= 2 else owner + ".github.io"
+        owner_repo = f"{owner}/{repo}"
+    if owner_repo:
+        return sanitize_text(f"{owner_repo} — {filename}", 160)
+    return sanitize_text(f"{host} — {filename}", 160)
+
+
+def _manifest_source_specs(path: Path, text: str) -> list[SourceSpec]:
+    """Read a CSV manifest that explicitly declares a subscription_url column."""
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+    except csv.Error as exc:
+        raise MihomoCheckError("CSV_PARSE_ERROR", "Не удалось разобрать CSV-каталог") from exc
+    if not reader.fieldnames:
+        raise MihomoCheckError("CSV_SUBSCRIPTION_URL_REQUIRED", "CSV не содержит заголовок")
+    headers = {str(name).strip().casefold(): str(name) for name in reader.fieldnames if name}
+    url_header = headers.get("subscription_url")
+    if url_header is None:
+        raise MihomoCheckError(
+            "CSV_SUBSCRIPTION_URL_REQUIRED",
+            "CSV-каталог должен содержать явную колонку subscription_url",
+        )
+    name_headers = tuple(
+        headers[key]
+        for key in ("source_name", "name", "label", "title")
+        if key in headers
+    )
+    result: list[SourceSpec] = []
+    try:
+        rows = list(reader)
+    except csv.Error as exc:
+        raise MihomoCheckError("CSV_PARSE_ERROR", "Не удалось разобрать строки CSV-каталога") from exc
+    for position, row in enumerate(rows, start=2):
+        url = str(row.get(url_header) or "").strip()
+        if not url or url.startswith("#"):
+            continue
+        if subscription_urls_from_text(url) is None:
+            raise MihomoCheckError(
+                "CSV_INVALID_SUBSCRIPTION_URL",
+                f"Некорректный subscription_url в строке {position}",
+            )
+        explicit_name = next(
+            (str(row.get(header) or "").strip() for header in name_headers if str(row.get(header) or "").strip()),
+            "",
+        )
+        metadata = {
+            str(key).strip(): str(value).strip()
+            for key, value in row.items()
+            if key and key != url_header and value is not None and str(value).strip()
+        }
+        metadata.setdefault("catalog_file", path.name)
+        metadata.setdefault("catalog_row", str(position))
+        result.append(
+            SourceSpec(
+                new_source_id(),
+                explicit_name or source_name_from_url(url),
+                "url",
+                url,
+                metadata,
+            )
+        )
+    if not result:
+        raise MihomoCheckError("CSV_EMPTY", "CSV-каталог не содержит URL подписок")
+    return result
+
+
 def source_specs_from_file(path: Path) -> list[SourceSpec]:
-    """Expand a TXT URL list into URL sources, otherwise keep one file source."""
+    """Expand TXT/CSV manifests, otherwise keep one local subscription source."""
     path = Path(path)
     file_source = SourceSpec(new_source_id(), path.stem, "file", str(path))
-    if path.suffix.casefold() != ".txt":
+    suffix = path.suffix.casefold()
+    if suffix not in {".txt", ".csv"}:
         return [file_source]
     try:
         if path.stat().st_size > MAX_SOURCE_BYTES:
@@ -322,22 +473,22 @@ def source_specs_from_file(path: Path) -> list[SourceSpec]:
     except OSError as exc:
         raise MihomoCheckError("SOURCE_READ_FAILED", f"Не удалось прочитать файл: {exc}") from exc
 
+    if suffix == ".csv":
+        return _manifest_source_specs(path, text)
+
     urls = subscription_urls_from_text(text)
     if urls is None:
         return [file_source]
 
     result: list[SourceSpec] = []
     for position, url in enumerate(urls, start=1):
-        try:
-            hostname = urllib.parse.urlsplit(url).hostname or "Подписка"
-        except ValueError:
-            hostname = "Подписка"
         result.append(
             SourceSpec(
                 new_source_id(),
-                f"{path.stem} [{position}] · {hostname}",
+                source_name_from_url(url),
                 "url",
                 url,
+                {"import_file": path.name, "import_line": str(position)},
             )
         )
     return result
@@ -453,6 +604,7 @@ def _node_from_proxy(proxy: Mapping[str, object], spec: SourceSpec, index: int) 
 
 def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
     result = ParsedSource(spec=spec, fetch_status="ok")
+    result.download_bytes = len(text.encode("utf-8", errors="ignore"))
     if not text.strip():
         result.parse_status = "failed"
         result.issues.append(SourceIssue("PARSE_ERROR", "Источник пуст"))
@@ -516,6 +668,7 @@ def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
             continue
         node = _node_from_proxy(proxy, spec, index)
         result.nodes.append(node)
+        result.protocol_counts[node.protocol] = result.protocol_counts.get(node.protocol, 0) + 1
         if not node.supported:
             result.issues.append(
                 SourceIssue(node.import_error_code or "INVALID_NODE", node.import_error_summary or "Некорректный узел", index)
@@ -573,11 +726,13 @@ def fetch_source_url(url: str, timeout: float = 15.0) -> str:
         headers={"User-Agent": "WireVeilChecker/1.0", "Accept": "application/yaml,text/yaml,text/plain,*/*"},
     )
     try:
-        with opener.open(request, timeout=timeout) as response:
-            size_header = response.headers.get("Content-Length")
-            if size_header and int(size_header) > MAX_SOURCE_BYTES:
-                raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
-            raw = response.read(MAX_SOURCE_BYTES + 1)
+        host = (urllib.parse.urlsplit(url).hostname or "unknown").casefold()
+        with _endpoint_limiter("source:" + host):
+            with opener.open(request, timeout=timeout) as response:
+                size_header = response.headers.get("Content-Length")
+                if size_header and int(size_header) > MAX_SOURCE_BYTES:
+                    raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
+                raw = response.read(MAX_SOURCE_BYTES + 1)
     except MihomoCheckError:
         raise
     except (OSError, ValueError, urllib.error.URLError) as exc:
@@ -648,6 +803,105 @@ def merge_nodes(
             if progress_callback is not None:
                 progress_callback(processed, total)
     return list(merged.values())
+
+
+def representative_sample(
+    nodes: Sequence[NodeRecord],
+    *,
+    limit: int | None,
+    seed: str,
+    per_source_limit: int | None = None,
+) -> tuple[list[NodeRecord], dict[str, object]]:
+    """Select unique nodes round-robin across sources and protocols.
+
+    The score is deterministic for a given seed and canonical node id.  That
+    makes diagnostics reproducible without always privileging the first feed.
+    """
+    supported = [node for node in nodes if node.supported]
+    source_ids = sorted({source_id for node in supported for source_id in node.source_ids})
+    effective_limit = len(supported) if limit is None else min(limit, len(supported))
+    if per_source_limit is not None:
+        effective_limit = min(
+            effective_limit if limit is not None else len(supported),
+            per_source_limit * max(1, len(source_ids)),
+        )
+
+    def score(node: NodeRecord) -> str:
+        return hashlib.sha256(f"{seed}:{node.node_id}".encode("utf-8")).hexdigest()
+
+    buckets: dict[str, dict[str, list[NodeRecord]]] = {}
+    for source_id in source_ids:
+        source_nodes = [node for node in supported if source_id in node.source_ids]
+        for node in source_nodes:
+            buckets.setdefault(source_id, {}).setdefault(node.protocol, []).append(node)
+    for protocol_buckets in buckets.values():
+        for candidates in protocol_buckets.values():
+            candidates.sort(key=score)
+
+    selected: list[NodeRecord] = []
+    selected_ids: set[str] = set()
+    assigned_by_source = {source_id: 0 for source_id in source_ids}
+    protocol_cursor = {source_id: 0 for source_id in source_ids}
+    candidate_cursor: dict[tuple[str, str], int] = {}
+
+    while len(selected) < effective_limit:
+        made_progress = False
+        for source_id in source_ids:
+            if len(selected) >= effective_limit:
+                break
+            if per_source_limit is not None and assigned_by_source[source_id] >= per_source_limit:
+                continue
+            protocols = sorted(buckets.get(source_id, {}))
+            if not protocols:
+                continue
+            for offset in range(len(protocols)):
+                protocol_index = (protocol_cursor[source_id] + offset) % len(protocols)
+                protocol = protocols[protocol_index]
+                candidates = buckets[source_id][protocol]
+                cursor_key = (source_id, protocol)
+                cursor = candidate_cursor.get(cursor_key, 0)
+                while cursor < len(candidates) and candidates[cursor].node_id in selected_ids:
+                    cursor += 1
+                candidate_cursor[cursor_key] = cursor
+                if cursor >= len(candidates):
+                    continue
+                node = candidates[cursor]
+                candidate_cursor[cursor_key] = cursor + 1
+                protocol_cursor[source_id] = (protocol_index + 1) % len(protocols)
+                selected.append(node)
+                selected_ids.add(node.node_id)
+                assigned_by_source[source_id] += 1
+                made_progress = True
+                break
+        if not made_progress:
+            break
+
+    if len(selected) < effective_limit and per_source_limit is None:
+        remaining = sorted(
+            (node for node in supported if node.node_id not in selected_ids),
+            key=lambda node: (node.protocol, score(node)),
+        )
+        selected.extend(remaining[: effective_limit - len(selected)])
+        selected_ids.update(node.node_id for node in selected)
+
+    per_source_selected = {
+        source_id: sum(source_id in node.source_ids for node in selected)
+        for source_id in source_ids
+    }
+    per_protocol_selected: dict[str, int] = {}
+    for node in selected:
+        per_protocol_selected[node.protocol] = per_protocol_selected.get(node.protocol, 0) + 1
+    metadata: dict[str, object] = {
+        "strategy": "source_protocol_round_robin_v1" if limit is not None or per_source_limit is not None else "full",
+        "seed": sanitize_text(seed, 80),
+        "requested_limit": limit,
+        "per_source_limit": per_source_limit,
+        "eligible_nodes": len(supported),
+        "selected_nodes": len(selected),
+        "per_source_selected": per_source_selected,
+        "per_protocol_selected": per_protocol_selected,
+    }
+    return selected, metadata
 
 
 def _runtime_config(nodes: Sequence[NodeRecord], controller_port: int, secret: str) -> dict[str, object]:
@@ -793,6 +1047,7 @@ def validate_runtime_nodes(
                     overall_status="not_tested",
                     error_code=code,
                     error_summary=summary,
+                    error_category=error_category_for_code(code),
                 )
             )
             existing.add(item.node_id)
@@ -910,9 +1165,10 @@ def validate_runtime_nodes(
                 results.append(
                     NodeResult(
                         node=batch[0],
-                        overall_status="unsupported",
+                        overall_status="not_tested",
                         error_code="MIHOMO_CONFIG_REJECTED",
                         error_summary="Mihomo отклонил параметры этого узла",
+                        error_category="invalid_configuration",
                     )
                 )
                 notify(checks, "Локализован узел с отклонённой конфигурацией")
@@ -949,8 +1205,10 @@ class MihomoRuntime:
         self.process: subprocess.Popen[str] | None = None
         self._temporary: tempfile.TemporaryDirectory[str] | None = None
         self._log_handle: io.TextIOWrapper | None = None
+        self._log_path: Path | None = None
         self._stop_lock = threading.Lock()
         self.version = "unknown"
+        self.log_summary: str | None = None
 
     @property
     def base_url(self) -> str:
@@ -974,6 +1232,7 @@ class MihomoRuntime:
         root = Path(self._temporary.name)
         config_path = root / "config.yaml"
         log_path = root / "mihomo.log"
+        self._log_path = log_path
         _write_private_yaml(config_path, _runtime_config(self.nodes, self.port, self.secret))
         valid, detail = _check_config(
             self.binary,
@@ -1039,6 +1298,13 @@ class MihomoRuntime:
             if self._log_handle is not None:
                 self._log_handle.close()
                 self._log_handle = None
+            if self._log_path is not None and self._log_path.is_file():
+                try:
+                    raw_log = self._log_path.read_text(encoding="utf-8", errors="replace")[-50_000:]
+                    self.log_summary = sanitize_text(raw_log, 8_000) or None
+                except OSError:
+                    self.log_summary = None
+            self._log_path = None
             if self._temporary is not None:
                 self._temporary.cleanup()
                 self._temporary = None
@@ -1049,6 +1315,24 @@ class MihomoRuntime:
 
     def __exit__(self, *_args: object) -> None:
         self.stop()
+
+
+def error_category_for_code(code: str | None) -> str | None:
+    if not code:
+        return None
+    if code.startswith("CONTROLLER_") or code.startswith("MIHOMO_START"):
+        return "controller_api"
+    if code in {"TIMEOUT", "DNS_ERROR", "PROXY_CONNECT_FAILED", "TLS_ERROR", "HTTPS_CHECK_FAILED", "UNSTABLE_BASE_HTTPS"}:
+        return "network"
+    if code.startswith("MIHOMO_") or code in {"INVALID_NODE", "PARSE_ERROR"}:
+        return "invalid_configuration"
+    if code in {"UNSUPPORTED_PROTOCOL", "UNSUPPORTED_FORMAT", "EXTERNAL_PROVIDER_NOT_EXPANDED"}:
+        return "unsupported"
+    if code in {"SITE_HTTP_STATUS", "SITE_PARTIAL"}:
+        return "target_service"
+    if code in {"SAMPLE_LIMIT", "QUICK_CHECK_LIMIT", "CANCELLED", "NOT_TESTED"}:
+        return "not_tested"
+    return "other"
 
 
 def classify_probe_error(exc: BaseException) -> tuple[str, str]:
@@ -1075,15 +1359,40 @@ def api_delay(
 ) -> DelayResult:
     query = urllib.parse.urlencode({"url": url, "timeout": timeout_ms, "expected": expected})
     path = f"/proxies/{urllib.parse.quote(node.runtime_name, safe='')}/delay?{query}"
+    host = (urllib.parse.urlsplit(url).hostname or "unknown").casefold()
+    limiter = _endpoint_limiter(host)
     try:
-        payload = json.loads(runtime._request(path, timeout=(timeout_ms / 1000) + 3).decode("utf-8"))
+        with limiter:
+            payload = json.loads(
+                runtime._request(path, timeout=(timeout_ms / 1000) + 3).decode("utf-8")
+            )
         delay = int(payload["delay"])
         if delay < 0:
             raise ValueError("invalid delay")
         return DelayResult(True, delay)
-    except (OSError, ValueError, KeyError, json.JSONDecodeError, urllib.error.URLError, urllib.error.HTTPError) as exc:
+    except urllib.error.HTTPError as exc:
+        status = int(getattr(exc, "code", 0) or 0)
+        code = "CONTROLLER_API_503" if status == 503 else "CONTROLLER_API_ERROR"
+        summary = (
+            "Локальный API Mihomo не смог выполнить upstream-проверку (HTTP 503)"
+            if status == 503
+            else f"Локальный API Mihomo вернул HTTP {status or 'ошибку'}"
+        )
+        return DelayResult(
+            False,
+            error_code=code,
+            error_summary=summary,
+            error_category="controller_api",
+            controller_http_status=status or None,
+        )
+    except (OSError, ValueError, KeyError, json.JSONDecodeError, urllib.error.URLError) as exc:
         code, summary = classify_probe_error(exc)
-        return DelayResult(False, error_code=code, error_summary=summary)
+        return DelayResult(
+            False,
+            error_code=code,
+            error_summary=summary,
+            error_category=error_category_for_code(code),
+        )
 
 
 def _probe_base_node(
@@ -1093,8 +1402,10 @@ def _probe_base_node(
     attempts: int,
     timeout_ms: int,
     cancel_event: threading.Event,
+    minimum_successes: int | None = None,
 ) -> NodeResult:
     result = NodeResult(node=node, base_attempts=attempts)
+    required_successes = attempts if minimum_successes is None else max(1, minimum_successes)
     if cancel_event.is_set():
         result.error_code = "CANCELLED"
         result.error_summary = "Проверка отменена"
@@ -1110,8 +1421,9 @@ def _probe_base_node(
             result.error_code = "CANCELLED"
             result.error_summary = "Проверка отменена"
             return result
-        url, expected = BASE_TESTS[attempt % len(BASE_TESTS)]
+        endpoint_key, url, expected = BASE_TESTS[attempt % len(BASE_TESTS)]
         probe = api_delay(runtime, node, url=url, timeout_ms=timeout_ms, expected=expected)
+        result.base_endpoint_results.setdefault(endpoint_key, []).append(probe)
         if probe.success and probe.latency_ms is not None:
             delays.append(probe.latency_ms)
         else:
@@ -1121,12 +1433,18 @@ def _probe_base_node(
         result.base_latency_ms = round(statistics.median(delays))
     if len(delays) != attempts:
         first = base_errors[0] if base_errors else DelayResult(False, error_code="HTTPS_CHECK_FAILED")
-        result.overall_status = "failed"
-        result.base_error_code = first.error_code or "HTTPS_CHECK_FAILED"
-        result.base_error_summary = first.error_summary or "Не все HTTPS-прогоны успешны"
-        result.error_code = result.base_error_code
-        result.error_summary = result.base_error_summary
-        return result
+        if len(delays) >= required_successes:
+            result.base_error_code = "UNSTABLE_BASE_HTTPS"
+            result.base_error_summary = f"Нестабильный базовый HTTPS: {len(delays)}/{attempts}"
+            result.error_category = "network"
+        else:
+            result.overall_status = "failed"
+            result.base_error_code = first.error_code or "HTTPS_CHECK_FAILED"
+            result.base_error_summary = first.error_summary or "Не все HTTPS-прогоны успешны"
+            result.error_code = result.base_error_code
+            result.error_summary = result.base_error_summary
+            result.error_category = first.error_category or error_category_for_code(result.error_code)
+            return result
     return result
 
 
@@ -1161,6 +1479,8 @@ def _probe_services_node(
                 "failed",
                 error_code=probe.error_code,
                 error_summary=probe.error_summary,
+                error_category=probe.error_category or error_category_for_code(probe.error_code),
+                controller_http_status=probe.controller_http_status,
             )
         if service_step_callback is not None:
             service_step_callback()
@@ -1168,6 +1488,12 @@ def _probe_services_node(
         result.overall_status = "partial"
         result.error_code = "SITE_PARTIAL"
         result.error_summary = sanitize_text("Недоступны: " + ", ".join(failed_services))
+        result.error_category = "target_service"
+    elif result.base_successes < result.base_attempts:
+        result.overall_status = "partial"
+        result.error_code = "UNSTABLE_BASE_HTTPS"
+        result.error_summary = f"Нестабильный базовый HTTPS: {result.base_successes}/{result.base_attempts}"
+        result.error_category = "network"
     else:
         result.overall_status = "good"
     return result
@@ -1201,9 +1527,188 @@ def _probe_node(
     )
 
 
+def _run_base_probes_adaptive(
+    runtime: MihomoRuntime,
+    nodes: Sequence[NodeRecord],
+    *,
+    attempts: int,
+    timeout_ms: int,
+    workers: int,
+    minimum_successes: int,
+    cancel_event: threading.Event,
+    progress_callback: Callable[[int, int, int], None] | None = None,
+) -> tuple[list[NodeResult], int, list[dict[str, object]]]:
+    """Run a bounded queue and reduce concurrency after an early failure storm."""
+    if not nodes:
+        return [], workers, []
+    effective_workers = min(workers, len(nodes))
+    current_limit = effective_workers
+    adaptive_events: list[dict[str, object]] = []
+    results: list[NodeResult] = []
+    timeout_like = 0
+    observed = 0
+    iterator = iter(nodes)
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=max(1, effective_workers),
+        thread_name_prefix="wireveil-mihomo-https",
+    )
+    active: dict[concurrent.futures.Future[NodeResult], NodeRecord] = {}
+
+    def submit_one() -> bool:
+        if cancel_event.is_set():
+            return False
+        try:
+            node = next(iterator)
+        except StopIteration:
+            return False
+        future = executor.submit(
+            _probe_base_node,
+            runtime,
+            node,
+            attempts=attempts,
+            timeout_ms=timeout_ms,
+            cancel_event=cancel_event,
+            minimum_successes=minimum_successes,
+        )
+        active[future] = node
+        return True
+
+    try:
+        while len(active) < current_limit and submit_one():
+            pass
+        while active:
+            completed, _pending = concurrent.futures.wait(
+                tuple(active), return_when=concurrent.futures.FIRST_COMPLETED
+            )
+            for future in completed:
+                node = active.pop(future)
+                if future.cancelled():
+                    continue
+                try:
+                    result = future.result()
+                except Exception as exc:  # isolate one worker failure
+                    code, summary = classify_probe_error(exc)
+                    result = NodeResult(
+                        node,
+                        overall_status="failed",
+                        error_code=code,
+                        error_summary=summary,
+                        error_category=error_category_for_code(code),
+                    )
+                results.append(result)
+                observed += 1
+                failure_codes = {
+                    item.error_code
+                    for endpoint_results in result.base_endpoint_results.values()
+                    for item in endpoint_results
+                    if not item.success
+                }
+                if failure_codes & {"TIMEOUT", "PROXY_CONNECT_FAILED", "CONTROLLER_API_503"}:
+                    timeout_like += 1
+                if progress_callback is not None:
+                    progress_callback(len(results), len(nodes), current_limit)
+
+            decision_window = min(16, len(nodes))
+            if (
+                current_limit > 8
+                and observed >= max(8, decision_window)
+                and timeout_like / max(1, observed) >= 0.50
+            ):
+                previous = current_limit
+                current_limit = 8
+                adaptive_events.append(
+                    {
+                        "event": "concurrency_reduced",
+                        "from": previous,
+                        "to": 8,
+                        "reason": "timeout_or_controller_error_storm",
+                        "observed": observed,
+                        "affected": timeout_like,
+                    }
+                )
+            if cancel_event.is_set():
+                for future in active:
+                    future.cancel()
+            while len(active) < current_limit and submit_one():
+                pass
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+    return results, current_limit, adaptive_events
+
+
+def _run_service_probes_bounded(
+    runtime: MihomoRuntime,
+    base_results: Sequence[NodeResult],
+    *,
+    services: Sequence[ServiceDefinition],
+    timeout_ms: int,
+    cancel_event: threading.Event,
+    service_step_callback: Callable[[], None] | None = None,
+) -> list[NodeResult]:
+    """Keep at most eight node-level service tasks queued at a time."""
+    if not base_results:
+        return []
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(SERVICE_WORKERS_MAX, len(base_results)),
+        thread_name_prefix="wireveil-mihomo-services",
+    )
+    iterator = iter(base_results)
+    active: dict[concurrent.futures.Future[NodeResult], NodeResult] = {}
+    completed_results: list[NodeResult] = []
+
+    def submit_one() -> bool:
+        if cancel_event.is_set():
+            return False
+        try:
+            result = next(iterator)
+        except StopIteration:
+            return False
+        future = executor.submit(
+            _probe_services_node,
+            runtime,
+            result,
+            services=services,
+            timeout_ms=timeout_ms,
+            cancel_event=cancel_event,
+            service_step_callback=service_step_callback,
+        )
+        active[future] = result
+        return True
+
+    try:
+        while len(active) < SERVICE_WORKERS_MAX and submit_one():
+            pass
+        while active:
+            done, _pending = concurrent.futures.wait(
+                tuple(active), return_when=concurrent.futures.FIRST_COMPLETED
+            )
+            for future in done:
+                original = active.pop(future)
+                if future.cancelled():
+                    continue
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    code, summary = classify_probe_error(exc)
+                    original.overall_status = "failed"
+                    original.error_code = code
+                    original.error_summary = summary
+                    original.error_category = error_category_for_code(code)
+                    result = original
+                completed_results.append(result)
+            if cancel_event.is_set():
+                for future in active:
+                    future.cancel()
+            while len(active) < SERVICE_WORKERS_MAX and submit_one():
+                pass
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+    return completed_results
+
+
 def _direct_baseline(timeout_ms: int) -> str:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    request = urllib.request.Request(BASE_TESTS[0][0], headers={"User-Agent": "WireVeilChecker/1.0"})
+    request = urllib.request.Request(BASE_TESTS[0][1], headers={"User-Agent": "WireVeilChecker/1.0"})
     try:
         with opener.open(request, timeout=timeout_ms / 1000) as response:
             return "ok" if int(response.getcode()) == 204 else "failed"
@@ -1245,8 +1750,11 @@ class BatchRunner:
         selected_services: Sequence[str] = DEFAULT_SERVICES,
         attempts: int = 2,
         timeout_ms: int = 8_000,
-        workers: int = 8,
+        workers: int = BASE_WORKERS_DEFAULT,
         node_limit: int | None = None,
+        per_source_limit: int | None = None,
+        sampling_seed: str = "wireveil-default",
+        base_policy: str = "strict",
         source_callback: Callable[[ParsedSource], None] | None = None,
         node_callback: Callable[[int, int, NodeResult], None] | None = None,
         progress_callback: Callable[[ProgressUpdate], None] | None = None,
@@ -1257,56 +1765,97 @@ class BatchRunner:
             raise MihomoCheckError("INVALID_SETTINGS", "Число HTTPS-прогонов должно быть от 2 до 5")
         if not 1_000 <= timeout_ms <= 60_000:
             raise MihomoCheckError("INVALID_SETTINGS", "Тайм-аут должен быть от 1 до 60 секунд")
-        if not 1 <= workers <= 32:
-            raise MihomoCheckError("INVALID_SETTINGS", "Параллельность должна быть от 1 до 32")
+        if not 1 <= workers <= 24:
+            raise MihomoCheckError("INVALID_SETTINGS", "Параллельность должна быть от 1 до 24")
         if node_limit is not None and not 1 <= node_limit <= MAX_NODES:
             raise MihomoCheckError("INVALID_SETTINGS", "Лимит узлов должен быть от 1 до 20000")
+        if per_source_limit is not None and not 1 <= per_source_limit <= MAX_NODES:
+            raise MihomoCheckError("INVALID_SETTINGS", "Лимит на источник должен быть от 1 до 20000")
+        if base_policy not in {"strict", "one_ok"}:
+            raise MihomoCheckError("INVALID_SETTINGS", "Неизвестная политика базового HTTPS")
         try:
             services = tuple(SERVICE_BY_NAME[name] for name in dict.fromkeys(selected_services))
         except KeyError as exc:
             raise MihomoCheckError("INVALID_SETTINGS", f"Неизвестный сервис: {exc.args[0]}") from exc
 
         reporter = _ProgressReporter(progress_callback)
+        effective_workers = workers
+        adaptive_events: list[dict[str, object]] = []
         total_sources = len(source_specs)
-        loaded_sources: list[str | ParsedSource] = []
+        loaded_sources: list[str | ParsedSource | None] = [None] * total_sources
         reporter.emit("loading", 0, total_sources, "Подготовка загрузки источников", force=True)
-        for index, spec in enumerate(source_specs, start=1):
+
+        def load_one(spec: SourceSpec) -> str | ParsedSource:
             if self.cancel_event.is_set():
-                loaded: str | ParsedSource = ParsedSource(
+                return ParsedSource(
                     spec=spec,
                     fetch_status="cancelled",
                     parse_status="not_started",
                     issues=[SourceIssue("CANCELLED", "Загрузка отменена")],
                 )
-            else:
-                try:
-                    loaded = read_source_text(spec)
-                except MihomoCheckError as exc:
-                    loaded = ParsedSource(
-                        spec=spec,
-                        fetch_status="failed",
-                        parse_status="not_started",
-                        issues=[SourceIssue(exc.code, exc.summary)],
-                    )
-                except (OSError, UnicodeError) as exc:
-                    loaded = ParsedSource(
-                        spec=spec,
-                        fetch_status="failed",
-                        parse_status="not_started",
-                        issues=[SourceIssue("SOURCE_FETCH_FAILED", sanitize_text(exc))],
-                    )
-            loaded_sources.append(loaded)
-            reporter.emit(
-                "loading",
-                index,
-                total_sources,
-                f"Источников загружено или обработано: {index} из {total_sources}",
-                force=total_sources <= 20,
-            )
+            try:
+                return read_source_text(spec)
+            except MihomoCheckError as exc:
+                return ParsedSource(
+                    spec=spec,
+                    fetch_status="failed",
+                    parse_status="not_started",
+                    issues=[SourceIssue(exc.code, exc.summary)],
+                )
+            except (OSError, UnicodeError) as exc:
+                return ParsedSource(
+                    spec=spec,
+                    fetch_status="failed",
+                    parse_status="not_started",
+                    issues=[SourceIssue("SOURCE_FETCH_FAILED", sanitize_text(exc))],
+                )
+            except Exception as exc:
+                return ParsedSource(
+                    spec=spec,
+                    fetch_status="failed",
+                    parse_status="not_started",
+                    issues=[SourceIssue("SOURCE_FETCH_FAILED", sanitize_text(exc))],
+                )
+
+        load_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(8, total_sources),
+            thread_name_prefix="wireveil-source",
+        )
+        load_futures = {
+            load_pool.submit(load_one, spec): position
+            for position, spec in enumerate(source_specs)
+        }
+        loaded_count = 0
+        try:
+            for future in concurrent.futures.as_completed(load_futures):
+                position = load_futures[future]
+                loaded_sources[position] = future.result()
+                loaded_count += 1
+                reporter.emit(
+                    "loading",
+                    loaded_count,
+                    total_sources,
+                    f"Источников загружено или обработано: {loaded_count} из {total_sources}",
+                    force=total_sources <= 20,
+                )
+                if self.cancel_event.is_set():
+                    for pending in load_futures:
+                        pending.cancel()
+        finally:
+            load_pool.shutdown(wait=True, cancel_futures=True)
+        for position, loaded in enumerate(loaded_sources):
+            if loaded is None:
+                loaded_sources[position] = ParsedSource(
+                    spec=source_specs[position],
+                    fetch_status="cancelled",
+                    parse_status="not_started",
+                    issues=[SourceIssue("CANCELLED", "Загрузка отменена")],
+                )
 
         parsed_sources: list[ParsedSource] = []
         reporter.emit("parsing", 0, total_sources, "Разбор YAML и параметров узлов", force=True)
         for index, (spec, loaded) in enumerate(zip(source_specs, loaded_sources), start=1):
+            assert loaded is not None
             if isinstance(loaded, ParsedSource):
                 parsed = loaded
             elif self.cancel_event.is_set():
@@ -1387,32 +1936,42 @@ class BatchRunner:
             if node_callback is not None:
                 node_callback(len(node_results), len(nodes), result)
 
-        selected_nodes = nodes if node_limit is None else nodes[:node_limit]
-        for node in nodes[len(selected_nodes):]:
-            add_result(
-                NodeResult(
-                    node=node,
-                    overall_status="not_tested",
-                    error_code="QUICK_CHECK_LIMIT",
-                    error_summary=f"Узел не входит в лимит быстрой проверки {node_limit}",
-                )
-            )
-
-        supported: list[NodeRecord] = []
-        for node in selected_nodes:
-            if node.supported:
-                supported.append(node)
-            else:
+        for node in nodes:
+            if not node.supported:
                 add_result(
                     NodeResult(
                         node=node,
                         overall_status="unsupported",
                         error_code=node.import_error_code,
                         error_summary=node.import_error_summary,
+                        error_category="unsupported" if node.import_error_code == "UNSUPPORTED_PROTOCOL" else "invalid_configuration",
                     )
                 )
+
+        selected_nodes, sampling = representative_sample(
+            nodes,
+            limit=node_limit,
+            seed=sampling_seed,
+            per_source_limit=per_source_limit,
+        )
+        selected_ids = {node.node_id for node in selected_nodes}
+        for node in nodes:
+            if not node.supported or node.node_id in selected_ids:
+                continue
+            add_result(
+                NodeResult(
+                    node=node,
+                    overall_status="not_tested",
+                    error_code="SAMPLE_LIMIT",
+                    error_summary="Узел не вошёл в репрезентативную выборку",
+                    error_category="not_tested",
+                )
+            )
+
+        supported = list(selected_nodes)
         direct_baseline = "skipped"
         engine_version = "unknown"
+        runtime_log_summary: str | None = None
         validation_total = len(supported)
         validation_processed = 0
         validation_results: list[NodeResult] = []
@@ -1445,8 +2004,8 @@ class BatchRunner:
             validation_processed,
             validation_total,
             (
-                f"Валидация завершена; принято {len(supported)}, отклонено "
-                f"{sum(item.overall_status == 'unsupported' for item in validation_results)}, "
+                f"Валидация завершена; принято {len(supported)}, невалидно "
+                f"{sum(item.error_category == 'invalid_configuration' for item in validation_results)}, "
                 f"не проверено {sum(item.overall_status == 'not_tested' for item in validation_results)}"
             ),
             force=True,
@@ -1495,52 +2054,44 @@ class BatchRunner:
 
                     probe_nodes = [] if self.cancel_event.is_set() else supported
                     base_passed: dict[str, NodeResult] = {}
-                    executor = concurrent.futures.ThreadPoolExecutor(
-                        max_workers=max(1, min(workers, len(probe_nodes))),
-                        thread_name_prefix="wireveil-mihomo-https",
+                    minimum_successes = attempts if base_policy == "strict" else 1
+
+                    def base_progress(done: int, total: int, concurrency: int) -> None:
+                        reporter.emit(
+                            "https",
+                            done,
+                            total,
+                            f"Базовый HTTPS обработан: {done} из {total}; параллельность {concurrency}",
+                        )
+
+                    base_results, effective_workers, adaptive_events = _run_base_probes_adaptive(
+                        runtime,
+                        probe_nodes,
+                        attempts=attempts,
+                        timeout_ms=timeout_ms,
+                        workers=workers,
+                        minimum_successes=minimum_successes,
+                        cancel_event=self.cancel_event,
+                        progress_callback=base_progress,
                     )
-                    futures = {
-                        executor.submit(
-                            _probe_base_node,
-                            runtime,
-                            node,
-                            attempts=attempts,
-                            timeout_ms=timeout_ms,
-                            cancel_event=self.cancel_event,
-                        ): node
-                        for node in probe_nodes
-                    }
-                    base_done = 0
-                    try:
-                        for future in concurrent.futures.as_completed(futures):
-                            node = futures[future]
-                            if future.cancelled():
-                                continue
-                            try:
-                                result = future.result()
-                            except Exception as exc:  # keep one bad node from aborting the batch
-                                code, summary = classify_probe_error(exc)
-                                result = NodeResult(node, overall_status="failed", error_code=code, error_summary=summary)
-                            base_done += 1
-                            if result.base_successes == attempts and not self.cancel_event.is_set():
-                                base_passed[node.node_id] = result
-                            else:
-                                if self.cancel_event.is_set() and result.error_code is None:
-                                    result.overall_status = "not_tested"
-                                    result.error_code = "CANCELLED"
-                                    result.error_summary = "Проверка остановлена пользователем"
-                                add_result(result)
-                            reporter.emit(
-                                "https",
-                                base_done,
-                                len(supported),
-                                f"Базовый HTTPS обработан: {base_done} из {len(supported)}",
-                            )
-                            if self.cancel_event.is_set():
-                                for pending in futures:
-                                    pending.cancel()
-                    finally:
-                        executor.shutdown(wait=True, cancel_futures=True)
+                    if adaptive_events:
+                        reporter.emit(
+                            "https",
+                            len(base_results),
+                            len(supported),
+                            "Параллельность автоматически снижена до 8 из-за шквала тайм-аутов/API 503",
+                            force=True,
+                        )
+                    for result in base_results:
+                        if result.base_successes >= minimum_successes and not self.cancel_event.is_set():
+                            base_passed[result.node.node_id] = result
+                        else:
+                            if self.cancel_event.is_set() and result.error_code is None:
+                                result.overall_status = "not_tested"
+                                result.error_code = "CANCELLED"
+                                result.error_summary = "Проверка остановлена пользователем"
+                                result.error_category = "not_tested"
+                            add_result(result)
 
                     for node in supported:
                         if node.node_id in completed_ids or node.node_id in base_passed:
@@ -1570,7 +2121,13 @@ class BatchRunner:
                     elif not services:
                         reporter.emit("services", 0, 0, "Проверки сервисов не выбраны", force=True)
                         for result in base_passed.values():
-                            result.overall_status = "good"
+                            if result.base_successes < result.base_attempts:
+                                result.overall_status = "partial"
+                                result.error_code = "UNSTABLE_BASE_HTTPS"
+                                result.error_summary = f"Нестабильный базовый HTTPS: {result.base_successes}/{result.base_attempts}"
+                                result.error_category = "network"
+                            else:
+                                result.overall_status = "good"
                             add_result(result)
                         reporter.emit("services", 1, 1, "Узлы отмечены по базовому HTTPS", force=True)
                     elif base_passed:
@@ -1596,41 +2153,16 @@ class BatchRunner:
                             f"Проверка {len(services)} сервисов для {len(base_passed)} узлов",
                             force=True,
                         )
-                        service_executor = concurrent.futures.ThreadPoolExecutor(
-                            max_workers=min(workers, len(base_passed)),
-                            thread_name_prefix="wireveil-mihomo-services",
+                        service_results = _run_service_probes_bounded(
+                            runtime,
+                            list(base_passed.values()),
+                            services=services,
+                            timeout_ms=timeout_ms,
+                            cancel_event=self.cancel_event,
+                            service_step_callback=service_step,
                         )
-                        service_futures = {
-                            service_executor.submit(
-                                _probe_services_node,
-                                runtime,
-                                result,
-                                services=services,
-                                timeout_ms=timeout_ms,
-                                cancel_event=self.cancel_event,
-                                service_step_callback=service_step,
-                            ): result
-                            for result in base_passed.values()
-                        }
-                        try:
-                            for future in concurrent.futures.as_completed(service_futures):
-                                original = service_futures[future]
-                                if future.cancelled():
-                                    continue
-                                try:
-                                    result = future.result()
-                                except Exception as exc:
-                                    code, summary = classify_probe_error(exc)
-                                    original.overall_status = "failed"
-                                    original.error_code = code
-                                    original.error_summary = summary
-                                    result = original
-                                add_result(result)
-                                if self.cancel_event.is_set():
-                                    for pending in service_futures:
-                                        pending.cancel()
-                        finally:
-                            service_executor.shutdown(wait=True, cancel_futures=True)
+                        for result in service_results:
+                            add_result(result)
                         for result in base_passed.values():
                             if result.node.node_id in completed_ids:
                                 continue
@@ -1649,6 +2181,7 @@ class BatchRunner:
                         reporter.emit("services", 1, 1, "Нет узлов для сервисных проверок", force=True)
             finally:
                 runtime.stop()
+                runtime_log_summary = getattr(runtime, "log_summary", None)
                 with self._lock:
                     self._runtime = None
         elif supported:
@@ -1689,6 +2222,14 @@ class BatchRunner:
             timeout_ms=timeout_ms,
             sources=parsed_sources,
             node_results=node_results,
+            sampling={
+                **sampling,
+                "base_policy": base_policy,
+            },
+            requested_workers=workers,
+            effective_workers=effective_workers,
+            adaptive_events=adaptive_events,
+            mihomo_stderr_summary=runtime_log_summary,
         )
         reporter.emit(
             "completion",
@@ -1708,6 +2249,25 @@ def _source_counts(report: BatchReport, source_id: str) -> dict[str, int]:
     return counts
 
 
+def source_age_days(metadata: Mapping[str, str], reference: str | None = None) -> int | None:
+    value = next(
+        (metadata.get(key) for key in ("last_repo_push", "last_updated", "updated_at") if metadata.get(key)),
+        None,
+    )
+    if not value:
+        return None
+    try:
+        checked = datetime.fromisoformat((reference or datetime.now().astimezone().isoformat()).replace("Z", "+00:00"))
+        updated = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        if checked.tzinfo is not None and updated.tzinfo is None:
+            updated = updated.replace(tzinfo=checked.tzinfo)
+        if checked.tzinfo is None and updated.tzinfo is not None:
+            checked = checked.replace(tzinfo=updated.tzinfo)
+        return max(0, (checked - updated).days)
+    except (TypeError, ValueError):
+        return None
+
+
 def report_payload(report: BatchReport) -> dict[str, object]:
     sources: list[dict[str, object]] = []
     for parsed in report.sources:
@@ -1718,9 +2278,16 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                 "name": sanitize_text(parsed.spec.name, 160),
                 "kind": parsed.spec.kind,
                 "source_display": parsed.spec.display,
+                "provenance": {
+                    sanitize_text(key, 80): sanitize_text(value, 300)
+                    for key, value in parsed.spec.metadata.items()
+                },
+                "age_days": source_age_days(parsed.spec.metadata, report.generated_at),
                 "fetch_status": parsed.fetch_status,
                 "parse_status": parsed.parse_status,
+                "download_bytes": parsed.download_bytes,
                 "total_entries": parsed.total_entries,
+                "protocol_counts": dict(sorted(parsed.protocol_counts.items())),
                 "unique_nodes": len({node.node_id for node in parsed.nodes}),
                 "good_nodes": counts["good"],
                 "partial_nodes": counts["partial"],
@@ -1743,6 +2310,19 @@ def report_payload(report: BatchReport) -> dict[str, object]:
     nodes: list[dict[str, object]] = []
     for result in report.node_results:
         node = result.node
+        endpoint_results: dict[str, object] = {}
+        for endpoint_key, attempts in result.base_endpoint_results.items():
+            latencies = [item.latency_ms for item in attempts if item.success and item.latency_ms is not None]
+            first_error = next((item for item in attempts if not item.success), None)
+            endpoint_results[endpoint_key] = {
+                "successes": len(latencies),
+                "attempts": len(attempts),
+                "latency_ms": round(statistics.median(latencies)) if latencies else None,
+                "error_code": first_error.error_code if first_error else None,
+                "error_category": first_error.error_category if first_error else None,
+                "controller_http_status": first_error.controller_http_status if first_error else None,
+                "error_summary": sanitize_text(first_error.error_summary) if first_error and first_error.error_summary else None,
+            }
         nodes.append(
             {
                 "node_id": node.node_id,
@@ -1759,7 +2339,9 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                     "attempts": result.base_attempts,
                     "latency_ms": result.base_latency_ms,
                     "error_code": result.base_error_code,
+                    "error_category": error_category_for_code(result.base_error_code),
                     "error_summary": sanitize_text(result.base_error_summary) if result.base_error_summary else None,
+                    "endpoints": endpoint_results,
                 },
                 "services": {
                     name: {
@@ -1767,11 +2349,14 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                         "latency_ms": service.latency_ms,
                         "http_status": service.http_status,
                         "error_code": service.error_code,
+                        "error_category": service.error_category or error_category_for_code(service.error_code),
+                        "controller_http_status": service.controller_http_status,
                         "error_summary": sanitize_text(service.error_summary) if service.error_summary else None,
                     }
                     for name, service in result.services.items()
                 },
                 "error_code": result.error_code,
+                "error_category": result.error_category or error_category_for_code(result.error_code),
                 "error_summary": sanitize_text(result.error_summary) if result.error_summary else None,
             }
         )
@@ -1790,7 +2375,18 @@ def report_payload(report: BatchReport) -> dict[str, object]:
             "selected_services": list(report.selected_services),
             "attempts": report.attempts,
             "timeout_ms": report.timeout_ms,
+            "base_workers_requested": report.requested_workers,
+            "base_workers_effective": report.effective_workers,
+            "service_workers_limit": SERVICE_WORKERS_MAX,
+            "adaptive_events": report.adaptive_events,
         },
+        "sampling": report.sampling,
+        "capability_matrix": {
+            "runtime_tested_protocols": sorted(SUPPORTED_PROTOCOLS),
+            "classified_only": ["anytls", "http", "socks5", "ssr", "wireguard"],
+            "note": "classified_only protocols are reported as unsupported and are not probed",
+        },
+        "mihomo_stderr_summary": sanitize_text(report.mihomo_stderr_summary, 8_000) if report.mihomo_stderr_summary else None,
         "sources": sources,
         "nodes": nodes,
         "totals": {
@@ -1820,11 +2416,13 @@ def summary_markdown(report: BatchReport) -> str:
         f"- Статусы: good {totals['good']}, partial {totals['partial']}, failed {totals['failed']}, unsupported {totals['unsupported']}, not_tested {totals['not_tested']}",
         f"- Прямой HTTPS baseline: {report.direct_baseline}",
         f"- Выбранные сервисы: {', '.join(report.selected_services) or 'нет'}",
+        f"- Семплирование: {report.sampling.get('strategy', 'не указано')}, seed `{sanitize_text(report.sampling.get('seed', '—'), 80)}`; выбрано {report.sampling.get('selected_nodes', '—')}",
+        f"- Параллельность HTTPS: запрошено {report.requested_workers}, фактически {report.effective_workers}; сервисы не более {SERVICE_WORKERS_MAX}",
         "",
         "## Источники",
         "",
-        "| ID | Имя | Загрузка / разбор | Всего | Good | Partial | Failed | Ошибка |",
-        "|---|---|---:|---:|---:|---:|---:|---|",
+        "| ID | Имя | Загрузка / разбор | Байт | Протоколы | Всего | Good | Partial | Failed | Unsupported | Not tested | Ошибка |",
+        "|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for parsed in report.sources:
         counts = _source_counts(report, parsed.spec.source_id)
@@ -1832,18 +2430,26 @@ def summary_markdown(report: BatchReport) -> str:
         error = sanitize_text(parsed.error_code or "—", 80)
         lines.append(
             f"| {parsed.spec.source_id} | {safe_name} | {parsed.fetch_status} / {parsed.parse_status} | "
-            f"{parsed.total_entries} | {counts['good']} | {counts['partial']} | {counts['failed']} | {error} |"
+            f"{parsed.download_bytes or 0} | {sanitize_text(', '.join(f'{key}:{value}' for key, value in sorted(parsed.protocol_counts.items())), 200)} | "
+            f"{parsed.total_entries} | {counts['good']} | {counts['partial']} | {counts['failed']} | "
+            f"{counts['unsupported']} | {counts['not_tested']} | {error} |"
         )
     error_counts: dict[str, int] = {}
+    category_counts: dict[str, int] = {}
     for result in report.node_results:
         if result.error_code:
             error_counts[result.error_code] = error_counts.get(result.error_code, 0) + 1
+            category = result.error_category or error_category_for_code(result.error_code) or "other"
+            category_counts[category] = category_counts.get(category, 0) + 1
     lines.extend(["", "## Наиболее частые ошибки", ""])
     if error_counts:
         for code, count in sorted(error_counts.items(), key=lambda item: (-item[1], item[0])):
             lines.append(f"- `{code}`: {count}")
     else:
         lines.append("- Ошибок узлов не зафиксировано.")
+    lines.extend(["", "## Категории причин", ""])
+    for category, count in sorted(category_counts.items(), key=lambda item: (-item[1], item[0])):
+        lines.append(f"- `{category}`: {count}")
     lines.extend(
         [
             "",
@@ -1866,11 +2472,12 @@ def nodes_csv(report: BatchReport) -> str:
     header = [
         "source_id", "source_name", "node_id", "node_name", "protocol", "endpoint",
         "overall_status", "https_latency_ms", "https_successes", "https_attempts",
+        "gstatic_status", "gstatic_latency_ms", "cloudflare_status", "cloudflare_latency_ms",
     ]
     for name in service_names:
         key = SERVICE_BY_NAME[name].key
         header.extend((f"{key}_status", f"{key}_latency_ms"))
-    header.extend(("error_code", "error_summary"))
+    header.extend(("error_category", "error_code", "error_summary"))
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(header)
     source_names = {parsed.spec.source_id: sanitize_text(parsed.spec.name, 160) for parsed in report.sources}
@@ -1898,10 +2505,19 @@ def nodes_csv(report: BatchReport) -> str:
                 result.base_successes,
                 result.base_attempts,
             ]
+            for endpoint_key in ("gstatic", "cloudflare"):
+                attempts = result.base_endpoint_results.get(endpoint_key, [])
+                successes = [item for item in attempts if item.success]
+                latency = next((item.latency_ms for item in successes if item.latency_ms is not None), "")
+                row.extend((f"{len(successes)}/{len(attempts)}" if attempts else "not_tested", latency))
             for name in service_names:
                 service = result.services.get(name)
                 row.extend((service.status if service else "not_tested", service.latency_ms if service and service.latency_ms is not None else ""))
-            row.extend((result.error_code or "", sanitize_text(result.error_summary or "")))
+            row.extend((
+                result.error_category or error_category_for_code(result.error_code) or "",
+                result.error_code or "",
+                sanitize_text(result.error_summary or ""),
+            ))
             writer.writerow([safe_cell(value) for value in row])
     return "\ufeff" + output.getvalue()
 
@@ -1976,7 +2592,13 @@ def save_source_specs(path: Path, sources: Sequence[SourceSpec]) -> None:
         "version": SOURCE_STORE_VERSION,
         "warning": "Contains private subscription URLs, paths, or pasted YAML. Do not share.",
         "sources": [
-            {"source_id": item.source_id, "name": item.name, "kind": item.kind, "value": item.value}
+            {
+                "source_id": item.source_id,
+                "name": item.name,
+                "kind": item.kind,
+                "value": item.value,
+                "metadata": dict(item.metadata),
+            }
             for item in sources
         ],
     }
@@ -2010,5 +2632,15 @@ def load_source_specs(path: Path) -> list[SourceSpec]:
         ):
             continue
         seen_ids.add(values[0])
-        sources.append(SourceSpec(*values))
+        raw_metadata = raw.get("metadata")
+        metadata = (
+            {
+                str(key): str(value)
+                for key, value in raw_metadata.items()
+                if isinstance(key, str) and isinstance(value, (str, int, float, bool))
+            }
+            if isinstance(raw_metadata, dict)
+            else {}
+        )
+        sources.append(SourceSpec(*values, metadata))
     return sources

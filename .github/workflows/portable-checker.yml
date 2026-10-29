@@ -12,6 +12,7 @@ on:
       - "scripts/healthcheck.py"
       - "scripts/local_checker.py"
       - "scripts/mihomo_checker.py"
+      - "scripts/mihomo_benchmark.py"
       - "scripts/mihomo_smoke.py"
       - "requirements.txt"
       - "tests/**"
@@ -21,7 +22,7 @@ on:
       - "THIRD-PARTY-NOTICES.md"
       - ".github/workflows/portable-checker.yml"
   pull_request:
-    branches: [main]
+    branches: [main, codex/mihomo-checker]
     paths:
       - "checker_app.py"
       - "mihomo_tab.py"
@@ -29,6 +30,7 @@ on:
       - "scripts/healthcheck.py"
       - "scripts/local_checker.py"
       - "scripts/mihomo_checker.py"
+      - "scripts/mihomo_benchmark.py"
       - "scripts/mihomo_smoke.py"
       - "tests/**"
       - "assets/**"
@@ -111,6 +113,10 @@ jobs:
           }
           "WIREVEIL_MIHOMO=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WIREVEIL_MIHOMO_LICENSE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Smoke test real Mihomo runtime
+        shell: pwsh
+        run: python scripts/mihomo_smoke.py "$env:WIREVEIL_MIHOMO"
 
       - name: Build portable application
         shell: pwsh
