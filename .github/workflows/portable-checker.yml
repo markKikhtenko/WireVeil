@@ -7,12 +7,37 @@ on:
       - "checker-v*"
     paths:
       - "checker_app.py"
+      - "mihomo_tab.py"
       - "scripts/build.py"
       - "scripts/healthcheck.py"
       - "scripts/local_checker.py"
+      - "scripts/mihomo_checker.py"
+      - "scripts/mihomo_benchmark.py"
+      - "scripts/mihomo_smoke.py"
+      - "requirements.txt"
       - "tests/**"
       - "assets/**"
       - "PORTABLE-CHECKER.md"
+      - "README.md"
+      - "THIRD-PARTY-NOTICES.md"
+      - ".github/workflows/portable-checker.yml"
+  pull_request:
+    branches: [main, codex/mihomo-checker]
+    paths:
+      - "checker_app.py"
+      - "mihomo_tab.py"
+      - "scripts/build.py"
+      - "scripts/healthcheck.py"
+      - "scripts/local_checker.py"
+      - "scripts/mihomo_checker.py"
+      - "scripts/mihomo_benchmark.py"
+      - "scripts/mihomo_smoke.py"
+      - "tests/**"
+      - "assets/**"
+      - "requirements.txt"
+      - "PORTABLE-CHECKER.md"
+      - "README.md"
+      - "THIRD-PARTY-NOTICES.md"
       - ".github/workflows/portable-checker.yml"
   workflow_dispatch:
 
@@ -32,11 +57,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install pinned dependencies and packager
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pyinstaller==6.16.0
+
       - name: Run offline tests
         run: python -m unittest discover -s tests -v
-
-      - name: Install pinned packager
-        run: python -m pip install --disable-pip-version-check pyinstaller==6.16.0
 
       - name: Download pinned sing-box runtime
         shell: pwsh
@@ -55,6 +80,44 @@ jobs:
           $runtime = Join-Path $env:RUNNER_TEMP "sing-box-$env:SING_BOX_VERSION-windows-amd64"
           "WIREVEIL_RUNTIME=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Download pinned Mihomo runtime
+        shell: pwsh
+        env:
+          MIHOMO_VERSION: "1.19.33"
+          MIHOMO_ARCHIVE_SHA256: "6ab2180875f9f6fff8b19386d760daec257f66b45f72b3afc650634272fa837a"
+          MIHOMO_LICENSE_SHA256: "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "mihomo.zip"
+          $url = "https://github.com/MetaCubeX/mihomo/releases/download/v$env:MIHOMO_VERSION/mihomo-windows-amd64-v$env:MIHOMO_VERSION.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:MIHOMO_ARCHIVE_SHA256) {
+            throw "Mihomo archive checksum mismatch: $actual"
+          }
+          $runtime = Join-Path $env:RUNNER_TEMP "wireveil-mihomo"
+          New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+          Expand-Archive -LiteralPath $archive -DestinationPath $runtime
+          $source = Get-ChildItem -LiteralPath $runtime -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $source) {
+            throw "Mihomo executable was not found in the verified archive."
+          }
+          $target = Join-Path $runtime "mihomo.exe"
+          if ($source.FullName -ne $target) {
+            Copy-Item -LiteralPath $source.FullName -Destination $target
+          }
+          $license = Join-Path $runtime "LICENSE"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/v$env:MIHOMO_VERSION/LICENSE" -OutFile $license
+          $licenseHash = (Get-FileHash -LiteralPath $license -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($licenseHash -ne $env:MIHOMO_LICENSE_SHA256) {
+            throw "Mihomo license checksum mismatch: $licenseHash"
+          }
+          "WIREVEIL_MIHOMO=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WIREVEIL_MIHOMO_LICENSE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Smoke test real Mihomo runtime
+        shell: pwsh
+        run: python scripts/mihomo_smoke.py "$env:WIREVEIL_MIHOMO"
+
       - name: Build portable application
         shell: pwsh
         run: |
@@ -64,9 +127,12 @@ jobs:
             --add-data "assets\wireveil-icon.ico;." `
             --add-binary "$env:WIREVEIL_RUNTIME\sing-box.exe;." `
             --add-binary "$env:WIREVEIL_RUNTIME\libcronet.dll;." `
+            --add-binary "$env:WIREVEIL_MIHOMO;." `
             checker_app.py
           Copy-Item -LiteralPath PORTABLE-CHECKER.md -Destination dist\WireVeilChecker\README.txt
+          Copy-Item -LiteralPath THIRD-PARTY-NOTICES.md -Destination dist\WireVeilChecker\THIRD-PARTY-NOTICES.md
           Copy-Item -LiteralPath "$env:WIREVEIL_RUNTIME\LICENSE" -Destination dist\WireVeilChecker\sing-box-LICENSE.txt
+          Copy-Item -LiteralPath "$env:WIREVEIL_MIHOMO_LICENSE" -Destination dist\WireVeilChecker\mihomo-GPL-3.0.txt
 
       - name: Sign Windows binaries
         shell: pwsh
@@ -90,6 +156,7 @@ jobs:
             $targets = @(
               "dist\WireVeilChecker\WireVeilChecker.exe",
               "dist\WireVeilChecker\_internal\sing-box.exe",
+              "dist\WireVeilChecker\_internal\mihomo.exe",
               "dist\WireVeilChecker\_internal\libcronet.dll"
             )
             foreach ($target in $targets) {
