@@ -471,11 +471,11 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue(raw.endswith(b"\n"))
 
             readme = (root / "README.md").read_text(encoding="utf-8")
-            self.assertIn("### История обновлений", readme)
-            self.assertIn("### Вклад источников в текущую сборку", readme)
-            self.assertIn("11.08.2026 23:00 МСК", readme)
-            self.assertIn("xychart-beta", readme)
-            self.assertIn("| +7 | −0 | +7 |", readme)
+            self.assertIn("2026-08-11T23:00:00+03:00", readme)
+            self.assertIn("| Все протоколы |", readme)
+            self.assertNotIn("### История обновлений", readme)
+            self.assertNotIn("### Вклад источников", readme)
+            self.assertNotIn("xychart-beta", readme)
 
     def test_history_tracks_exact_additions_and_removals(self):
         with tempfile.TemporaryDirectory() as name:
@@ -517,7 +517,8 @@ class PublicationTests(unittest.TestCase):
                 history[-1]["changes_by_protocol"]["vless"],
             )
             readme = (root / "README.md").read_text(encoding="utf-8")
-            self.assertIn("VLESS +1/−1", readme)
+            self.assertNotIn("VLESS +1/−1", readme)
+            self.assertIn("| VLESS |", readme)
 
     def test_empty_result_cannot_overwrite_working_files(self):
         with tempfile.TemporaryDirectory() as name:
