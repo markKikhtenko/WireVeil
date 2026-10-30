@@ -17,10 +17,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from mihomo_tab import MihomoCheckerTab
-from scripts import build, healthcheck, local_checker
+from scripts import app_updater, build, healthcheck, local_checker
+from wireveil_version import APP_VERSION
 
 
-APP_TITLE = "WireVeil Checker"
+APP_TITLE = f"WireVeil Checker {APP_VERSION}"
 CONFIG_FILENAME = "WireVeilChecker.config.json"
 CONFIG_VERSION = 2
 SERVICE_COLUMN_BY_NAME = {
@@ -220,6 +221,8 @@ class WireVeilChecker(tk.Tk):
         self.events: queue.Queue[tuple] = queue.Queue()
         self.cancel_event = threading.Event()
         self.running = False
+        self.update_busy = False
+        self.update_downloading = False
         self.activity: str | None = None
         self.one_click_mode = False
         self.advanced_visible = False
@@ -415,7 +418,7 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(brand, text="WireVeil Checker", style="Brand.TLabel").pack(anchor="w")
         ttk.Label(
             brand,
-            text="Проверка прокси из вашей сети",
+            text=f"Проверка прокси из вашей сети · версия {APP_VERSION}",
             style="Subtitle.TLabel",
         ).pack(anchor="w")
         self.active_button = ttk.Button(
@@ -450,6 +453,14 @@ class WireVeilChecker(tk.Tk):
             style="Secondary.TButton",
         )
         self.copy_selected_button.pack(side="right", padx=(0, 5))
+        self.update_button = ttk.Button(
+            header,
+            text="↻ Обновить",
+            command=self._check_for_updates,
+            style="Secondary.TButton",
+        )
+        self.update_button.pack(side="right", padx=(0, 5))
+        self.update_buttons = [self.update_button]
 
         source_card = ttk.Frame(outer, style="Card.TFrame", padding=(10, 8))
         source_card.pack(fill="x", pady=(8, 6))
@@ -775,8 +786,126 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         ttk.Label(statusbar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
 
-        self.mihomo_tab = MihomoCheckerTab(mihomo_page)
+        self.mihomo_tab = MihomoCheckerTab(
+            mihomo_page, update_command=self._check_for_updates
+        )
         self.mihomo_tab.pack(fill="both", expand=True)
+        if self.mihomo_tab.update_button is not None:
+            self.update_buttons.append(self.mihomo_tab.update_button)
+
+    def _configure_update_buttons(self, *, text: str, state: str) -> None:
+        for button in self.update_buttons:
+            button.configure(text=text, state=state)
+
+    def _check_for_updates(self) -> None:
+        if self.update_busy or self.running or self.closing:
+            return
+        self.update_busy = True
+        self._configure_update_buttons(text="Проверка…", state="disabled")
+        self.status_var.set("Проверяем обновления WireVeil Checker…")
+        self._log(f"Проверка обновлений для версии {APP_VERSION}.")
+
+        def worker() -> None:
+            try:
+                release = app_updater.check_for_update(APP_VERSION)
+            except app_updater.UpdateError as exc:
+                self.events.put(("update_error", str(exc)))
+            else:
+                self.events.put(("update_checked", release))
+
+        threading.Thread(target=worker, daemon=True, name="wireveil-update-check").start()
+
+    def _finish_update_check(
+        self, release: app_updater.ReleaseUpdate | None
+    ) -> None:
+        if release is None:
+            self.update_busy = False
+            self._configure_update_buttons(text="↻ Обновить", state="normal")
+            self.status_var.set(f"Установлена актуальная версия {APP_VERSION}")
+            self._log("Новых стабильных версий нет.")
+            messagebox.showinfo(
+                APP_TITLE,
+                f"У вас установлена актуальная версия {APP_VERSION}.",
+                parent=self,
+            )
+            return
+
+        install = messagebox.askyesno(
+            APP_TITLE,
+            f"Доступна версия {release.version}.\n\n"
+            "Скачать и установить обновление сейчас? "
+            "После проверки файла приложение закроется, а установщик запустится автоматически.",
+            parent=self,
+        )
+        if not install:
+            self.update_busy = False
+            self._configure_update_buttons(text="↻ Обновить", state="normal")
+            self.status_var.set(f"Доступна версия {release.version}")
+            self._log(f"Обновление до {release.version} отложено пользователем.")
+            return
+
+        self._configure_update_buttons(text="Скачивание…", state="disabled")
+        self.status_var.set(f"Скачиваем WireVeil Checker {release.version}…")
+        self.update_downloading = True
+        self._cancel_background_timers()
+        self._set_running_controls(True)
+        self.stop_button.configure(state="disabled")
+
+        def progress(downloaded: int, total: int | None) -> None:
+            self.events.put(("update_progress", downloaded, total, release.version))
+
+        def worker() -> None:
+            try:
+                installer = app_updater.download_update(release, progress=progress)
+            except app_updater.UpdateError as exc:
+                self.events.put(("update_error", str(exc)))
+            else:
+                self.events.put(("update_downloaded", installer, release.version))
+
+        threading.Thread(target=worker, daemon=True, name="wireveil-update-download").start()
+
+    def _show_update_progress(
+        self, downloaded: int, total: int | None, version: str
+    ) -> None:
+        downloaded_mb = downloaded / (1024 * 1024)
+        if total:
+            total_mb = total / (1024 * 1024)
+            self.status_var.set(
+                f"Скачиваем версию {version}: {downloaded_mb:.1f} / {total_mb:.1f} МБ"
+            )
+        else:
+            self.status_var.set(
+                f"Скачиваем версию {version}: {downloaded_mb:.1f} МБ"
+            )
+
+    def _finish_update_download(self, installer: Path, version: str) -> None:
+        self._configure_update_buttons(text="Запуск установщика…", state="disabled")
+        self.status_var.set("Контрольная сумма верна. Запускаем установщик…")
+        try:
+            app_updater.launch_installer(installer)
+        except app_updater.UpdateError as exc:
+            self._finish_update_error(str(exc))
+            return
+        self._log(
+            f"Установщик версии {version} проверен и запущен; приложение закрывается."
+        )
+        self.closing = True
+        self.after(150, self._on_close)
+
+    def _finish_update_error(self, detail: str) -> None:
+        was_downloading = self.update_downloading
+        self.update_busy = False
+        self.update_downloading = False
+        self._configure_update_buttons(text="↻ Обновить", state="normal")
+        self.status_var.set("Не удалось обновить WireVeil Checker")
+        self._log(f"Ошибка обновления: {detail}")
+        if was_downloading:
+            self._set_running_controls(False)
+            self._restore_result_buttons()
+        if not self.closing:
+            if was_downloading:
+                self._schedule_background_checks()
+            messagebox.showerror(APP_TITLE, detail, parent=self)
 
     def _watch_settings(self) -> None:
         variables = (
@@ -1712,7 +1841,15 @@ class WireVeilChecker(tk.Tk):
             while True:
                 event = self.events.get_nowait()
                 kind = event[0]
-                if kind == "imported":
+                if kind == "update_checked":
+                    self._finish_update_check(event[1])
+                elif kind == "update_progress":
+                    self._show_update_progress(event[1], event[2], event[3])
+                elif kind == "update_downloaded":
+                    self._finish_update_download(event[1], event[2])
+                elif kind == "update_error":
+                    self._finish_update_error(event[1])
+                elif kind == "imported":
                     self.imported = event[1]
                     self._show_pending(self.imported.lines, event[2])
                     self.status_var.set(f"Подготовлено ключей: {len(self.imported.lines)}")
@@ -1840,6 +1977,10 @@ class WireVeilChecker(tk.Tk):
             self._schedule_background_checks()
 
     def _set_running_controls(self, running: bool) -> None:
+        for button in self.update_buttons:
+            button.configure(
+                state="disabled" if running or self.update_busy else "normal"
+            )
         self.start_button.configure(state="disabled" if running else "normal")
         self.stop_button.configure(state="normal" if running else "disabled")
         self.file_button.configure(state="disabled" if running else "normal")

@@ -10,6 +10,7 @@ import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -268,8 +269,14 @@ class MihomoCheckerTab(ttk.Frame):
         "source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"
     )
 
-    def __init__(self, parent: tk.Misc):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        update_command: Callable[[], None] | None = None,
+    ):
         super().__init__(parent, padding=10)
+        self.update_command = update_command
         self.sources_path = _application_root() / SOURCES_FILENAME
         self.ui_settings_path = _application_root() / UI_SETTINGS_FILENAME
         saved_ui = load_ui_settings(self.ui_settings_path)
@@ -372,6 +379,15 @@ class MihomoCheckerTab(ttk.Frame):
         ttk.Label(text_controls, text="Текст", style="Mihomo.Dim.TLabel").pack(side="left")
         ttk.Button(text_controls, text="−", width=3, command=lambda: self._change_font(-1), style="Mihomo.TButton").pack(side="left", padx=3)
         ttk.Button(text_controls, text="+", width=3, command=lambda: self._change_font(1), style="Mihomo.TButton").pack(side="left")
+        self.update_button: ttk.Button | None = None
+        if self.update_command is not None:
+            self.update_button = ttk.Button(
+                text_controls,
+                text="↻ Обновить",
+                command=self.update_command,
+                style="Mihomo.TButton",
+            )
+            self.update_button.pack(side="left", padx=(8, 0))
         exports = ttk.Frame(header, style="Mihomo.TFrame")
         exports.grid(row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
         self.exports_frame = exports

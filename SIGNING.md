@@ -21,7 +21,9 @@ Windows Defender/SmartScreen может показать предупрежде�
   Set-Clipboard
 ```
 
-Если secrets присутствуют, workflow подписывает `WireVeilChecker.exe`, вложенный
-`sing-box.exe` и `libcronet.dll` алгоритмом SHA-256, добавляет доверенную
-временную метку DigiCert и проверяет каждую подпись до упаковки ZIP. Если secrets
-отсутствуют, сборка и tagged-релиз продолжаются с явным предупреждением в логе.
+Если secrets присутствуют, workflow подписывает `WireVeilChecker.exe`, вложенные
+`sing-box.exe`, `mihomo.exe` и `libcronet.dll`, затем собирает и отдельно
+подписывает `WireVeilChecker-Setup-x64.exe`. Для каждой подписи используется
+SHA-256, добавляется доверенная временная метка DigiCert и выполняется проверка
+до публикации файлов. Если secrets отсутствуют, сборка и tagged-релиз
+продолжаются с явным предупреждением в логе.

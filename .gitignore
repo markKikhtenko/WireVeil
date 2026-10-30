@@ -10,6 +10,10 @@ Thumbs.db
 /artifacts/
 /build/
 /dist/
+/installer-output/
+/*.zip
+/*.sha256
+/WireVeilChecker-Setup-x64.exe
 /*.spec
 /WireVeilChecker.config.json
 /WireVeilChecker.config.json.tmp
