@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from scripts import mihomo_checker
+from wireveil_paths import user_data_file
 
 
 SOURCES_FILENAME = "WireVeilChecker.mihomo-sources.json"
@@ -78,12 +79,6 @@ def find_mihomo() -> Path | None:
         if matches:
             return matches[0]
     return None
-
-
-def _application_root() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
 
 
 class _MultilineDialog(tk.Toplevel):
@@ -277,8 +272,8 @@ class MihomoCheckerTab(ttk.Frame):
     ):
         super().__init__(parent, padding=10)
         self.update_command = update_command
-        self.sources_path = _application_root() / SOURCES_FILENAME
-        self.ui_settings_path = _application_root() / UI_SETTINGS_FILENAME
+        self.sources_path = user_data_file(SOURCES_FILENAME)
+        self.ui_settings_path = user_data_file(UI_SETTINGS_FILENAME)
         saved_ui = load_ui_settings(self.ui_settings_path)
         self.sources = mihomo_checker.load_source_specs(self.sources_path)
         self.events: queue.Queue[tuple[object, ...]] = queue.Queue()

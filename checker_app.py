@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from mihomo_tab import MihomoCheckerTab
 from scripts import app_updater, build, healthcheck, local_checker
+from wireveil_paths import application_root, user_data_file
 from wireveil_version import APP_VERSION
 
 
@@ -52,14 +53,8 @@ def resource_root() -> Path:
     return Path(bundled) if bundled else Path(__file__).resolve().parent
 
 
-def application_root() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
-
-
 def checker_settings_path() -> Path:
-    return application_root() / CONFIG_FILENAME
+    return user_data_file(CONFIG_FILENAME)
 
 
 def find_app_icon() -> Path | None:

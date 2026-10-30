@@ -44,7 +44,7 @@ WireVeil собирает публичные proxy URI, проверяет фо�
 
 [**Скачать установщик Windows x64**](https://github.com/markKikhtenko/WireVeil/releases/latest/download/WireVeilChecker-Setup-x64.exe) · [Portable ZIP](https://github.com/markKikhtenko/WireVeil/releases/latest/download/WireVeilChecker-windows-x64.zip)
 
-Установщик не требует прав администратора. Путь по умолчанию: `%LOCALAPPDATA%\Programs\WireVeil Checker`.
+Установщик запрашивает UAC и по умолчанию ставит Checker в `C:\Program Files\WireVeil Checker`.
 
 Checker умеет:
 
@@ -60,7 +60,7 @@ Checker умеет:
 2. Вставьте подписку или выберите файл.
 3. Запустите полный тест и экспортируйте прошедшие узлы.
 
-Настройки хранятся рядом с приложением в `WireVeilChecker.config.json`, `WireVeilChecker.mihomo-sources.json` и `WireVeilChecker.mihomo-ui.json`. Эти файлы не отправляются в репозиторий. Подробности: [`PORTABLE-CHECKER.md`](./PORTABLE-CHECKER.md).
+Установщик размещает программу в `C:\Program Files\WireVeil Checker`, а пользовательские настройки — в `%LOCALAPPDATA%\WireVeil Checker`. Portable-версия хранит настройки рядом с приложением. Эти файлы не отправляются в репозиторий. Подробности: [`PORTABLE-CHECKER.md`](./PORTABLE-CHECKER.md).
 
 ## Как формируются подписки
 

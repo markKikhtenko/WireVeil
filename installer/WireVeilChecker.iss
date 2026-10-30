@@ -1,8 +1,8 @@
-; WireVeil Checker per-user installer.
+; WireVeil Checker per-machine installer.
 ; CI supplies /DAppVersion=x.y.z for tagged releases.
 
 #ifndef AppVersion
-  #define AppVersion "1.8.0"
+  #define AppVersion "1.8.1"
 #endif
 
 #define AppName "WireVeil Checker"
@@ -19,10 +19,10 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#RepositoryUrl}
 AppSupportURL={#RepositoryUrl}/issues
 AppUpdatesURL={#RepositoryUrl}/releases/latest
-DefaultDirName={userpf}\WireVeil Checker
+DefaultDirName={autopf}\WireVeil Checker
 DefaultGroupName=WireVeil Checker
 DisableProgramGroupPage=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -37,7 +37,7 @@ CloseApplications=yes
 RestartApplications=yes
 CloseApplicationsFilter={#AppExeName},sing-box.exe,mihomo.exe,libcronet.dll
 SetupLogging=yes
-UsePreviousAppDir=yes
+UsePreviousAppDir=no
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} installer

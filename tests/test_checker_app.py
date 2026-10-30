@@ -269,7 +269,7 @@ class SourceInputTests(unittest.TestCase):
 
 
 class SettingsPersistenceTests(unittest.TestCase):
-    def test_settings_round_trip_next_to_application(self):
+    def test_settings_round_trip(self):
         settings = {
             "rounds": 4,
             "timeout": 12,

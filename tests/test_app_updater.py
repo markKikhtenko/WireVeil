@@ -152,13 +152,14 @@ class DownloadTests(unittest.TestCase):
 
 
 class InstallerDefinitionTests(unittest.TestCase):
-    def test_installer_is_per_user_with_expected_default_path(self):
+    def test_installer_is_per_machine_with_expected_default_path(self):
         root = Path(__file__).resolve().parents[1]
         definition = (root / "installer" / "WireVeilChecker.iss").read_text(
             encoding="utf-8"
         )
-        self.assertIn(r"DefaultDirName={userpf}\WireVeil Checker", definition)
-        self.assertIn("PrivilegesRequired=lowest", definition)
+        self.assertIn(r"DefaultDirName={autopf}\WireVeil Checker", definition)
+        self.assertIn("PrivilegesRequired=admin", definition)
+        self.assertIn("UsePreviousAppDir=no", definition)
         self.assertIn("OutputBaseFilename=WireVeilChecker-Setup-x64", definition)
         self.assertIn("IsWireVeilUiUpdate", definition)
 
