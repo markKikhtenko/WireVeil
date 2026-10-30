@@ -10,7 +10,6 @@ import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -264,14 +263,8 @@ class MihomoCheckerTab(ttk.Frame):
         "source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"
     )
 
-    def __init__(
-        self,
-        parent: tk.Misc,
-        *,
-        update_command: Callable[[], None] | None = None,
-    ):
+    def __init__(self, parent: tk.Misc):
         super().__init__(parent, padding=10)
-        self.update_command = update_command
         self.sources_path = user_data_file(SOURCES_FILENAME)
         self.ui_settings_path = user_data_file(UI_SETTINGS_FILENAME)
         saved_ui = load_ui_settings(self.ui_settings_path)
@@ -335,27 +328,32 @@ class MihomoCheckerTab(ttk.Frame):
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
         size = self.font_size
-        style.configure("Mihomo.TFrame", background="#0f151c")
-        style.configure("Mihomo.Panel.TFrame", background="#18232e")
-        style.configure("Mihomo.TLabelframe", background="#18232e", bordercolor="#435667", relief="solid")
-        style.configure("Mihomo.TLabelframe.Label", background="#18232e", foreground="#f4f8fa", font=("Segoe UI Semibold", size))
-        style.configure("Mihomo.TLabel", background="#0f151c", foreground="#f0f5f8", font=("Segoe UI", size))
-        style.configure("Mihomo.Panel.TLabel", background="#18232e", foreground="#edf4f8", font=("Segoe UI", size))
-        style.configure("Mihomo.Dim.TLabel", background="#0f151c", foreground="#b4c2cd", font=("Segoe UI", max(10, size - 1)))
-        style.configure("Mihomo.Kpi.TLabel", background="#18232e", foreground="#eaf4fa", font=("Segoe UI Semibold", size), padding=(7, 5))
-        style.configure("Mihomo.State.TLabel", background="#176f9d", foreground="#ffffff", font=("Segoe UI Semibold", size), padding=(8, 4))
-        style.configure("Mihomo.TButton", font=("Segoe UI", size), padding=(9, 6))
-        style.configure("Mihomo.Accent.TButton", font=("Segoe UI Semibold", size), padding=(11, 7), background="#176f9d", foreground="#ffffff")
-        style.map("Mihomo.Accent.TButton", background=[("active", "#2188b8"), ("disabled", "#344550")])
-        style.configure("Mihomo.TCheckbutton", background="#18232e", foreground="#edf4f8", font=("Segoe UI", size))
-        style.configure("Mihomo.TCombobox", font=("Segoe UI", size), fieldbackground="#f4f7f9", foreground="#101820", padding=4)
-        style.configure("Mihomo.TSpinbox", font=("Segoe UI", size), fieldbackground="#f4f7f9", foreground="#101820", arrowsize=max(14, size + 4), padding=4)
-        style.configure("Mihomo.TEntry", font=("Segoe UI", size), fieldbackground="#f4f7f9", foreground="#101820", padding=4)
-        style.configure("Mihomo.Treeview", font=("Segoe UI", size), rowheight=size + 16, background="#111a23", fieldbackground="#111a23", foreground="#edf4f8")
-        style.configure("Mihomo.Treeview.Heading", font=("Segoe UI Semibold", max(10, size - 1)), padding=(6, 7), background="#22313e", foreground="#f2f7fa")
-        style.map("Mihomo.Treeview", background=[("selected", "#176f9d")], foreground=[("selected", "#ffffff")])
-        style.configure("Mihomo.TNotebook", background="#0f151c", borderwidth=0)
-        style.configure("Mihomo.TNotebook.Tab", font=("Segoe UI Semibold", size), padding=(14, 7))
+        style.configure("Mihomo.TFrame", background="#0d1117")
+        style.configure("Mihomo.Panel.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Mihomo.TLabelframe", background="#161b22", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Mihomo.TLabelframe.Label", background="#0d1117", foreground="#c9d1d9", font=("Segoe UI Semibold", size))
+        style.configure("Mihomo.TLabel", background="#0d1117", foreground="#f0f6fc", font=("Segoe UI", size))
+        style.configure("Mihomo.Panel.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI", size))
+        style.configure("Mihomo.Dim.TLabel", background="#0d1117", foreground="#8b949e", font=("Segoe UI", max(9, size - 1)))
+        style.configure("Mihomo.Kpi.TLabel", background="#161b22", foreground="#c9d1d9", font=("Segoe UI Semibold", size), padding=(7, 5))
+        style.configure("Mihomo.State.TLabel", background="#1f6feb", foreground="#ffffff", font=("Segoe UI Semibold", size), padding=(8, 4))
+        style.configure("Mihomo.TButton", font=("Segoe UI", size), padding=(9, 6), background="#21262d", foreground="#f0f6fc", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.map("Mihomo.TButton", background=[("active", "#30363d"), ("pressed", "#1f6feb"), ("disabled", "#161b22")], foreground=[("disabled", "#6e7681")], bordercolor=[("active", "#8b949e"), ("disabled", "#21262d")])
+        style.configure("Mihomo.Accent.TButton", font=("Segoe UI Semibold", size), padding=(11, 7), background="#238636", foreground="#ffffff", borderwidth=1, bordercolor="#2ea043", lightcolor="#2ea043", darkcolor="#2ea043", relief="solid")
+        style.map("Mihomo.Accent.TButton", background=[("active", "#2ea043"), ("pressed", "#196c2e"), ("disabled", "#1b4725")], foreground=[("disabled", "#7d8590")])
+        style.configure("Mihomo.TCheckbutton", background="#161b22", foreground="#f0f6fc", font=("Segoe UI", size))
+        style.map("Mihomo.TCheckbutton", background=[("active", "#161b22")], foreground=[("disabled", "#6e7681")])
+        style.configure("Mihomo.TCombobox", font=("Segoe UI", size), fieldbackground="#0d1117", background="#21262d", foreground="#f0f6fc", arrowcolor="#c9d1d9", selectbackground="#1f6feb", selectforeground="#ffffff", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", padding=4)
+        style.map("Mihomo.TCombobox", fieldbackground=[("readonly", "#0d1117")], foreground=[("readonly", "#f0f6fc")], selectbackground=[("readonly", "#0d1117")], selectforeground=[("readonly", "#f0f6fc")])
+        style.configure("Mihomo.TSpinbox", font=("Segoe UI", size), fieldbackground="#0d1117", background="#21262d", foreground="#f0f6fc", arrowcolor="#c9d1d9", insertcolor="#f0f6fc", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", arrowsize=max(14, size + 4), padding=4)
+        style.configure("Mihomo.TEntry", font=("Segoe UI", size), fieldbackground="#0d1117", foreground="#f0f6fc", insertcolor="#f0f6fc", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", padding=4)
+        style.configure("Mihomo.Treeview", font=("Segoe UI", size), rowheight=size + 16, background="#0d1117", fieldbackground="#0d1117", foreground="#c9d1d9", borderwidth=0)
+        style.configure("Mihomo.Treeview.Heading", font=("Segoe UI Semibold", max(9, size - 1)), padding=(6, 7), background="#161b22", foreground="#c9d1d9", relief="flat")
+        style.map("Mihomo.Treeview", background=[("selected", "#1f6feb")], foreground=[("selected", "#ffffff")])
+        style.map("Mihomo.Treeview.Heading", background=[("active", "#21262d")])
+        style.configure("Mihomo.TNotebook", background="#0d1117", borderwidth=0, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d")
+        style.configure("Mihomo.TNotebook.Tab", font=("Segoe UI Semibold", size), padding=(14, 7), background="#0d1117", foreground="#8b949e", borderwidth=0, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d")
+        style.map("Mihomo.TNotebook.Tab", background=[("selected", "#21262d"), ("active", "#161b22")], foreground=[("selected", "#f0f6fc"), ("active", "#c9d1d9")])
 
     def _build_ui(self) -> None:
         self.configure(style="Mihomo.TFrame")
@@ -374,15 +372,6 @@ class MihomoCheckerTab(ttk.Frame):
         ttk.Label(text_controls, text="Текст", style="Mihomo.Dim.TLabel").pack(side="left")
         ttk.Button(text_controls, text="−", width=3, command=lambda: self._change_font(-1), style="Mihomo.TButton").pack(side="left", padx=3)
         ttk.Button(text_controls, text="+", width=3, command=lambda: self._change_font(1), style="Mihomo.TButton").pack(side="left")
-        self.update_button: ttk.Button | None = None
-        if self.update_command is not None:
-            self.update_button = ttk.Button(
-                text_controls,
-                text="↻ Обновить",
-                command=self.update_command,
-                style="Mihomo.TButton",
-            )
-            self.update_button.pack(side="left", padx=(8, 0))
         exports = ttk.Frame(header, style="Mihomo.TFrame")
         exports.grid(row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
         self.exports_frame = exports
@@ -417,12 +406,12 @@ class MihomoCheckerTab(ttk.Frame):
         self.check_panel = check_panel
         labels = (("Прогоны", 0), ("Тайм-аут", 2), ("HTTPS потоков", 4))
         for text, column in labels:
-            ttk.Label(check_panel, text=text, style="Mihomo.TLabel").grid(row=0, column=column, sticky="w", padx=(2, 3))
+            ttk.Label(check_panel, text=text, style="Mihomo.Panel.TLabel").grid(row=0, column=column, sticky="w", padx=(2, 3))
         ttk.Spinbox(check_panel, from_=2, to=5, width=4, textvariable=self.attempts_var, style="Mihomo.TSpinbox").grid(row=0, column=1, sticky="w")
         ttk.Spinbox(check_panel, from_=1, to=60, width=4, textvariable=self.timeout_var, style="Mihomo.TSpinbox").grid(row=0, column=3, sticky="w")
         self.worker_combo = ttk.Combobox(check_panel, width=5, textvariable=self.workers_var, values=mihomo_checker.BASE_WORKERS_ALLOWED, state="readonly", style="Mihomo.TCombobox")
         self.worker_combo.grid(row=0, column=5, sticky="w")
-        ttk.Label(check_panel, text="Выборка", style="Mihomo.TLabel").grid(row=1, column=0, sticky="w", padx=(2, 3), pady=(4, 0))
+        ttk.Label(check_panel, text="Выборка", style="Mihomo.Panel.TLabel").grid(row=1, column=0, sticky="w", padx=(2, 3), pady=(4, 0))
         self.node_limit = ttk.Combobox(
             check_panel, textvariable=self.node_limit_var, state="readonly", width=23,
             values=("Репрезентативно: 50", "Репрезентативно: 100", "Репрезентативно: 500", "20 на источник", "100 на источник", "Все узлы"),
@@ -442,7 +431,7 @@ class MihomoCheckerTab(ttk.Frame):
         self.start_selected_button.grid(row=2, column=3, columnspan=2, sticky="ew", padx=2, pady=(4, 0))
         self.stop_button = ttk.Button(check_panel, text="■ Стоп", command=self.stop, state="disabled", style="Mihomo.TButton")
         self.stop_button.grid(row=2, column=5, sticky="ew", padx=2, pady=(4, 0))
-        ttk.Label(check_panel, text="Seed выборки", style="Mihomo.TLabel").grid(row=3, column=0, sticky="w", padx=2, pady=(4, 0))
+        ttk.Label(check_panel, text="Seed выборки", style="Mihomo.Panel.TLabel").grid(row=3, column=0, sticky="w", padx=2, pady=(4, 0))
         ttk.Entry(check_panel, textvariable=self.sampling_seed_var, style="Mihomo.TEntry").grid(row=3, column=1, columnspan=3, sticky="ew", padx=2, pady=(4, 0))
         ttk.Label(check_panel, text="Сервисы ≤ 8 потоков", style="Mihomo.Dim.TLabel").grid(row=3, column=4, columnspan=2, sticky="e", padx=2, pady=(4, 0))
         for column in range(6):
@@ -554,7 +543,9 @@ class MihomoCheckerTab(ttk.Frame):
 
     def _adapt_control_layout(self, event: object | None = None) -> None:
         width = int(getattr(event, "width", self.winfo_width()))
-        wide = width >= 1500
+        scaling = float(self.tk.call("tk", "scaling"))
+        wide_threshold = max(1120, int(960 * scaling), self.font_size * 98)
+        wide = width >= wide_threshold
         current = bool(getattr(self, "_wide_controls", False))
         if wide == current:
             return

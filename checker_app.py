@@ -202,8 +202,8 @@ class WireVeilChecker(tk.Tk):
                 self.iconbitmap(default=str(icon_path))
             except tk.TclError:
                 pass
-        self.geometry("1180x760")
-        self.minsize(940, 640)
+        self.geometry("1280x820")
+        self.minsize(980, 660)
         self.option_add("*Font", ("Segoe UI", 10))
 
         self.settings_path = checker_settings_path()
@@ -298,123 +298,168 @@ class WireVeilChecker(tk.Tk):
     def _configure_style(self) -> None:
         style = ttk.Style(self)
         style.theme_use("clam")
-        self.configure(background="#0f151c")
-        style.configure(".", background="#151d26", foreground="#e8f0f7")
-        style.configure("TFrame", background="#0f151c")
-        style.configure("Panel.TFrame", background="#151d26")
-        style.configure("Card.TFrame", background="#18222d", relief="flat")
-        style.configure("Header.TFrame", background="#111922")
-        style.configure("TLabel", background="#0f151c", foreground="#e8f0f7")
-        style.configure("Panel.TLabel", background="#151d26", foreground="#e8f0f7")
-        style.configure("PanelTitle.TLabel", background="#151d26", foreground="#f3f7fa", font=("Segoe UI Semibold", 10))
-        style.configure("PanelDim.TLabel", background="#151d26", foreground="#8999a9")
-        style.configure("Card.TLabel", background="#18222d", foreground="#e8f0f7")
-        style.configure("Dim.TLabel", background="#0f151c", foreground="#8999a9")
-        style.configure("CardDim.TLabel", background="#18222d", foreground="#8999a9")
-        style.configure("Brand.TLabel", background="#111922", foreground="#f5f9fc", font=("Segoe UI Semibold", 14))
-        style.configure("Subtitle.TLabel", background="#111922", foreground="#7f93a6", font=("Segoe UI", 9))
-        style.configure("Section.TLabel", background="#18222d", foreground="#a9bbca", font=("Segoe UI Semibold", 9))
-        style.configure("CardTitle.TLabel", background="#18222d", foreground="#f3f7fa", font=("Segoe UI Semibold", 11))
-        style.configure("Countdown.TLabel", background="#18222d", foreground="#43c4ff", font=("Segoe UI Semibold", 10))
-        style.configure("Summary.TLabel", background="#0f151c", foreground="#aebdca")
-        style.configure("TButton", background="#263442", foreground="#ecf3f8", padding=(10, 6), borderwidth=0, focusthickness=1, focuscolor="#39aee8")
-        style.map("TButton", background=[("active", "#324558"), ("pressed", "#187aab"), ("disabled", "#1c2630")], foreground=[("disabled", "#617181")])
-        style.configure("Secondary.TButton", background="#1e2a35", foreground="#dce7ef", padding=(9, 5), borderwidth=0)
-        style.map("Secondary.TButton", background=[("active", "#2a3b4a"), ("pressed", "#187aab")], foreground=[("disabled", "#617181")])
-        style.configure("Accent.TButton", background="#176f9d", foreground="#ffffff", font=("Segoe UI Semibold", 9), padding=(10, 6), borderwidth=0)
-        style.map("Accent.TButton", background=[("active", "#218bc0"), ("pressed", "#0f5a81")], foreground=[("disabled", "#71808c")])
+        self.configure(background="#0d1117")
+        style.configure(".", background="#161b22", foreground="#f0f6fc")
+        style.configure("TFrame", background="#0d1117")
+        style.configure("AppShell.TFrame", background="#0d1117")
+        style.configure("Topbar.TFrame", background="#161b22")
+        style.configure("PageHeader.TFrame", background="#0d1117")
+        style.configure("Panel.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Card.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("TLabel", background="#0d1117", foreground="#f0f6fc")
+        style.configure("Topbar.TLabel", background="#161b22", foreground="#f0f6fc")
+        style.configure("Panel.TLabel", background="#161b22", foreground="#f0f6fc")
+        style.configure("PanelTitle.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI Semibold", 10))
+        style.configure("PanelDim.TLabel", background="#161b22", foreground="#8b949e")
+        style.configure("Card.TLabel", background="#161b22", foreground="#f0f6fc")
+        style.configure("Dim.TLabel", background="#0d1117", foreground="#8b949e")
+        style.configure("CardDim.TLabel", background="#161b22", foreground="#8b949e")
+        style.configure("BrandMark.TLabel", background="#1f6feb", foreground="#ffffff", font=("Segoe UI Semibold", 10), padding=(7, 4))
+        style.configure("Brand.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI Semibold", 13))
+        style.configure("TopbarSubtitle.TLabel", background="#161b22", foreground="#8b949e", font=("Segoe UI", 9))
+        style.configure("PageTitle.TLabel", background="#0d1117", foreground="#f0f6fc", font=("Segoe UI Semibold", 14))
+        style.configure("PageSubtitle.TLabel", background="#0d1117", foreground="#8b949e", font=("Segoe UI", 9))
+        style.configure("Version.TLabel", background="#21262d", foreground="#c9d1d9", font=("Segoe UI Semibold", 9), padding=(8, 4))
+        style.configure("LocalBadge.TLabel", background="#161b22", foreground="#3fb950", font=("Segoe UI Semibold", 9))
+        style.configure("Section.TLabel", background="#161b22", foreground="#8b949e", font=("Segoe UI Semibold", 9))
+        style.configure("CardTitle.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI Semibold", 11))
+        style.configure("Countdown.TLabel", background="#161b22", foreground="#58a6ff", font=("Segoe UI Semibold", 10))
+        style.configure("Summary.TLabel", background="#0d1117", foreground="#8b949e")
+        style.configure("TButton", background="#21262d", foreground="#f0f6fc", padding=(10, 6), borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid", focusthickness=1, focuscolor="#58a6ff")
+        style.map("TButton", background=[("active", "#30363d"), ("pressed", "#1f6feb"), ("disabled", "#161b22")], foreground=[("disabled", "#6e7681")], bordercolor=[("active", "#8b949e"), ("disabled", "#21262d")])
+        style.configure("Secondary.TButton", background="#21262d", foreground="#f0f6fc", padding=(9, 5), borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.map("Secondary.TButton", background=[("active", "#30363d"), ("pressed", "#1f6feb"), ("disabled", "#161b22")], foreground=[("disabled", "#6e7681")], bordercolor=[("active", "#8b949e"), ("disabled", "#21262d")])
+        style.configure("Utility.TButton", background="#161b22", foreground="#c9d1d9", padding=(9, 5), borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid", font=("Segoe UI Semibold", 9))
+        style.map("Utility.TButton", background=[("active", "#21262d"), ("pressed", "#1f6feb"), ("disabled", "#161b22")], foreground=[("disabled", "#6e7681")], bordercolor=[("active", "#8b949e"), ("disabled", "#21262d")])
+        style.configure("Accent.TButton", background="#238636", foreground="#ffffff", font=("Segoe UI Semibold", 9), padding=(10, 6), borderwidth=1, bordercolor="#2ea043", lightcolor="#2ea043", darkcolor="#2ea043", relief="solid")
+        style.map("Accent.TButton", background=[("active", "#2ea043"), ("pressed", "#196c2e"), ("disabled", "#1b4725")], foreground=[("disabled", "#7d8590")])
         style.configure(
             "Launch.TButton",
-            background="#d93a36",
+            background="#da3633",
             foreground="#ffffff",
             font=("Segoe UI Semibold", 12),
             padding=(18, 9),
             borderwidth=0,
-            focuscolor="#ff7772",
+            bordercolor="#f85149",
+            lightcolor="#f85149",
+            darkcolor="#f85149",
+            focuscolor="#f85149",
         )
         style.map(
             "Launch.TButton",
-            background=[("active", "#f04b46"), ("pressed", "#a92421"), ("disabled", "#512d30")],
-            foreground=[("disabled", "#9a7475"), ("!disabled", "#ffffff")],
+            background=[("active", "#f85149"), ("pressed", "#b62324"), ("disabled", "#3d2023")],
+            foreground=[("disabled", "#7d595a"), ("!disabled", "#ffffff")],
         )
-        style.configure("Hero.TFrame", background="#181b21")
+        style.configure("Hero.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Hero.TLabel", background="#161b22", foreground="#8b949e", font=("Segoe UI Semibold", 9))
         style.configure(
             "Stepper.TEntry",
-            fieldbackground="#111923",
-            foreground="#ffffff",
-            insertcolor="#ffffff",
+            fieldbackground="#0d1117",
+            foreground="#f0f6fc",
+            insertcolor="#f0f6fc",
             borderwidth=1,
+            bordercolor="#30363d",
+            lightcolor="#30363d",
+            darkcolor="#30363d",
             padding=(5, 3),
         )
         style.configure(
             "Stepper.TButton",
-            background="#2a3948",
+            background="#21262d",
             foreground="#ffffff",
             font=("Segoe UI Semibold", 10),
             padding=(4, 1),
         )
-        style.map("Stepper.TButton", background=[("active", "#3a5065"), ("pressed", "#1687bd")])
-        style.configure("TCheckbutton", background="#0f151c", foreground="#e8f0f7")
-        style.map("TCheckbutton", background=[("active", "#0f151c")])
-        style.configure("Panel.TCheckbutton", background="#151d26", foreground="#e8f0f7")
-        style.map("Panel.TCheckbutton", background=[("active", "#151d26")])
-        style.configure("Card.TCheckbutton", background="#18222d", foreground="#e8f0f7", font=("Segoe UI Semibold", 10))
-        style.map("Card.TCheckbutton", background=[("active", "#18222d")], foreground=[("disabled", "#697887")])
+        style.map("Stepper.TButton", background=[("active", "#30363d"), ("pressed", "#1f6feb")])
+        style.configure("TCheckbutton", background="#0d1117", foreground="#f0f6fc")
+        style.map("TCheckbutton", background=[("active", "#0d1117")])
+        style.configure("Panel.TCheckbutton", background="#161b22", foreground="#f0f6fc")
+        style.map("Panel.TCheckbutton", background=[("active", "#161b22")])
+        style.configure("Card.TCheckbutton", background="#161b22", foreground="#f0f6fc", font=("Segoe UI Semibold", 10))
+        style.map("Card.TCheckbutton", background=[("active", "#161b22")], foreground=[("disabled", "#6e7681")])
         style.configure(
             "Service.TMenubutton",
-            background="#263746",
-            foreground="#ffffff",
-            arrowcolor="#ffffff",
+            background="#21262d",
+            foreground="#f0f6fc",
+            arrowcolor="#c9d1d9",
             borderwidth=1,
             padding=(5, 3),
         )
         style.map(
             "Service.TMenubutton",
-            background=[("active", "#345064"), ("pressed", "#1687bd")],
+            background=[("active", "#30363d"), ("pressed", "#1f6feb")],
             foreground=[("disabled", "#888888"), ("!disabled", "#ffffff")],
             arrowcolor=[("disabled", "#777777"), ("!disabled", "#ffffff")],
         )
-        style.configure("Horizontal.TProgressbar", background="#2ab1e9", troughcolor="#19232d", borderwidth=0)
-        style.configure("TNotebook", background="#0f151c", borderwidth=0)
-        style.configure("TNotebook.Tab", background="#18222d", foreground="#9fb0bf", padding=(16, 8))
+        style.configure("Horizontal.TProgressbar", background="#2f81f7", troughcolor="#21262d", borderwidth=0)
+        style.configure("TNotebook", background="#0d1117", borderwidth=0, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", tabmargins=(12, 8, 0, 0))
+        style.configure("TNotebook.Tab", background="#0d1117", foreground="#8b949e", padding=(16, 8), borderwidth=0, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", font=("Segoe UI Semibold", 9))
         style.map(
             "TNotebook.Tab",
-            background=[("selected", "#176f9d"), ("active", "#263746")],
-            foreground=[("selected", "#ffffff")],
+            background=[("selected", "#21262d"), ("active", "#161b22")],
+            foreground=[("selected", "#f0f6fc"), ("active", "#c9d1d9")],
         )
         style.configure(
             "Treeview",
-            background="#121a22",
-            fieldbackground="#121a22",
-            foreground="#dce7ee",
-            rowheight=27,
+            background="#0d1117",
+            fieldbackground="#0d1117",
+            foreground="#c9d1d9",
+            rowheight=28,
             borderwidth=0,
             font=("Segoe UI", 9),
         )
-        style.map("Treeview", background=[("selected", "#166f9c")], foreground=[("selected", "#ffffff")])
-        style.configure("Treeview.Heading", background="#1d2934", foreground="#b9c8d4", relief="flat", padding=(6, 7), font=("Segoe UI Semibold", 9))
-        style.map("Treeview.Heading", background=[("active", "#293a49")])
+        style.map("Treeview", background=[("selected", "#1f6feb")], foreground=[("selected", "#ffffff")])
+        style.configure("Treeview.Heading", background="#161b22", foreground="#c9d1d9", relief="flat", padding=(6, 7), font=("Segoe UI Semibold", 9))
+        style.map("Treeview.Heading", background=[("active", "#21262d")])
+        style.configure("TScrollbar", background="#21262d", troughcolor="#0d1117", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", arrowcolor="#8b949e", relief="flat")
+        style.map("TScrollbar", background=[("active", "#30363d"), ("pressed", "#484f58")])
 
     def _build_ui(self) -> None:
-        self.engine_tabs = ttk.Notebook(self)
+        shell = ttk.Frame(self, style="AppShell.TFrame")
+        shell.pack(fill="both", expand=True)
+
+        topbar = ttk.Frame(shell, style="Topbar.TFrame", padding=(16, 10))
+        topbar.pack(fill="x")
+        ttk.Label(topbar, text="WV", style="BrandMark.TLabel").pack(side="left")
+        brand = ttk.Frame(topbar, style="Topbar.TFrame")
+        brand.pack(side="left", padx=(10, 0))
+        ttk.Label(brand, text="WireVeil Checker", style="Brand.TLabel").pack(side="left")
+        ttk.Label(
+            brand,
+            text="/  проверка прокси и доступности сервисов",
+            style="TopbarSubtitle.TLabel",
+        ).pack(side="left", padx=(8, 0))
+        self.update_button = ttk.Button(
+            topbar,
+            text="↻ Обновления",
+            command=self._check_for_updates,
+            style="Utility.TButton",
+        )
+        self.update_button.pack(side="right", padx=(8, 0))
+        self.update_buttons = [self.update_button]
+        ttk.Label(topbar, text=f"v{APP_VERSION}", style="Version.TLabel").pack(side="right", padx=(8, 0))
+        ttk.Label(topbar, text="●  ЛОКАЛЬНО", style="LocalBadge.TLabel").pack(side="right")
+        self.bind_all("<Control-u>", lambda _event: self._check_for_updates())
+
+        self.engine_tabs = ttk.Notebook(shell)
         self.engine_tabs.pack(fill="both", expand=True)
         legacy_page = ttk.Frame(self.engine_tabs)
         mihomo_page = ttk.Frame(self.engine_tabs)
         self.engine_tabs.add(legacy_page, text="NekoBox / sing-box")
         self.engine_tabs.add(mihomo_page, text="Mihomo / OpenClash")
 
-        outer = ttk.Frame(legacy_page, padding=10)
+        outer = ttk.Frame(legacy_page, padding=(12, 9, 12, 12))
         outer.pack(fill="both", expand=True)
 
-        header = ttk.Frame(outer, style="Header.TFrame", padding=(12, 9))
+        header = ttk.Frame(outer, style="PageHeader.TFrame", padding=(2, 4, 2, 7))
         header.pack(fill="x")
-        brand = ttk.Frame(header, style="Header.TFrame")
-        brand.pack(side="left")
-        ttk.Label(brand, text="WireVeil Checker", style="Brand.TLabel").pack(anchor="w")
+        page_title = ttk.Frame(header, style="PageHeader.TFrame")
+        page_title.pack(side="left")
+        ttk.Label(page_title, text="NekoBox / sing-box", style="PageTitle.TLabel").pack(anchor="w")
         ttk.Label(
-            brand,
-            text=f"Проверка прокси из вашей сети · версия {APP_VERSION}",
-            style="Subtitle.TLabel",
+            page_title,
+            text="Проверка конфигураций из вашей сети",
+            style="PageSubtitle.TLabel",
         ).pack(anchor="w")
         self.active_button = ttk.Button(
             header,
@@ -448,15 +493,6 @@ class WireVeilChecker(tk.Tk):
             style="Secondary.TButton",
         )
         self.copy_selected_button.pack(side="right", padx=(0, 5))
-        self.update_button = ttk.Button(
-            header,
-            text="↻ Обновить",
-            command=self._check_for_updates,
-            style="Secondary.TButton",
-        )
-        self.update_button.pack(side="right", padx=(0, 5))
-        self.update_buttons = [self.update_button]
-
         source_card = ttk.Frame(outer, style="Card.TFrame", padding=(10, 8))
         source_card.pack(fill="x", pady=(8, 6))
         source_header = ttk.Frame(source_card, style="Card.TFrame")
@@ -488,16 +524,16 @@ class WireVeilChecker(tk.Tk):
             height=1,
             wrap="word",
             undo=True,
-            background="#101821",
-            foreground="#eaf2f7",
-            insertbackground="#ffffff",
-            selectbackground="#166f9c",
+            background="#0d1117",
+            foreground="#f0f6fc",
+            insertbackground="#f0f6fc",
+            selectbackground="#1f6feb",
             relief="flat",
             padx=9,
             pady=7,
             highlightthickness=1,
-            highlightbackground="#2b3a48",
-            highlightcolor="#2ab1e9",
+            highlightbackground="#30363d",
+            highlightcolor="#58a6ff",
         )
         self.source.pack(fill="x")
         self.source.bind("<Control-KeyPress>", self._source_keyboard_shortcut)
@@ -509,7 +545,7 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(
             hero,
             text="PING  →  СКОРОСТЬ  →  САЙТЫ  →  ГОТОВЫЕ КЛЮЧИ",
-            style="Panel.TLabel",
+            style="Hero.TLabel",
         ).pack(side="left", padx=(4, 0))
         self.magic_button = ttk.Button(
             hero,
@@ -672,11 +708,11 @@ class WireVeilChecker(tk.Tk):
         service_menu = tk.Menu(
             self.service_menu_button,
             tearoff=False,
-            background="#292929",
-            foreground="#ffffff",
-            activebackground="#278dcc",
+            background="#161b22",
+            foreground="#f0f6fc",
+            activebackground="#1f6feb",
             activeforeground="#ffffff",
-            selectcolor="#60d35f",
+            selectcolor="#3fb950",
         )
         for service in local_checker.SERVICE_DEFINITIONS:
             service_menu.add_checkbutton(
@@ -695,7 +731,11 @@ class WireVeilChecker(tk.Tk):
         table_frame = ttk.Frame(outer)
         table_frame.pack(fill="both", expand=True)
         self.table = ttk.Treeview(
-            table_frame, columns=TABLE_COLUMNS, show="headings", selectmode="extended"
+            table_frame,
+            columns=TABLE_COLUMNS,
+            show="headings",
+            selectmode="extended",
+            height=4,
         )
         headings = {
             "number": "#",
@@ -739,10 +779,10 @@ class WireVeilChecker(tk.Tk):
             )
         self._refresh_sort_headers()
         self._refresh_service_columns()
-        self.table.tag_configure("fast", foreground="#60d35f")
-        self.table.tag_configure("active", foreground="#e1c95c")
-        self.table.tag_configure("dead", foreground="#ee716c")
-        self.table.tag_configure("pending", foreground="#718292")
+        self.table.tag_configure("fast", foreground="#3fb950")
+        self.table.tag_configure("active", foreground="#d29922")
+        self.table.tag_configure("dead", foreground="#f85149")
+        self.table.tag_configure("pending", foreground="#6e7681")
         table_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         table_scroll_x = ttk.Scrollbar(table_frame, orient="horizontal", command=self.table.xview)
         self.table.configure(
@@ -763,9 +803,9 @@ class WireVeilChecker(tk.Tk):
         self.log = tk.Text(
             log_frame,
             height=3,
-            background="#101820",
-            foreground="#afbfcc",
-            insertbackground="#ffffff",
+            background="#0d1117",
+            foreground="#8b949e",
+            insertbackground="#f0f6fc",
             relief="flat",
             state="disabled",
             font=("Consolas", 9),
@@ -781,12 +821,8 @@ class WireVeilChecker(tk.Tk):
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         ttk.Label(statusbar, textvariable=self.summary_var, style="Summary.TLabel").pack(side="right")
 
-        self.mihomo_tab = MihomoCheckerTab(
-            mihomo_page, update_command=self._check_for_updates
-        )
+        self.mihomo_tab = MihomoCheckerTab(mihomo_page)
         self.mihomo_tab.pack(fill="both", expand=True)
-        if self.mihomo_tab.update_button is not None:
-            self.update_buttons.append(self.mihomo_tab.update_button)
 
     def _configure_update_buttons(self, *, text: str, state: str) -> None:
         for button in self.update_buttons:
@@ -815,7 +851,7 @@ class WireVeilChecker(tk.Tk):
     ) -> None:
         if release is None:
             self.update_busy = False
-            self._configure_update_buttons(text="↻ Обновить", state="normal")
+            self._configure_update_buttons(text="↻ Обновления", state="normal")
             self.status_var.set(f"Установлена актуальная версия {APP_VERSION}")
             self._log("Новых стабильных версий нет.")
             messagebox.showinfo(
@@ -834,7 +870,7 @@ class WireVeilChecker(tk.Tk):
         )
         if not install:
             self.update_busy = False
-            self._configure_update_buttons(text="↻ Обновить", state="normal")
+            self._configure_update_buttons(text="↻ Обновления", state="normal")
             self.status_var.set(f"Доступна версия {release.version}")
             self._log(f"Обновление до {release.version} отложено пользователем.")
             return
@@ -891,7 +927,7 @@ class WireVeilChecker(tk.Tk):
         was_downloading = self.update_downloading
         self.update_busy = False
         self.update_downloading = False
-        self._configure_update_buttons(text="↻ Обновить", state="normal")
+        self._configure_update_buttons(text="↻ Обновления", state="normal")
         self.status_var.set("Не удалось обновить WireVeil Checker")
         self._log(f"Ошибка обновления: {detail}")
         if was_downloading:
