@@ -8,13 +8,14 @@ import sys
 import threading
 import time
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from scripts import mihomo_checker
+from scripts import mihomo_checker, network_check
 from wireveil_paths import user_data_file
 
 
@@ -263,8 +264,13 @@ class MihomoCheckerTab(ttk.Frame):
         "source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"
     )
 
-    def __init__(self, parent: tk.Misc):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        network_callback: Callable[[network_check.NetworkStatus], None] | None = None,
+    ):
         super().__init__(parent, padding=10)
+        self.network_callback = network_callback
         self.sources_path = user_data_file(SOURCES_FILENAME)
         self.ui_settings_path = user_data_file(UI_SETTINGS_FILENAME)
         saved_ui = load_ui_settings(self.ui_settings_path)
@@ -1201,14 +1207,19 @@ class MihomoCheckerTab(ttk.Frame):
         self._set_running_controls(True)
         self._set_export_buttons(False)
         limit_label = self.node_limit_var.get().casefold()
-        self.status_var.set(
-            f"Загрузка {len(sources)} источников; режим проверки: {limit_label}…"
-        )
+        self.status_var.set("Проверяю подключение к сети…")
         self._save_ui_settings()
 
         def work() -> None:
             assert self.runner is not None
             try:
+                network_status = network_check.check_device_online()
+                if self.network_callback is not None:
+                    self.network_callback(network_status)
+                if not network_status.online:
+                    raise network_check.NetworkUnavailableError(
+                        network_check.OFFLINE_MESSAGE
+                    )
                 report = self.runner.run(
                     binary=binary,
                     source_specs=sources,

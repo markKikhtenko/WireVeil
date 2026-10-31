@@ -1,5 +1,6 @@
 import json
 import tempfile
+import tkinter as tk
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -11,6 +12,8 @@ from checker_app import (
     WireVeilChecker,
     find_app_icon,
     load_checker_settings,
+    load_checker_results,
+    write_checker_results,
     write_checker_settings,
 )
 from scripts import healthcheck, local_checker
@@ -59,28 +62,69 @@ class TableSortTests(unittest.TestCase):
             http_status=403,
         )
         self.assertEqual(
-            "домен отвечает · HTTP 403 · 70 ms",
+            "✓ 403 · 70",
             WireVeilChecker._format_service(result),
         )
 
-    def test_smart_quality_prioritizes_full_access_before_ping(self):
-        full = ["—"] * len(TABLE_COLUMNS)
-        partial = ["—"] * len(TABLE_COLUMNS)
-        full[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 240 ms"
-        partial[TABLE_COLUMN_POSITIONS["quality"]] = "2/3 · 40 ms"
+    @staticmethod
+    def ranked_row(
+        *, number: int, passes: str, speed: str, latency: str, chatgpt: str
+    ) -> tuple[str, ...]:
+        values = ["—"] * len(TABLE_COLUMNS)
+        values[TABLE_COLUMN_POSITIONS["number"]] = str(number)
+        values[TABLE_COLUMN_POSITIONS["passes"]] = passes
+        values[TABLE_COLUMN_POSITIONS["speed"]] = speed
+        values[TABLE_COLUMN_POSITIONS["latency"]] = latency
+        values[
+            TABLE_COLUMN_POSITIONS[SERVICE_COLUMN_BY_NAME["ChatGPT"]]
+        ] = chatgpt
+        return tuple(values)
+
+    def test_smart_quality_prioritizes_site_access_before_speed_and_ping(self):
+        full = self.ranked_row(
+            number=1,
+            passes="2/2",
+            speed="12.0",
+            latency="240 ms",
+            chatgpt="✓ 220",
+        )
+        partial = self.ranked_row(
+            number=2,
+            passes="2/2",
+            speed="80.0",
+            latency="40 ms",
+            chatgpt="✕ 403",
+        )
         self.assertLess(
-            WireVeilChecker._column_sort_value("quality", tuple(full)),
-            WireVeilChecker._column_sort_value("quality", tuple(partial)),
+            WireVeilChecker._smart_sort_value(full),
+            WireVeilChecker._smart_sort_value(partial),
         )
 
-    def test_smart_quality_uses_worst_service_latency_as_tiebreaker(self):
-        fast = ["—"] * len(TABLE_COLUMNS)
-        slow = ["—"] * len(TABLE_COLUMNS)
-        fast[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 120 ms"
-        slow[TABLE_COLUMN_POSITIONS["quality"]] = "3/3 · 350 ms"
+    def test_smart_quality_uses_speed_then_ping(self):
+        fast = self.ranked_row(
+            number=1,
+            passes="2/2",
+            speed="60.0",
+            latency="180 ms",
+            chatgpt="✓ 100",
+        )
+        slow = self.ranked_row(
+            number=2,
+            passes="2/2",
+            speed="20.0",
+            latency="40 ms",
+            chatgpt="✓ 100",
+        )
         self.assertLess(
-            WireVeilChecker._column_sort_value("quality", tuple(fast)),
-            WireVeilChecker._column_sort_value("quality", tuple(slow)),
+            WireVeilChecker._smart_sort_value(fast),
+            WireVeilChecker._smart_sort_value(slow),
+        )
+
+        equally_fast = list(fast)
+        equally_fast[TABLE_COLUMN_POSITIONS["speed"]] = "20.0"
+        self.assertGreater(
+            WireVeilChecker._smart_sort_value(tuple(equally_fast)),
+            WireVeilChecker._smart_sort_value(slow),
         )
 
 
@@ -90,6 +134,96 @@ class AppIconTests(unittest.TestCase):
         self.assertIsNotNone(icon)
         self.assertEqual("wireveil-icon.ico", icon.name)
         self.assertGreater(icon.stat().st_size, 0)
+
+
+class MainUiLayoutTests(unittest.TestCase):
+    def test_settings_window_does_not_displace_main_results(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker, "_refresh_network_status", return_value=None
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                try:
+                    checker.geometry("960x680")
+                    checker.update()
+                    before = (
+                        checker.results_header.winfo_y(),
+                        checker.table_frame.winfo_y(),
+                        checker.table_frame.winfo_height(),
+                    )
+
+                    checker._toggle_advanced_settings(persist=False)
+                    checker.update()
+                    after = (
+                        checker.results_header.winfo_y(),
+                        checker.table_frame.winfo_y(),
+                        checker.table_frame.winfo_height(),
+                    )
+
+                    self.assertEqual(before, after)
+                    self.assertTrue(checker.advanced_window.winfo_ismapped())
+                    self.assertTrue(checker.schedule_frame.winfo_ismapped())
+                    self.assertTrue(checker.log_toggle_button.winfo_ismapped())
+                finally:
+                    checker._on_close()
+
+    def test_table_columns_fill_all_available_width(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker, "_refresh_network_status", return_value=None
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                try:
+                    for variable in checker.service_vars.values():
+                        variable.set(True)
+                    checker._service_selection_changed()
+                    checker.geometry("1240x720")
+                    checker.update()
+                    checker.geometry("1620x720")
+                    checker.update()
+                    checker.after(100, checker.quit)
+                    checker.mainloop()
+                    displayed = tuple(
+                        str(column) for column in checker.table["displaycolumns"]
+                    )
+                    used = sum(
+                        int(checker.table.column(column, "width"))
+                        for column in displayed
+                    )
+                    available = checker.table.winfo_width() - 4
+                    self.assertLessEqual(abs(used - available), 2)
+                    self.assertTrue(checker.table.column("endpoint", "stretch"))
+                    self.assertTrue(checker.table.column("name", "stretch"))
+                finally:
+                    checker._on_close()
 
 
 class QualifiedExportTests(unittest.TestCase):
@@ -167,6 +301,37 @@ class AutoCheckTests(unittest.TestCase):
         checker.after.assert_called_once_with(1_800_000, checker._run_watch_check)
         self.assertEqual("timer-id", checker.watch_job)
         self.assertEqual(2800.0, checker.watch_due_at)
+
+    @mock.patch("checker_app.time.monotonic", return_value=1000.0)
+    def test_restored_results_recreate_missing_auto_timer(self, _monotonic):
+        checker = object.__new__(WireVeilChecker)
+        checker.countdown_job = None
+        checker.closing = False
+        checker.auto_enabled_var = mock.Mock()
+        checker.auto_enabled_var.get.return_value = True
+        checker.auto_interval_var = mock.Mock()
+        checker.auto_interval_var.get.return_value = 120
+        checker.auto_job = None
+        checker.auto_due_at = None
+        checker.running = False
+        checker.one_click_mode = False
+        checker.report = object()
+        checker.watch_enabled_var = mock.Mock()
+        checker.watch_enabled_var.get.return_value = False
+        checker.watched_uris = ()
+        checker.watch_due_at = None
+        checker.auto_countdown_var = mock.Mock()
+        checker.watch_countdown_var = mock.Mock()
+        checker.after = mock.Mock(side_effect=("auto-timer", "countdown-timer"))
+        checker._log = mock.Mock()
+
+        checker._update_countdowns()
+
+        self.assertEqual("auto-timer", checker.auto_job)
+        self.assertEqual(8200.0, checker.auto_due_at)
+        checker.auto_countdown_var.set.assert_called_once_with(
+            "● следующий запуск через 2:00:00"
+        )
 
     def test_auto_check_runs_the_full_one_click_workflow(self):
         checker = object.__new__(WireVeilChecker)
@@ -346,6 +511,98 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual((), loaded["services"])
             self.assertFalse(loaded["advanced_visible"])
             self.assertEqual("", loaded["subscription"])
+
+
+class ResultsPersistenceTests(unittest.TestCase):
+    @staticmethod
+    def sample_results():
+        uri = (
+            "vless://00000000-0000-4000-8000-000000000000@node.example:443"
+            "?security=tls#Family"
+        )
+        protocol, outbound = healthcheck.uri_to_outbound(uri, "wv-0000")
+        target = healthcheck.ProbeTarget(
+            0, "wv-0000", uri, protocol, outbound
+        )
+        probe = healthcheck.ProbeResult(
+            target,
+            True,
+            74,
+            attempts=2,
+            successes=2,
+        )
+        report = local_checker.CheckReport(
+            candidates=(uri,),
+            results=(probe,),
+            conversion_unsupported={"ss": 1},
+            runtime_rejected={},
+            engine_version="sing-box test",
+            attempts=2,
+        )
+        speeds = {
+            0: local_checker.SpeedResult(
+                target,
+                speed_mbps=18.25,
+                bytes_received=1_000_000,
+                duration_ms=438,
+            )
+        }
+        services = {
+            (0, "ChatGPT"): local_checker.ServiceResult(
+                target,
+                "ChatGPT",
+                available=True,
+                latency_ms=91,
+                http_status=403,
+            )
+        }
+        return report, speeds, services
+
+    def test_last_results_round_trip_keeps_exportable_targets(self):
+        report, speeds, services = self.sample_results()
+        source = "https://example.com/family-subscription"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeilChecker.last-results.json"
+            write_checker_results(
+                path,
+                source,
+                report,
+                speeds,
+                services,
+                sort_column="quality",
+                sort_descending=True,
+            )
+
+            loaded = load_checker_results(path, source)
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(report.candidates, loaded.report.candidates)
+        self.assertEqual(74, loaded.report.results[0].delay_ms)
+        self.assertEqual(report.results[0].target.uri, loaded.report.results[0].target.uri)
+        self.assertTrue(loaded.report.results[0].target.outbound)
+        self.assertEqual(18.25, loaded.speed_results[0].speed_mbps)
+        self.assertTrue(loaded.service_results[(0, "ChatGPT")].available)
+        self.assertEqual("quality", loaded.sort_column)
+        self.assertTrue(loaded.sort_descending)
+
+    def test_results_from_another_subscription_are_not_restored(self):
+        report, speeds, services = self.sample_results()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeilChecker.last-results.json"
+            write_checker_results(path, "subscription-a", report, speeds, services)
+
+            loaded = load_checker_results(path, "subscription-b")
+
+        self.assertIsNone(loaded)
+
+    def test_corrupt_results_are_ignored(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeilChecker.last-results.json"
+            path.write_text("{broken", encoding="utf-8")
+
+            loaded = load_checker_results(path, "subscription")
+
+        self.assertIsNone(loaded)
 
 
 if __name__ == "__main__":

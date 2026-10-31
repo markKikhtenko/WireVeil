@@ -182,6 +182,57 @@ class ServiceTestTests(unittest.TestCase):
             )
         self.assertEqual((), results)
 
+    def test_multiple_services_report_progress_against_all_checks(self):
+        targets = (
+            self.target(),
+            healthcheck.ProbeTarget(
+                1,
+                "wv-0001",
+                vless(UUID1, "second.example.com"),
+                "vless",
+                {"type": "vless", "tag": "wv-0001"},
+            ),
+        )
+        progress: list[tuple[int, int, str]] = []
+        process = mock.Mock()
+        process.poll.return_value = None
+
+        def service_result(target, _port, *, service, **_kwargs):
+            return local_checker.ServiceResult(
+                target,
+                service.name,
+                available=True,
+                latency_ms=50,
+                http_status=200,
+            )
+
+        with tempfile.TemporaryDirectory() as name:
+            binary = Path(name) / "sing-box.exe"
+            binary.touch()
+            with (
+                mock.patch.object(local_checker, "_allocate_ports", return_value=[21001, 21002]),
+                mock.patch.object(
+                    healthcheck, "_run_config_check", return_value=(True, "ok")
+                ),
+                mock.patch.object(local_checker.subprocess, "Popen", return_value=process),
+                mock.patch.object(local_checker, "_wait_for_proxy_runtime"),
+                mock.patch.object(
+                    local_checker, "_test_service_access", side_effect=service_result
+                ),
+            ):
+                results = local_checker.run_service_tests(
+                    binary=binary,
+                    targets=targets,
+                    service_names=("ChatGPT", "YouTube", "GitHub"),
+                    progress_callback=lambda done, total, result: progress.append(
+                        (done, total, result.service_name)
+                    ),
+                )
+
+        self.assertEqual(6, len(results))
+        self.assertEqual((6, 6), progress[-1][:2])
+        self.assertTrue(all(done <= total == 6 for done, total, _name in progress))
+
     def test_service_access_reports_http_success_and_latency(self):
         class Response(io.BytesIO):
             status = 204

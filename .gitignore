@@ -17,6 +17,8 @@ Thumbs.db
 /*.spec
 /WireVeilChecker.config.json
 /WireVeilChecker.config.json.tmp
+/WireVeilChecker.last-results.json
+/WireVeilChecker.last-results.json.tmp
 /WireVeilChecker.mihomo-sources.json
 /WireVeilChecker.mihomo-sources.json.tmp
 /WireVeilChecker.mihomo-ui.json

@@ -562,6 +562,7 @@ def run_service_tests(
                     for target, port in zip(targets, ports)
                     for service in services
                 ]
+                total_checks = len(futures)
                 cancelled = False
                 results: list[ServiceResult] = []
                 try:
@@ -574,7 +575,7 @@ def run_service_tests(
                         result = future.result()
                         results.append(result)
                         if progress_callback is not None:
-                            progress_callback(completed, len(targets), result)
+                            progress_callback(completed, total_checks, result)
                 finally:
                     executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
             finally:
