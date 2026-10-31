@@ -373,6 +373,8 @@ class MihomoCheckerTab(ttk.Frame):
         size = self.font_size
         style.configure("Mihomo.TFrame", background="#0d1117")
         style.configure("Mihomo.Panel.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Mihomo.Card.TFrame", background="#161b22", borderwidth=1, bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
+        style.configure("Mihomo.CardBody.TFrame", background="#161b22", borderwidth=0, relief="flat")
         style.configure("Mihomo.TLabelframe", background="#161b22", bordercolor="#30363d", lightcolor="#30363d", darkcolor="#30363d", relief="solid")
         style.configure("Mihomo.TLabelframe.Label", background="#0d1117", foreground="#c9d1d9", font=("Segoe UI Semibold", size))
         style.configure("Mihomo.TLabel", background="#0d1117", foreground="#f0f6fc", font=("Segoe UI", size))
@@ -411,12 +413,6 @@ class MihomoCheckerTab(ttk.Frame):
         self.header_title = title
         ttk.Label(title, text="Mihomo / OpenClash", style="Mihomo.TLabel", font=("Segoe UI Semibold", self.font_size + 3)).pack(anchor="w")
         ttk.Label(title, text="Проверка Mihomo / OpenClash подписок без изменения системных настроек", style="Mihomo.Dim.TLabel").pack(anchor="w")
-        text_controls = ttk.Frame(header, style="Mihomo.TFrame")
-        text_controls.grid(row=0, column=1, padx=(8, 6))
-        self.text_controls = text_controls
-        ttk.Label(text_controls, text="Текст", style="Mihomo.Dim.TLabel").pack(side="left")
-        ttk.Button(text_controls, text="−", width=3, command=lambda: self._change_font(-1), style="Mihomo.TButton").pack(side="left", padx=3)
-        ttk.Button(text_controls, text="+", width=3, command=lambda: self._change_font(1), style="Mihomo.TButton").pack(side="left")
         self.export_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
             activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
@@ -427,18 +423,19 @@ class MihomoCheckerTab(ttk.Frame):
         self.export_menu_button = ttk.Menubutton(
             header, text="Экспорт", menu=self.export_menu, state="disabled", style="Mihomo.TButton",
         )
-        self.export_menu_button.grid(row=0, column=2, sticky="e")
+        self.export_menu_button.grid(row=0, column=1, sticky="e")
+        self.export_menu_button.grid_remove()
 
         controls = ttk.Frame(self, style="Mihomo.TFrame")
         controls.pack(fill="x", pady=(0, 8))
         controls.columnconfigure(0, weight=1)
         self.controls_frame = controls
 
-        source_panel = ttk.Frame(controls, padding=(12, 9), style="Mihomo.Panel.TFrame")
+        source_panel = ttk.Frame(controls, padding=(14, 11), style="Mihomo.Card.TFrame")
         source_panel.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
         self.source_panel = source_panel
         source_panel.columnconfigure(0, weight=1)
-        source_copy = ttk.Frame(source_panel, style="Mihomo.Panel.TFrame")
+        source_copy = ttk.Frame(source_panel, style="Mihomo.CardBody.TFrame")
         source_copy.grid(row=0, column=0, sticky="w")
         ttk.Label(source_copy, text="Источники", style="Mihomo.Section.TLabel").pack(anchor="w")
         ttk.Label(
@@ -446,7 +443,7 @@ class MihomoCheckerTab(ttk.Frame):
             style="Mihomo.PanelDim.TLabel",
         ).pack(anchor="w", pady=(2, 0))
 
-        source_actions = ttk.Frame(source_panel, style="Mihomo.Panel.TFrame")
+        source_actions = ttk.Frame(source_panel, style="Mihomo.CardBody.TFrame")
         source_actions.grid(row=0, column=1, sticky="e", padx=(12, 0))
         self.add_source_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
@@ -477,13 +474,13 @@ class MihomoCheckerTab(ttk.Frame):
         )
         self.source_actions_button.pack(side="left", padx=(6, 0))
 
-        check_panel = ttk.Frame(controls, padding=(12, 9), style="Mihomo.Panel.TFrame")
+        check_panel = ttk.Frame(controls, padding=(14, 11), style="Mihomo.Card.TFrame")
         check_panel.grid(row=1, column=0, sticky="nsew")
         self.check_panel = check_panel
 
-        check_header = ttk.Frame(check_panel, style="Mihomo.Panel.TFrame")
+        check_header = ttk.Frame(check_panel, style="Mihomo.CardBody.TFrame")
         check_header.pack(fill="x")
-        check_copy = ttk.Frame(check_header, style="Mihomo.Panel.TFrame")
+        check_copy = ttk.Frame(check_header, style="Mihomo.CardBody.TFrame")
         check_copy.pack(side="left", fill="x", expand=True)
         ttk.Label(check_copy, text="Проверка", style="Mihomo.Section.TLabel").pack(anchor="w")
         ttk.Label(
@@ -491,7 +488,7 @@ class MihomoCheckerTab(ttk.Frame):
             style="Mihomo.PanelDim.TLabel",
         ).pack(anchor="w", pady=(2, 0))
 
-        run_controls = ttk.Frame(check_header, style="Mihomo.Panel.TFrame")
+        run_controls = ttk.Frame(check_header, style="Mihomo.CardBody.TFrame")
         run_controls.pack(side="right", padx=(12, 0))
         self.run_options_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
@@ -512,9 +509,9 @@ class MihomoCheckerTab(ttk.Frame):
         self.stop_button.grid(row=0, column=2, padx=(6, 0))
         self.stop_button.grid_remove()
 
-        quick_settings = ttk.Frame(check_panel, style="Mihomo.Panel.TFrame")
+        quick_settings = ttk.Frame(check_panel, style="Mihomo.CardBody.TFrame")
         quick_settings.pack(fill="x", pady=(10, 0))
-        sample_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        sample_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
         sample_group.pack(side="left", fill="x", expand=True)
         ttk.Label(sample_group, text="Сколько узлов", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
         self.node_limit = ttk.Combobox(
@@ -524,7 +521,7 @@ class MihomoCheckerTab(ttk.Frame):
         )
         self.node_limit.pack(fill="x", pady=(3, 0))
 
-        policy_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        policy_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
         policy_group.pack(side="left", padx=(8, 0))
         ttk.Label(policy_group, text="Доступность", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
         self.base_policy = ttk.Combobox(
@@ -533,7 +530,7 @@ class MihomoCheckerTab(ttk.Frame):
         )
         self.base_policy.pack(fill="x", pady=(3, 0))
 
-        service_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        service_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
         service_group.pack(side="left", padx=(8, 0))
         ttk.Label(service_group, text="Сайты", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
         services_menu = tk.Menu(
@@ -553,13 +550,13 @@ class MihomoCheckerTab(ttk.Frame):
         )
         self.advanced_button.pack(side="right", padx=(8, 0), anchor="s")
 
-        self.advanced_frame = ttk.Frame(check_panel, padding=(0, 9, 0, 0), style="Mihomo.Panel.TFrame")
+        self.advanced_frame = ttk.Frame(check_panel, padding=(0, 9, 0, 0), style="Mihomo.CardBody.TFrame")
         advanced_fields = (
             ("Повторы", self.attempts_var, 2, 5),
             ("Тайм-аут, сек", self.timeout_var, 1, 60),
         )
         for column, (label, variable, minimum, maximum) in enumerate(advanced_fields):
-            group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+            group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
             group.grid(row=0, column=column, sticky="w", padx=(0, 12))
             ttk.Label(group, text=label, style="Mihomo.PanelDim.TLabel").pack(anchor="w")
             spinbox = ttk.Spinbox(
@@ -571,7 +568,7 @@ class MihomoCheckerTab(ttk.Frame):
                 self.attempts_spinbox = spinbox
             else:
                 self.timeout_spinbox = spinbox
-        worker_group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+        worker_group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
         worker_group.grid(row=0, column=2, sticky="w", padx=(0, 12))
         ttk.Label(worker_group, text="HTTPS потоков", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
         self.worker_combo = ttk.Combobox(
@@ -579,7 +576,7 @@ class MihomoCheckerTab(ttk.Frame):
             values=mihomo_checker.BASE_WORKERS_ALLOWED, state="readonly", style="Mihomo.TCombobox",
         )
         self.worker_combo.pack(anchor="w", pady=(3, 0))
-        seed_group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+        seed_group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
         seed_group.grid(row=0, column=3, sticky="ew")
         seed_group.columnconfigure(0, weight=1)
         ttk.Label(seed_group, text="Ключ выборки (seed)", style="Mihomo.PanelDim.TLabel").grid(row=0, column=0, sticky="w")
@@ -1610,6 +1607,10 @@ class MihomoCheckerTab(ttk.Frame):
     def _set_export_buttons(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
         self.export_menu_button.configure(state=state)
+        if enabled:
+            self.export_menu_button.grid()
+        else:
+            self.export_menu_button.grid_remove()
         for index in range(3):
             self.export_menu.entryconfigure(index, state=state)
 
