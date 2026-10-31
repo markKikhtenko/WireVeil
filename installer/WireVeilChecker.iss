@@ -2,7 +2,7 @@
 ; CI supplies /DAppVersion=x.y.z for tagged releases.
 
 #ifndef AppVersion
-  #define AppVersion "1.9.13"
+  #define AppVersion "1.9.14"
 #endif
 
 #define AppName "WireVeil Checker"

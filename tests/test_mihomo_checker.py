@@ -291,6 +291,29 @@ class MultilineDialogTests(unittest.TestCase):
         dialog._copy_selection.assert_called_once_with()
         dialog._paste_clipboard.assert_called_once_with()
 
+    def test_accept_and_newline_keys_are_explicit(self):
+        dialog = object.__new__(_MultilineDialog)
+        dialog._accept = mock.Mock()
+        dialog.text = mock.Mock()
+
+        self.assertEqual("break", dialog._accept_event())
+        dialog._accept.assert_called_once_with()
+        self.assertEqual("break", dialog._newline_event())
+        dialog.text.insert.assert_called_once_with("insert", "\n")
+        dialog.text.see.assert_called_once_with("insert")
+
+    def test_url_list_dialog_enables_enter_submission(self):
+        tab = object.__new__(MihomoCheckerTab)
+        tab._dialog_text = mock.Mock(return_value=None)
+
+        tab._add_urls()
+
+        tab._dialog_text.assert_called_once_with(
+            "Добавить URLs списком",
+            "Вставьте URL: один адрес на строку. Пустые строки и строки с # игнорируются.",
+            submit_on_enter=True,
+        )
+
 
 class DeduplicationTests(unittest.TestCase):
     def test_same_configuration_different_names_is_tested_once_with_all_sources(self):

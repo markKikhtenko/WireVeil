@@ -89,20 +89,29 @@ class _MultilineDialog(tk.Toplevel):
         prompt: str,
         *,
         multiline: bool = True,
+        submit_on_enter: bool = False,
     ):
         super().__init__(parent)
         self.result: str | None = None
         self.multiline = multiline
+        self.submit_on_enter = submit_on_enter
         self.title(title)
         self.geometry("720x430" if multiline else "720x210")
         self.minsize(520, 320 if multiline else 190)
         self.transient(parent.winfo_toplevel())
         self.configure(background="#0f151c")
-        ttk.Label(self, text=prompt, wraplength=680, justify="left").pack(
-            fill="x", padx=12, pady=(12, 6)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+        ttk.Label(self, text=prompt, wraplength=680, justify="left").grid(
+            row=0, column=0, sticky="ew", padx=12, pady=(12, 6)
         )
+
+        editor = ttk.Frame(self)
+        editor.grid(row=1, column=0, sticky="nsew", padx=12)
+        editor.columnconfigure(0, weight=1)
+        editor.rowconfigure(0, weight=1)
         self.text = tk.Text(
-            self,
+            editor,
             wrap="none",
             undo=True,
             background="#101821",
@@ -113,13 +122,24 @@ class _MultilineDialog(tk.Toplevel):
             padx=9,
             pady=7,
         )
-        self.text.pack(fill="both", expand=True, padx=12)
+        text_y = ttk.Scrollbar(editor, orient="vertical", command=self.text.yview)
+        text_x = ttk.Scrollbar(editor, orient="horizontal", command=self.text.xview)
+        self.text.configure(yscrollcommand=text_y.set, xscrollcommand=text_x.set)
+        self.text.grid(row=0, column=0, sticky="nsew")
+        text_y.grid(row=0, column=1, sticky="ns")
+        text_x.grid(row=1, column=0, sticky="ew")
         self.text.bind("<Control-KeyPress>", self._keyboard_shortcut)
         self.text.bind("<Control-Insert>", self._copy_event)
         self.text.bind("<Shift-Insert>", self._paste_event)
         self.text.bind("<Button-3>", self._show_context_menu)
-        if not multiline:
+        self.text.bind("<Control-Return>", self._accept_event)
+        self.text.bind("<Control-KP_Enter>", self._accept_event)
+        if not multiline or submit_on_enter:
             self.text.bind("<Return>", self._accept_event)
+            self.text.bind("<KP_Enter>", self._accept_event)
+        if multiline and submit_on_enter:
+            self.text.bind("<Shift-Return>", self._newline_event)
+            self.text.bind("<Shift-KP_Enter>", self._newline_event)
 
         self.context_menu = tk.Menu(
             self,
@@ -135,15 +155,27 @@ class _MultilineDialog(tk.Toplevel):
         self.context_menu.add_separator()
         self.context_menu.add_command(label="Выделить всё", command=self._select_all)
 
+        shortcut = (
+            "Enter — добавить · Shift+Enter — новая строка"
+            if multiline and submit_on_enter
+            else "Ctrl+Enter — добавить" if multiline else "Enter — добавить"
+        )
+        ttk.Label(self, text=f"{shortcut} · Esc — отмена").grid(
+            row=2, column=0, sticky="w", padx=12, pady=(6, 0)
+        )
         controls = ttk.Frame(self)
-        controls.pack(fill="x", padx=12, pady=12)
+        controls.grid(row=3, column=0, sticky="ew", padx=12, pady=(8, 12))
         ttk.Button(
             controls,
             text="Вставить из буфера",
             command=self._paste_clipboard,
         ).pack(side="left")
-        ttk.Button(controls, text="Отмена", command=self.destroy).pack(side="right")
-        ttk.Button(controls, text="Добавить", command=self._accept, style="Accent.TButton").pack(
+        self.cancel_button = ttk.Button(controls, text="Отмена", command=self.destroy)
+        self.cancel_button.pack(side="right")
+        self.accept_button = ttk.Button(
+            controls, text="Добавить", command=self._accept, style="Accent.TButton",
+        )
+        self.accept_button.pack(
             side="right", padx=(0, 6)
         )
         self.protocol("WM_DELETE_WINDOW", self.destroy)
@@ -238,6 +270,11 @@ class _MultilineDialog(tk.Toplevel):
 
     def _accept_event(self, _event: object | None = None) -> str:
         self._accept()
+        return "break"
+
+    def _newline_event(self, _event: object | None = None) -> str:
+        self.text.insert("insert", "\n")
+        self.text.see("insert")
         return "break"
 
     def _accept(self) -> None:
@@ -855,8 +892,11 @@ class MihomoCheckerTab(ttk.Frame):
         prompt: str,
         *,
         multiline: bool = True,
+        submit_on_enter: bool = False,
     ) -> str | None:
-        dialog = _MultilineDialog(self, title, prompt, multiline=multiline)
+        dialog = _MultilineDialog(
+            self, title, prompt, multiline=multiline, submit_on_enter=submit_on_enter,
+        )
         self.wait_window(dialog)
         return dialog.result
 
@@ -909,7 +949,11 @@ class MihomoCheckerTab(ttk.Frame):
         self._append_sources([mihomo_checker.SourceSpec(mihomo_checker.new_source_id(), mihomo_checker.source_name_from_url(url), "url", url)])
 
     def _add_urls(self) -> None:
-        value = self._dialog_text("Добавить URLs списком", "Вставьте URL: один адрес на строку. Пустые строки и строки с # игнорируются.")
+        value = self._dialog_text(
+            "Добавить URLs списком",
+            "Вставьте URL: один адрес на строку. Пустые строки и строки с # игнорируются.",
+            submit_on_enter=True,
+        )
         if not value:
             return
         urls = mihomo_checker.subscription_urls_from_text(value)
