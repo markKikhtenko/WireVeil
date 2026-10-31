@@ -505,6 +505,7 @@ class WireVeilChecker(tk.Tk):
         self.one_click_mode = False
         self.advanced_visible = False
         self.magic_tooltip: tk.Toplevel | None = None
+        self.magic_tooltip_job: str | None = None
         self.easter_window: tk.Toplevel | None = None
         self.easter_job: str | None = None
         self.closing = False
@@ -892,6 +893,7 @@ class WireVeilChecker(tk.Tk):
         self.magic_button.bind("<Leave>", self._hide_magic_button_label)
         self.magic_button.bind("<FocusIn>", self._show_magic_button_label)
         self.magic_button.bind("<FocusOut>", self._hide_magic_button_label)
+        self.magic_button.bind("<Unmap>", self._hide_magic_button_label)
         command_copy = ttk.Frame(command_bar, style="HeroBody.TFrame")
         command_copy.pack(side="left", padx=(14, 0))
         ttk.Label(
@@ -1324,6 +1326,7 @@ class WireVeilChecker(tk.Tk):
         target = self.engine_pages.get(page)
         if target is None:
             return
+        self._hide_magic_button_label()
         target.tkraise()
         for key, (button, indicator) in self.engine_nav.items():
             selected = key == page
@@ -1660,10 +1663,21 @@ class WireVeilChecker(tk.Tk):
         )
         tooltip.geometry(f"+{x}+{y}")
         self.magic_tooltip = tooltip
+        self.magic_tooltip_job = self.after(2_000, self._hide_magic_button_label)
 
     def _hide_magic_button_label(self, _event: object | None = None) -> None:
+        job = self.magic_tooltip_job
+        self.magic_tooltip_job = None
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
         if self.magic_tooltip is not None:
-            self.magic_tooltip.destroy()
+            try:
+                self.magic_tooltip.destroy()
+            except tk.TclError:
+                pass
             self.magic_tooltip = None
 
     def _show_rkn_easter_egg(self, _event: object | None = None) -> str:

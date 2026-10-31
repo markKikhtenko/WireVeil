@@ -137,6 +137,40 @@ class AppIconTests(unittest.TestCase):
 
 
 class MainUiLayoutTests(unittest.TestCase):
+    def test_magic_tooltip_closes_when_switching_to_mihomo(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker, "_refresh_network_status", return_value=None
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                try:
+                    checker._show_magic_button_label()
+                    checker.update()
+                    self.assertIsNotNone(checker.magic_tooltip)
+                    self.assertIsNotNone(checker.magic_tooltip_job)
+
+                    checker._show_engine_page("mihomo")
+                    checker.update()
+
+                    self.assertIsNone(checker.magic_tooltip)
+                    self.assertIsNone(checker.magic_tooltip_job)
+                finally:
+                    checker._on_close()
+
     def test_logo_triple_click_opens_self_closing_easter_egg(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
