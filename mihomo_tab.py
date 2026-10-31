@@ -316,13 +316,13 @@ class MihomoCheckerTab(ttk.Frame):
         self.kpi_vars = {
             key: tk.StringVar(value=value)
             for key, value in {
-                "sources": "Источники 0 / ошибки 0",
+                "sources": "Источников 0 · ошибок 0",
                 "nodes": "Узлы 0",
-                "https": "HTTPS 0",
-                "statuses": "G 0 · P 0 · F 0 · U 0 · — 0",
-                "checked": "Проверено 0/0",
-                "rate": "Скорость —",
-                "eta": "ETA —",
+                "https": "HTTPS прошло 0",
+                "statuses": "Годных 0 · частично 0 · проблем 0",
+                "checked": "Проверено 0 из 0",
+                "rate": "Темп —",
+                "eta": "Осталось —",
             }.items()
         }
 
@@ -340,6 +340,8 @@ class MihomoCheckerTab(ttk.Frame):
         style.configure("Mihomo.TLabelframe.Label", background="#0d1117", foreground="#c9d1d9", font=("Segoe UI Semibold", size))
         style.configure("Mihomo.TLabel", background="#0d1117", foreground="#f0f6fc", font=("Segoe UI", size))
         style.configure("Mihomo.Panel.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI", size))
+        style.configure("Mihomo.PanelDim.TLabel", background="#161b22", foreground="#8b949e", font=("Segoe UI", max(9, size - 1)))
+        style.configure("Mihomo.Section.TLabel", background="#161b22", foreground="#f0f6fc", font=("Segoe UI Semibold", size + 1))
         style.configure("Mihomo.Dim.TLabel", background="#0d1117", foreground="#8b949e", font=("Segoe UI", max(9, size - 1)))
         style.configure("Mihomo.Kpi.TLabel", background="#161b22", foreground="#c9d1d9", font=("Segoe UI Semibold", size), padding=(7, 5))
         style.configure("Mihomo.State.TLabel", background="#1f6feb", foreground="#ffffff", font=("Segoe UI Semibold", size), padding=(8, 4))
@@ -364,84 +366,190 @@ class MihomoCheckerTab(ttk.Frame):
     def _build_ui(self) -> None:
         self.configure(style="Mihomo.TFrame")
         header = ttk.Frame(self, style="Mihomo.TFrame")
-        header.pack(fill="x", pady=(0, 6))
+        header.pack(fill="x", pady=(0, 10))
         header.columnconfigure(0, weight=1)
         self.header_frame = header
         title = ttk.Frame(header, style="Mihomo.TFrame")
         title.grid(row=0, column=0, sticky="w")
         self.header_title = title
         ttk.Label(title, text="Mihomo / OpenClash", style="Mihomo.TLabel", font=("Segoe UI Semibold", self.font_size + 3)).pack(anchor="w")
-        ttk.Label(title, text="Массовый аудит реального HTTPS-трафика через отдельный локальный Mihomo", style="Mihomo.Dim.TLabel").pack(anchor="w")
+        ttk.Label(title, text="Проверка Mihomo / OpenClash подписок без изменения системных настроек", style="Mihomo.Dim.TLabel").pack(anchor="w")
         text_controls = ttk.Frame(header, style="Mihomo.TFrame")
         text_controls.grid(row=0, column=1, padx=(8, 6))
         self.text_controls = text_controls
         ttk.Label(text_controls, text="Текст", style="Mihomo.Dim.TLabel").pack(side="left")
         ttk.Button(text_controls, text="−", width=3, command=lambda: self._change_font(-1), style="Mihomo.TButton").pack(side="left", padx=3)
         ttk.Button(text_controls, text="+", width=3, command=lambda: self._change_font(1), style="Mihomo.TButton").pack(side="left")
-        exports = ttk.Frame(header, style="Mihomo.TFrame")
-        exports.grid(row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
-        self.exports_frame = exports
-        self.export_report_button = ttk.Button(exports, text="Диагностический ZIP…", command=self._export_report, state="disabled", style="Mihomo.Accent.TButton")
-        self.export_report_button.pack(side="left", padx=3)
-        self.export_yaml_button = ttk.Button(exports, text="Рабочие YAML…", command=self._export_private, state="disabled", style="Mihomo.TButton")
-        self.export_yaml_button.pack(side="left", padx=3)
-        self.export_sources_button = ttk.Button(exports, text="YAML по источникам…", command=self._export_private_by_source, state="disabled", style="Mihomo.TButton")
-        self.export_sources_button.pack(side="left", padx=3)
+        self.export_menu = tk.Menu(
+            self, tearoff=False, background="#161b22", foreground="#f0f6fc",
+            activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
+        )
+        self.export_menu.add_command(label="Диагностический ZIP…", command=self._export_report)
+        self.export_menu.add_command(label="Рабочие YAML…", command=self._export_private)
+        self.export_menu.add_command(label="YAML по источникам…", command=self._export_private_by_source)
+        self.export_menu_button = ttk.Menubutton(
+            header, text="Экспорт", menu=self.export_menu, state="disabled", style="Mihomo.TButton",
+        )
+        self.export_menu_button.grid(row=0, column=2, sticky="e")
 
         controls = ttk.Frame(self, style="Mihomo.TFrame")
-        controls.pack(fill="x", pady=(0, 6))
+        controls.pack(fill="x", pady=(0, 8))
         controls.columnconfigure(0, weight=1)
         self.controls_frame = controls
-        source_panel = ttk.LabelFrame(controls, text="Источники", padding=(8, 6), style="Mihomo.TLabelframe")
-        source_panel.grid(row=0, column=0, sticky="nsew", pady=(0, 3))
-        self.source_panel = source_panel
-        for index, (text, command) in enumerate((
-            ("Добавить URL", self._add_url), ("URL списком", self._add_urls),
-            ("Файлы / каталог…", self._add_files), ("Вставить YAML", self._add_text),
-            ("Переименовать", self._rename_selected), ("Удалить", self._delete_selected),
-            ("Очистить", self._clear_sources),
-        )):
-            ttk.Button(source_panel, text=text, command=command, style="Mihomo.TButton").grid(
-                row=index // 4, column=index % 4, sticky="ew", padx=2, pady=2
-            )
-        for column in range(4):
-            source_panel.columnconfigure(column, weight=1)
 
-        check_panel = ttk.LabelFrame(controls, text="Настройки проверки", padding=(8, 6), style="Mihomo.TLabelframe")
-        check_panel.grid(row=1, column=0, sticky="nsew", pady=(3, 0))
+        source_panel = ttk.Frame(controls, padding=(12, 9), style="Mihomo.Panel.TFrame")
+        source_panel.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
+        self.source_panel = source_panel
+        source_panel.columnconfigure(0, weight=1)
+        source_copy = ttk.Frame(source_panel, style="Mihomo.Panel.TFrame")
+        source_copy.grid(row=0, column=0, sticky="w")
+        ttk.Label(source_copy, text="Источники", style="Mihomo.Section.TLabel").pack(anchor="w")
+        ttk.Label(
+            source_copy, text="Добавьте подписки или локальные Mihomo / Clash YAML",
+            style="Mihomo.PanelDim.TLabel",
+        ).pack(anchor="w", pady=(2, 0))
+
+        source_actions = ttk.Frame(source_panel, style="Mihomo.Panel.TFrame")
+        source_actions.grid(row=0, column=1, sticky="e", padx=(12, 0))
+        self.add_source_menu = tk.Menu(
+            self, tearoff=False, background="#161b22", foreground="#f0f6fc",
+            activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
+        )
+        for text, command in (
+            ("Один URL", self._add_url), ("Несколько URL", self._add_urls),
+            ("Файл или каталог…", self._add_files), ("Вставить YAML", self._add_text),
+        ):
+            self.add_source_menu.add_command(label=text, command=command)
+        self.add_source_button = ttk.Menubutton(
+            source_actions, text="＋ Добавить источник", menu=self.add_source_menu,
+            style="Mihomo.Accent.TButton",
+        )
+        self.add_source_button.pack(side="left")
+
+        self.source_actions_menu = tk.Menu(
+            self, tearoff=False, background="#161b22", foreground="#f0f6fc",
+            activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
+        )
+        self.source_actions_menu.add_command(label="Переименовать выбранный", command=self._rename_selected)
+        self.source_actions_menu.add_command(label="Удалить выбранные", command=self._delete_selected)
+        self.source_actions_menu.add_separator()
+        self.source_actions_menu.add_command(label="Очистить список", command=self._clear_sources)
+        self.source_actions_button = ttk.Menubutton(
+            source_actions, text="Действия", menu=self.source_actions_menu,
+            state="disabled", style="Mihomo.TButton",
+        )
+        self.source_actions_button.pack(side="left", padx=(6, 0))
+
+        check_panel = ttk.Frame(controls, padding=(12, 9), style="Mihomo.Panel.TFrame")
+        check_panel.grid(row=1, column=0, sticky="nsew")
         self.check_panel = check_panel
-        labels = (("Прогоны", 0), ("Тайм-аут", 2), ("HTTPS потоков", 4))
-        for text, column in labels:
-            ttk.Label(check_panel, text=text, style="Mihomo.Panel.TLabel").grid(row=0, column=column, sticky="w", padx=(2, 3))
-        ttk.Spinbox(check_panel, from_=2, to=5, width=4, textvariable=self.attempts_var, style="Mihomo.TSpinbox").grid(row=0, column=1, sticky="w")
-        ttk.Spinbox(check_panel, from_=1, to=60, width=4, textvariable=self.timeout_var, style="Mihomo.TSpinbox").grid(row=0, column=3, sticky="w")
-        self.worker_combo = ttk.Combobox(check_panel, width=5, textvariable=self.workers_var, values=mihomo_checker.BASE_WORKERS_ALLOWED, state="readonly", style="Mihomo.TCombobox")
-        self.worker_combo.grid(row=0, column=5, sticky="w")
-        ttk.Label(check_panel, text="Выборка", style="Mihomo.Panel.TLabel").grid(row=1, column=0, sticky="w", padx=(2, 3), pady=(4, 0))
+
+        check_header = ttk.Frame(check_panel, style="Mihomo.Panel.TFrame")
+        check_header.pack(fill="x")
+        check_copy = ttk.Frame(check_header, style="Mihomo.Panel.TFrame")
+        check_copy.pack(side="left", fill="x", expand=True)
+        ttk.Label(check_copy, text="Проверка", style="Mihomo.Section.TLabel").pack(anchor="w")
+        ttk.Label(
+            check_copy, text="Запустите полный аудит или проверьте только выбранные источники",
+            style="Mihomo.PanelDim.TLabel",
+        ).pack(anchor="w", pady=(2, 0))
+
+        run_controls = ttk.Frame(check_header, style="Mihomo.Panel.TFrame")
+        run_controls.pack(side="right", padx=(12, 0))
+        self.run_options_menu = tk.Menu(
+            self, tearoff=False, background="#161b22", foreground="#f0f6fc",
+            activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
+        )
+        self.run_options_menu.add_command(label="Проверить выбранные источники", command=self._start_selected)
+        self.start_selected_button = ttk.Menubutton(
+            run_controls, text="Другой запуск", menu=self.run_options_menu, style="Mihomo.TButton",
+        )
+        self.start_selected_button.grid(row=0, column=0, padx=(0, 6))
+        self.start_all_button = ttk.Button(
+            run_controls, text="▶ Проверить всё", command=self._start_all, style="Mihomo.Accent.TButton",
+        )
+        self.start_all_button.grid(row=0, column=1)
+        self.stop_button = ttk.Button(
+            run_controls, text="■ Остановить", command=self.stop, state="disabled", style="Mihomo.TButton",
+        )
+        self.stop_button.grid(row=0, column=2, padx=(6, 0))
+        self.stop_button.grid_remove()
+
+        quick_settings = ttk.Frame(check_panel, style="Mihomo.Panel.TFrame")
+        quick_settings.pack(fill="x", pady=(10, 0))
+        sample_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        sample_group.pack(side="left", fill="x", expand=True)
+        ttk.Label(sample_group, text="Сколько узлов", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
         self.node_limit = ttk.Combobox(
-            check_panel, textvariable=self.node_limit_var, state="readonly", width=23,
+            sample_group, textvariable=self.node_limit_var, state="readonly", width=23,
             values=("Репрезентативно: 50", "Репрезентативно: 100", "Репрезентативно: 500", "20 на источник", "100 на источник", "Все узлы"),
             style="Mihomo.TCombobox",
         )
-        self.node_limit.grid(row=1, column=1, columnspan=3, sticky="ew", pady=(4, 0))
-        self.base_policy = ttk.Combobox(check_panel, textvariable=self.base_policy_var, state="readonly", width=16, values=("Строго 2/2", "Достаточно 1/2"), style="Mihomo.TCombobox")
-        self.base_policy.grid(row=1, column=4, columnspan=2, sticky="ew", padx=(6, 0), pady=(4, 0))
-        services_menu = tk.Menu(self, tearoff=False)
+        self.node_limit.pack(fill="x", pady=(3, 0))
+
+        policy_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        policy_group.pack(side="left", padx=(8, 0))
+        ttk.Label(policy_group, text="Доступность", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        self.base_policy = ttk.Combobox(
+            policy_group, textvariable=self.base_policy_var, state="readonly", width=16,
+            values=("Строго 2/2", "Достаточно 1/2"), style="Mihomo.TCombobox",
+        )
+        self.base_policy.pack(fill="x", pady=(3, 0))
+
+        service_group = ttk.Frame(quick_settings, style="Mihomo.Panel.TFrame")
+        service_group.pack(side="left", padx=(8, 0))
+        ttk.Label(service_group, text="Сайты", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        services_menu = tk.Menu(
+            self, tearoff=False, background="#161b22", foreground="#f0f6fc",
+            activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
+        )
         for service in mihomo_checker.SERVICE_DEFINITIONS:
             services_menu.add_checkbutton(label=service.name, variable=self.service_vars[service.name])
-        services_button = ttk.Menubutton(check_panel, text="Выбрать сервисы", menu=services_menu, style="Mihomo.TButton")
-        services_button.grid(row=2, column=0, columnspan=2, sticky="ew", padx=2, pady=(4, 0))
-        self.start_all_button = ttk.Button(check_panel, text="▶ Проверить все", command=self._start_all, style="Mihomo.Accent.TButton")
-        self.start_all_button.grid(row=2, column=2, sticky="ew", padx=2, pady=(4, 0))
-        self.start_selected_button = ttk.Button(check_panel, text="Проверить выбранные", command=self._start_selected, style="Mihomo.TButton")
-        self.start_selected_button.grid(row=2, column=3, columnspan=2, sticky="ew", padx=2, pady=(4, 0))
-        self.stop_button = ttk.Button(check_panel, text="■ Стоп", command=self.stop, state="disabled", style="Mihomo.TButton")
-        self.stop_button.grid(row=2, column=5, sticky="ew", padx=2, pady=(4, 0))
-        ttk.Label(check_panel, text="Seed выборки", style="Mihomo.Panel.TLabel").grid(row=3, column=0, sticky="w", padx=2, pady=(4, 0))
-        ttk.Entry(check_panel, textvariable=self.sampling_seed_var, style="Mihomo.TEntry").grid(row=3, column=1, columnspan=3, sticky="ew", padx=2, pady=(4, 0))
-        ttk.Label(check_panel, text="Сервисы ≤ 8 потоков", style="Mihomo.Dim.TLabel").grid(row=3, column=4, columnspan=2, sticky="e", padx=2, pady=(4, 0))
-        for column in range(6):
-            check_panel.columnconfigure(column, weight=1)
+        self.services_button = ttk.Menubutton(
+            service_group, text="Выбрать сайты", menu=services_menu, style="Mihomo.TButton",
+        )
+        self.services_button.pack(fill="x", pady=(3, 0))
+
+        self.advanced_button = ttk.Button(
+            quick_settings, text="Тонкая настройка", command=self._toggle_advanced_settings,
+            style="Mihomo.TButton",
+        )
+        self.advanced_button.pack(side="right", padx=(8, 0), anchor="s")
+
+        self.advanced_frame = ttk.Frame(check_panel, padding=(0, 9, 0, 0), style="Mihomo.Panel.TFrame")
+        advanced_fields = (
+            ("Повторы", self.attempts_var, 2, 5),
+            ("Тайм-аут, сек", self.timeout_var, 1, 60),
+        )
+        for column, (label, variable, minimum, maximum) in enumerate(advanced_fields):
+            group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+            group.grid(row=0, column=column, sticky="w", padx=(0, 12))
+            ttk.Label(group, text=label, style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+            spinbox = ttk.Spinbox(
+                group, from_=minimum, to=maximum, width=6, textvariable=variable,
+                style="Mihomo.TSpinbox",
+            )
+            spinbox.pack(anchor="w", pady=(3, 0))
+            if column == 0:
+                self.attempts_spinbox = spinbox
+            else:
+                self.timeout_spinbox = spinbox
+        worker_group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+        worker_group.grid(row=0, column=2, sticky="w", padx=(0, 12))
+        ttk.Label(worker_group, text="HTTPS потоков", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        self.worker_combo = ttk.Combobox(
+            worker_group, width=7, textvariable=self.workers_var,
+            values=mihomo_checker.BASE_WORKERS_ALLOWED, state="readonly", style="Mihomo.TCombobox",
+        )
+        self.worker_combo.pack(anchor="w", pady=(3, 0))
+        seed_group = ttk.Frame(self.advanced_frame, style="Mihomo.Panel.TFrame")
+        seed_group.grid(row=0, column=3, sticky="ew")
+        seed_group.columnconfigure(0, weight=1)
+        ttk.Label(seed_group, text="Ключ выборки (seed)", style="Mihomo.PanelDim.TLabel").grid(row=0, column=0, sticky="w")
+        self.sampling_seed_entry = ttk.Entry(seed_group, textvariable=self.sampling_seed_var, style="Mihomo.TEntry")
+        self.sampling_seed_entry.grid(row=1, column=0, sticky="ew", pady=(3, 0))
+        self.advanced_frame.columnconfigure(3, weight=1)
+        self.advanced_visible = False
 
         kpi = ttk.Frame(self, style="Mihomo.Panel.TFrame", padding=(4, 3))
         kpi.pack(fill="x", pady=(0, 6))
@@ -455,7 +563,7 @@ class MihomoCheckerTab(ttk.Frame):
         nodes_page = ttk.Frame(self.views, style="Mihomo.TFrame")
         log_page = ttk.Frame(self.views, style="Mihomo.TFrame")
         self.views.add(sources_page, text="Источники")
-        self.views.add(nodes_page, text="Узлы — обзор")
+        self.views.add(nodes_page, text="Результаты")
         self.views.add(log_page, text="Журнал")
         self.log_page = log_page
 
@@ -471,6 +579,7 @@ class MihomoCheckerTab(ttk.Frame):
             self.source_tree.column(column, width=source_widths[column], minwidth=55, stretch=column in {"name", "protocols", "error"})
         self.source_tree.configure(displaycolumns=tuple(column for column in self.SOURCE_COLUMNS if column != "checked"))
         self.source_tree.bind("<Double-1>", lambda _event: self._show_source_details())
+        self.source_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_source_actions())
         source_y = ttk.Scrollbar(sources_page, orient="vertical", command=self.source_tree.yview)
         source_x = ttk.Scrollbar(sources_page, orient="horizontal", command=self.source_tree.xview)
         self.source_tree.configure(yscrollcommand=source_y.set, xscrollcommand=source_x.set)
@@ -543,33 +652,29 @@ class MihomoCheckerTab(ttk.Frame):
         status_bar.pack(fill="x")
         ttk.Label(status_bar, textvariable=self.state_var, style="Mihomo.State.TLabel").pack(side="left", padx=(0, 6))
         ttk.Label(status_bar, textvariable=self.status_var, style="Mihomo.TLabel").pack(side="left", fill="x", expand=True)
-        ttk.Button(status_bar, text="Показать журнал", command=self._show_log, style="Mihomo.TButton").pack(side="right", padx=(6, 0))
         ttk.Label(self, text="Без TUN и системного proxy. Диагностический ZIP обезличен; приватный YAML храните локально.", style="Mihomo.Dim.TLabel").pack(fill="x", pady=(3, 0))
         self.bind("<Configure>", self._adapt_control_layout, add=True)
 
     def _adapt_control_layout(self, event: object | None = None) -> None:
         width = int(getattr(event, "width", self.winfo_width()))
         scaling = float(self.tk.call("tk", "scaling"))
-        wide_threshold = max(1120, int(960 * scaling), self.font_size * 98)
-        wide = width >= wide_threshold
-        current = bool(getattr(self, "_wide_controls", False))
-        if wide == current:
+        compact_threshold = max(1100, int(880 * scaling), self.font_size * 88)
+        compact = width < compact_threshold
+        current = getattr(self, "_compact_controls", None)
+        if compact == current:
             return
-        self._wide_controls = wide
-        self.source_panel.grid_forget()
-        self.check_panel.grid_forget()
-        if wide:
-            self.exports_frame.grid_forget()
-            self.exports_frame.grid(row=0, column=2, sticky="e")
-            self.controls_frame.columnconfigure(1, weight=1)
-            self.source_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 3))
-            self.check_panel.grid(row=0, column=1, sticky="nsew", padx=(3, 0))
+        self._compact_controls = compact
+        self.node_limit.configure(width=18 if compact else 23)
+        self.base_policy.configure(width=14 if compact else 16)
+
+    def _toggle_advanced_settings(self) -> None:
+        self.advanced_visible = not self.advanced_visible
+        if self.advanced_visible:
+            self.advanced_frame.pack(fill="x")
+            self.advanced_button.configure(text="Скрыть настройку")
         else:
-            self.exports_frame.grid_forget()
-            self.exports_frame.grid(row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
-            self.controls_frame.columnconfigure(1, weight=0)
-            self.source_panel.grid(row=0, column=0, sticky="nsew", pady=(0, 3))
-            self.check_panel.grid(row=1, column=0, sticky="nsew", pady=(3, 0))
+            self.advanced_frame.pack_forget()
+            self.advanced_button.configure(text="Тонкая настройка")
 
     def _clear_execution_log(self) -> None:
         self.execution_log_entries.clear()
@@ -850,6 +955,19 @@ class MihomoCheckerTab(ttk.Frame):
     def _selected_source_ids(self) -> set[str]:
         return set(self.source_tree.selection())
 
+    def _update_source_actions(self) -> None:
+        selected_count = len(self._selected_source_ids())
+        editable = not self.running
+        has_sources = bool(self.sources)
+        self.source_actions_button.configure(state="normal" if editable and has_sources else "disabled")
+        self.source_actions_menu.entryconfigure(0, state="normal" if editable and selected_count == 1 else "disabled")
+        self.source_actions_menu.entryconfigure(1, state="normal" if editable and selected_count else "disabled")
+        self.source_actions_menu.entryconfigure(3, state="normal" if editable and has_sources else "disabled")
+        self.start_all_button.configure(state="normal" if editable and has_sources else "disabled")
+        selected_state = "normal" if editable and selected_count else "disabled"
+        self.start_selected_button.configure(state=selected_state)
+        self.run_options_menu.entryconfigure(0, state=selected_state)
+
     def _rename_selected(self) -> None:
         selected = list(self._selected_source_ids())
         if len(selected) != 1:
@@ -971,7 +1089,8 @@ class MihomoCheckerTab(ttk.Frame):
             )
         parsed_rows = list(report_sources.values()) or list(self.parsed_by_id.values())
         source_errors = sum(item.fetch_status == "failed" or item.parse_status in {"failed", "unsupported"} for item in parsed_rows)
-        self.kpi_vars["sources"].set(f"Источники {len(parsed_rows) or len(self.sources)} / ошибки {source_errors}")
+        self.kpi_vars["sources"].set(f"Источников {len(parsed_rows) or len(self.sources)} · ошибок {source_errors}")
+        self._update_source_actions()
 
     @staticmethod
     def _format_bytes(value: int | None) -> str:
@@ -1266,24 +1385,24 @@ class MihomoCheckerTab(ttk.Frame):
         https_passed = sum(item.base_attempts > 0 and item.base_successes == item.base_attempts for item in results)
         checked = sum(item.overall_status != "not_tested" for item in results)
         self.kpi_vars["nodes"].set(f"Узлы {len(results)}")
-        self.kpi_vars["https"].set(f"HTTPS {https_passed}")
+        self.kpi_vars["https"].set(f"HTTPS прошло {https_passed}")
         self.kpi_vars["statuses"].set(
-            f"G {statuses.count('good')} · P {statuses.count('partial')} · F {statuses.count('failed')} · "
-            f"U {statuses.count('unsupported')} · — {statuses.count('not_tested')}"
+            f"Годных {statuses.count('good')} · частично {statuses.count('partial')} · "
+            f"проблем {statuses.count('failed') + statuses.count('unsupported')}"
         )
         total = len(results)
         if progress is not None and progress.stage in {"https", "services"} and progress.total:
             checked = progress.processed
             total = progress.total
-        self.kpi_vars["checked"].set(f"Проверено {checked}/{total}")
+        self.kpi_vars["checked"].set(f"Проверено {checked} из {total}")
         if progress is not None and progress.rate_per_minute is not None:
-            self.kpi_vars["rate"].set(f"Скорость {progress.rate_per_minute:.0f}/мин")
+            self.kpi_vars["rate"].set(f"Темп {progress.rate_per_minute:.0f}/мин")
             self.kpi_vars["eta"].set(
-                f"ETA {self._format_eta(progress.eta_low_seconds)}–{self._format_eta(progress.eta_high_seconds)}"
+                f"Осталось {self._format_eta(progress.eta_low_seconds)}–{self._format_eta(progress.eta_high_seconds)}"
             )
         elif not self.running:
-            self.kpi_vars["rate"].set("Скорость —")
-            self.kpi_vars["eta"].set("ETA —")
+            self.kpi_vars["rate"].set("Темп —")
+            self.kpi_vars["eta"].set("Осталось —")
 
     def _poll_events(self) -> None:
         self.poll_job = None
@@ -1428,17 +1547,27 @@ class MihomoCheckerTab(ttk.Frame):
     def _set_running_controls(self, running: bool) -> None:
         state = "disabled" if running else "normal"
         self.start_all_button.configure(state=state)
-        self.start_selected_button.configure(state=state)
         self.stop_button.configure(state="normal" if running else "disabled")
+        if running:
+            self.stop_button.grid()
+        else:
+            self.stop_button.grid_remove()
         self.node_limit.configure(state="disabled" if running else "readonly")
         self.worker_combo.configure(state="disabled" if running else "readonly")
         self.base_policy.configure(state="disabled" if running else "readonly")
+        self.attempts_spinbox.configure(state=state)
+        self.timeout_spinbox.configure(state=state)
+        self.sampling_seed_entry.configure(state=state)
+        self.services_button.configure(state=state)
+        self.advanced_button.configure(state=state)
+        self.add_source_button.configure(state=state)
+        self._update_source_actions()
 
     def _set_export_buttons(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
-        self.export_report_button.configure(state=state)
-        self.export_yaml_button.configure(state=state)
-        self.export_sources_button.configure(state=state)
+        self.export_menu_button.configure(state=state)
+        for index in range(3):
+            self.export_menu.entryconfigure(index, state=state)
 
     def _export_report(self) -> None:
         if self.report is None:
