@@ -137,6 +137,42 @@ class AppIconTests(unittest.TestCase):
 
 
 class MainUiLayoutTests(unittest.TestCase):
+    def test_logo_triple_click_opens_self_closing_easter_egg(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker, "_refresh_network_status", return_value=None
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                try:
+                    self.assertTrue(
+                        checker.brand_mark.bind("<Triple-Button-1>")
+                    )
+                    checker._show_rkn_easter_egg()
+                    checker.update()
+                    self.assertIsNotNone(checker.easter_window)
+                    canvas = checker.easter_window.winfo_children()[0]
+                    self.assertTrue(canvas.find_withtag("rkn"))
+                    self.assertTrue(canvas.find_withtag("bat_line"))
+                    checker._close_rkn_easter_egg()
+                    self.assertIsNone(checker.easter_window)
+                    self.assertIsNone(checker.easter_job)
+                finally:
+                    checker._on_close()
+
     def test_settings_window_does_not_displace_main_results(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

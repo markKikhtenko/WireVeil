@@ -7,6 +7,7 @@ import base64
 import dataclasses
 import hashlib
 import json
+import math
 import queue
 import re
 import sys
@@ -504,6 +505,8 @@ class WireVeilChecker(tk.Tk):
         self.one_click_mode = False
         self.advanced_visible = False
         self.magic_tooltip: tk.Toplevel | None = None
+        self.easter_window: tk.Toplevel | None = None
+        self.easter_job: str | None = None
         self.closing = False
         self.report: local_checker.CheckReport | None = None
         self.imported: local_checker.ImportedSubscription | None = None
@@ -718,29 +721,31 @@ class WireVeilChecker(tk.Tk):
 
         topbar = ttk.Frame(shell, style="Topbar.TFrame", padding=(18, 8))
         topbar.pack(fill="x")
-        brand_mark = tk.Canvas(
+        self.brand_mark = tk.Canvas(
             topbar,
             width=30,
             height=30,
             background="#010409",
             highlightthickness=0,
             borderwidth=0,
+            cursor="hand2",
         )
-        brand_mark.create_polygon(
+        self.brand_mark.create_polygon(
             15, 2, 27, 7, 25, 20, 15, 28, 5, 20, 3, 7,
             fill="#0d1117",
             outline="#30363d",
             width=1,
         )
-        brand_mark.create_line(
+        self.brand_mark.create_line(
             7, 9, 10, 21, 15, 15, 20, 21, 23, 9,
             fill="#58a6ff",
             width=3,
             capstyle=tk.ROUND,
             joinstyle=tk.ROUND,
         )
-        brand_mark.create_oval(21, 5, 25, 9, fill="#3fb950", outline="")
-        brand_mark.pack(side="left")
+        self.brand_mark.create_oval(21, 5, 25, 9, fill="#3fb950", outline="")
+        self.brand_mark.bind("<Triple-Button-1>", self._show_rkn_easter_egg)
+        self.brand_mark.pack(side="left")
         brand = ttk.Frame(topbar, style="Topbar.TFrame")
         brand.pack(side="left", padx=(10, 0))
         ttk.Label(brand, text="WireVeil", style="Brand.TLabel").pack(side="left")
@@ -1660,6 +1665,193 @@ class WireVeilChecker(tk.Tk):
         if self.magic_tooltip is not None:
             self.magic_tooltip.destroy()
             self.magic_tooltip = None
+
+    def _show_rkn_easter_egg(self, _event: object | None = None) -> str:
+        if self.easter_window is not None and self.easter_window.winfo_exists():
+            self.easter_window.lift()
+            return "break"
+
+        window = tk.Toplevel(self)
+        window.overrideredirect(True)
+        window.configure(background="#30363d")
+        try:
+            window.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        width, height = 430, 270
+        x = max(0, self.winfo_rootx() + (self.winfo_width() - width) // 2)
+        y = max(0, self.winfo_rooty() + (self.winfo_height() - height) // 3)
+        window.geometry(f"{width}x{height}+{x}+{y}")
+        canvas = tk.Canvas(
+            window,
+            width=width,
+            height=height,
+            background="#0d1117",
+            highlightthickness=1,
+            highlightbackground="#58a6ff",
+            borderwidth=0,
+        )
+        canvas.pack(fill="both", expand=True)
+        canvas.create_text(
+            18,
+            17,
+            text="СЕКРЕТНЫЙ ПРОТОКОЛ",
+            anchor="w",
+            fill="#8b949e",
+            font=("Segoe UI Semibold", 9),
+        )
+        canvas.create_text(
+            18,
+            42,
+            text="РКН-тян обнаружена",
+            anchor="w",
+            fill="#f0f6fc",
+            font=("Segoe UI Semibold", 14),
+        )
+
+        # Hair, head and body form a small code-drawn mascot; no external assets.
+        canvas.create_oval(
+            151, 55, 249, 157, fill="#6e40c9", outline="#a371f7", width=2,
+            tags=("rkn",),
+        )
+        canvas.create_oval(
+            166, 65, 234, 140, fill="#ffd7c2", outline="#f2b8a0", width=2,
+            tags=("rkn",),
+        )
+        canvas.create_polygon(
+            164, 83, 178, 62, 196, 76, 210, 61, 237, 83, 232, 59, 170, 58,
+            fill="#6e40c9", outline="", tags=("rkn",),
+        )
+        canvas.create_line(
+            181, 104, 189, 104, fill="#24292f", width=2, tags=("rkn", "rkn_face"),
+        )
+        canvas.create_line(
+            211, 104, 219, 104, fill="#24292f", width=2, tags=("rkn", "rkn_face"),
+        )
+        canvas.create_arc(
+            190, 108, 211, 126, start=205, extent=130, style=tk.ARC,
+            outline="#cf6a87", width=2, tags=("rkn", "rkn_face"),
+        )
+        canvas.create_polygon(
+            170, 139, 230, 139, 250, 231, 150, 231,
+            fill="#8c2f39", outline="#f85149", width=2, tags=("rkn",),
+        )
+        canvas.create_text(
+            200, 181, text="РКН", fill="#ffffff",
+            font=("Segoe UI Black", 15), tags=("rkn",),
+        )
+        canvas.create_line(
+            171, 151, 135, 196, fill="#ffd7c2", width=9,
+            capstyle=tk.ROUND, tags=("rkn",),
+        )
+        canvas.create_line(
+            229, 151, 265, 196, fill="#ffd7c2", width=9,
+            capstyle=tk.ROUND, tags=("rkn",),
+        )
+        canvas.create_line(
+            178, 226, 171, 257, fill="#c9d1d9", width=10,
+            capstyle=tk.ROUND, tags=("rkn",),
+        )
+        canvas.create_line(
+            222, 226, 229, 257, fill="#c9d1d9", width=10,
+            capstyle=tk.ROUND, tags=("rkn",),
+        )
+
+        canvas.create_line(
+            385, 35, 275, -70, fill="#8b5a2b", width=15,
+            capstyle=tk.ROUND, tags=("bat_line",),
+        )
+        canvas.create_line(
+            385, 35, 275, -70, fill="#d29922", width=8,
+            capstyle=tk.ROUND, tags=("bat_core",),
+        )
+        canvas.create_oval(
+            374, 24, 396, 46, fill="#ffd7c2", outline="#f2b8a0",
+            tags=("bat_hand",),
+        )
+        canvas.create_text(
+            width - 12,
+            height - 10,
+            text="Esc — закрыть",
+            anchor="se",
+            fill="#6e7681",
+            font=("Segoe UI", 8),
+        )
+
+        self.easter_window = window
+        window.bind("<Escape>", lambda _event: self._close_rkn_easter_egg())
+        window.bind("<Destroy>", self._rkn_easter_destroyed, add="+")
+        self.easter_job = window.after(
+            80, lambda: self._animate_rkn_easter_egg(window, canvas, 0)
+        )
+        window.focus_force()
+        return "break"
+
+    def _animate_rkn_easter_egg(
+        self, window: tk.Toplevel, canvas: tk.Canvas, frame: int
+    ) -> None:
+        self.easter_job = None
+        if self.easter_window is not window or not window.winfo_exists():
+            return
+        pivot_x, pivot_y, length = 385, 35, 185
+        if frame <= 12:
+            angle = math.radians(225 - (75 * frame / 12))
+            tip_x = pivot_x + length * math.cos(angle)
+            tip_y = pivot_y + length * math.sin(angle)
+            canvas.coords("bat_line", pivot_x, pivot_y, tip_x, tip_y)
+            canvas.coords("bat_core", pivot_x, pivot_y, tip_x, tip_y)
+        if frame == 12:
+            canvas.delete("rkn_face")
+            for left in (180, 211):
+                canvas.create_line(
+                    left, 99, left + 10, 109, left, 109, left + 10, 99,
+                    fill="#24292f", width=2, tags=("rkn",),
+                )
+            canvas.create_text(
+                115, 80, text="БОНК!", fill="#f2cc60",
+                font=("Segoe UI Black", 18), tags=("impact",),
+            )
+            for x, y in ((145, 106), (158, 79), (132, 128), (252, 91)):
+                canvas.create_text(
+                    x, y, text="★", fill="#f2cc60",
+                    font=("Segoe UI", 16), tags=("impact",),
+                )
+        elif 13 <= frame <= 22:
+            canvas.move("rkn", 7 if frame % 2 else -7, 0)
+        elif 23 <= frame <= 38:
+            canvas.move("rkn", 10, 13)
+            canvas.move("impact", 0, -2)
+        elif frame == 39:
+            canvas.delete("rkn")
+            canvas.delete("impact")
+            canvas.create_text(
+                215, 145, text="Удалено из реестра.", fill="#3fb950",
+                font=("Segoe UI Semibold", 15), tags=("final",),
+            )
+        elif frame >= 52:
+            self._close_rkn_easter_egg()
+            return
+        self.easter_job = window.after(
+            38, lambda: self._animate_rkn_easter_egg(window, canvas, frame + 1)
+        )
+
+    def _rkn_easter_destroyed(self, event: tk.Event) -> None:
+        if self.easter_window is not None and event.widget is self.easter_window:
+            self.easter_window = None
+            self.easter_job = None
+
+    def _close_rkn_easter_egg(self) -> None:
+        window = self.easter_window
+        self.easter_window = None
+        job = self.easter_job
+        self.easter_job = None
+        if window is not None and job is not None:
+            try:
+                window.after_cancel(job)
+            except tk.TclError:
+                pass
+        if window is not None and window.winfo_exists():
+            window.destroy()
 
     def _toggle_advanced_settings(self, *, persist: bool = True) -> None:
         if self.advanced_visible:
@@ -3372,6 +3564,7 @@ class WireVeilChecker(tk.Tk):
 
     def _on_close(self) -> None:
         self.closing = True
+        self._close_rkn_easter_egg()
         self.mihomo_tab.close()
         self._cancel_background_timers()
         for job_name in (
