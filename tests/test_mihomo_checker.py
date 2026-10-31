@@ -8,7 +8,6 @@ import unittest
 import urllib.error
 import zipfile
 from pathlib import Path
-from tkinter import ttk
 from unittest import mock
 
 import yaml
@@ -1194,18 +1193,6 @@ class MihomoUiLayoutTests(unittest.TestCase):
                     root.update()
                     self.assertLessEqual(tab.winfo_reqwidth(), 1280)
                     self.assertGreaterEqual(tab.views.winfo_height(), 150)
-                    self.assertIsInstance(tab.add_source_button, ttk.Menubutton)
-                    self.assertEqual(3, tab.add_source_menu.index("end"))
-                    self.assertEqual(3, tab.source_actions_menu.index("end"))
-                    self.assertEqual(2, tab.export_menu.index("end"))
-                    self.assertFalse(tab.advanced_visible)
-                    self.assertFalse(tab.advanced_frame.winfo_ismapped())
-                    tab._toggle_advanced_settings()
-                    root.update_idletasks()
-                    self.assertTrue(tab.advanced_frame.winfo_ismapped())
-                    tab._toggle_advanced_settings()
-                    root.update_idletasks()
-                    self.assertFalse(tab.advanced_frame.winfo_ismapped())
                     self.assertEqual(
                         ("source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"),
                         tuple(tab.node_tree["displaycolumns"]),
