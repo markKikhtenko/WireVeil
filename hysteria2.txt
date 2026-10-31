@@ -68,7 +68,7 @@ hysteria2://gf1:gfhysteria2024@185.156.44.99:443?sni=www.amazon.com#🇷🇴
 hy2://18cf8030-1ceb-4b7d-8c0c-c036413c144e@185.228.139.247:4433/?insecure=1&sni=de2.xiaoliyu.cyou#%F0%9F%9A%9843%40oneclickvpnkeys
 hysteria2://48ef13ac-d89e-4da0-8db4-c6aa72db4918@191.217.211.161:21374?sni=pl1.song69.fun#🇺🇸
 hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@191.217.251.225:4443/?sni=nl1.obxodvpn.us#🇺🇸
-hysteria2://a0052f4f-4c63-0002-a16f-ab2d5d718cd3@192.142.23.46:443?insecure=1&sni=diffoscope.com#@V2ray_Collector
+hy2://a0052f4f-4c63-0002-a16f-ab2d5d718cd3@192.142.23.46:443?sni=diffoscope.com#SE
 hysteria2://46647da9-d4b4-407f-bea6-ad0b1abc561f@192.236.226.182:2053?insecure=1&security=tls&sni=192.236.226.182#🇺🇸
 hysteria2://4b1be712-774c-4b65-8491-a3339e124a70@194.76.147.34:443?sni=hys-eu.letsconnectpoint.com#🇳🇱
 hysteria2://4b1be712-774c-4b65-8491-a3339e124a70@195.177.94.166:443?insecure=1&sni=fr2-cl3.happy-glonaris.top#🇫🇷
