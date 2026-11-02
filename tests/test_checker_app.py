@@ -16,7 +16,7 @@ from checker_app import (
     write_checker_results,
     write_checker_settings,
 )
-from scripts import healthcheck, local_checker
+from scripts import healthcheck, local_checker, network_check
 
 
 class TableSortTests(unittest.TestCase):
@@ -371,6 +371,66 @@ class AutoCheckTests(unittest.TestCase):
         checker.after.assert_called_once_with(1_800_000, checker._run_watch_check)
         self.assertEqual("timer-id", checker.watch_job)
         self.assertEqual(2800.0, checker.watch_due_at)
+
+    def test_offline_watch_keeps_previous_results_while_waiting_for_network(self):
+        checker = object.__new__(WireVeilChecker)
+        previous_report = object()
+        checker.report = previous_report
+        checker.running = True
+        checker.activity = "watch"
+        checker.progress_var = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker._set_running_controls = mock.Mock()
+        checker._clear_table = mock.Mock()
+        checker._schedule_network_refresh = mock.Mock()
+        checker._log = mock.Mock()
+        checker.watch_waiting_for_network = False
+
+        checker._defer_watch_until_online()
+
+        self.assertIs(previous_report, checker.report)
+        checker._clear_table.assert_not_called()
+        self.assertFalse(checker.running)
+        self.assertIsNone(checker.activity)
+        self.assertTrue(checker.watch_waiting_for_network)
+        checker._schedule_network_refresh.assert_called_once_with()
+        checker.status_var.set.assert_called_once_with(
+            "Контроль доступности ждёт восстановления сети"
+        )
+
+    def test_network_restore_starts_deferred_watch_immediately(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.network_check_in_progress = True
+        checker.network_status_var = mock.Mock()
+        checker.network_status_label = mock.Mock()
+        checker._schedule_network_refresh = mock.Mock()
+        checker.watch_waiting_for_network = True
+        checker.watch_enabled_var = mock.Mock()
+        checker.watch_enabled_var.get.return_value = True
+        checker.watched_uris = ("vless://saved-one",)
+        checker.running = False
+        checker.closing = False
+        checker._log = mock.Mock()
+        checker.after_idle = mock.Mock()
+
+        checker._apply_network_status(network_check.NetworkStatus(online=True))
+
+        self.assertFalse(checker.watch_waiting_for_network)
+        checker.after_idle.assert_called_once_with(checker._start_watch_check)
+
+    def test_waiting_watch_rechecks_network_quickly(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.network_job = "old-network-timer"
+        checker.watch_waiting_for_network = True
+        checker.closing = False
+        checker.after_cancel = mock.Mock()
+        checker.after = mock.Mock(return_value="fast-network-timer")
+
+        checker._schedule_network_refresh()
+
+        checker.after_cancel.assert_called_once_with("old-network-timer")
+        checker.after.assert_called_once_with(3_000, checker._refresh_network_status)
+        self.assertEqual("fast-network-timer", checker.network_job)
 
     @mock.patch("checker_app.time.monotonic", return_value=1000.0)
     def test_restored_results_recreate_missing_auto_timer(self, _monotonic):

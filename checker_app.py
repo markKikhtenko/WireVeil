@@ -530,6 +530,7 @@ class WireVeilChecker(tk.Tk):
         self.network_check_in_progress = False
         self.auto_due_at: float | None = None
         self.watch_due_at: float | None = None
+        self.watch_waiting_for_network = False
         self.watched_uris = tuple(str(uri) for uri in saved_settings["watched_uris"])
 
         self.rounds_var = tk.IntVar(value=int(saved_settings["rounds"]))
@@ -1344,7 +1345,10 @@ class WireVeilChecker(tk.Tk):
                 self.after_cancel(self.network_job)
             except tk.TclError:
                 pass
-        self.network_job = None if self.closing else self.after(30_000, self._refresh_network_status)
+        delay_ms = 3_000 if self.watch_waiting_for_network else 30_000
+        self.network_job = (
+            None if self.closing else self.after(delay_ms, self._refresh_network_status)
+        )
 
     def _refresh_network_status(self) -> None:
         self.network_job = None
@@ -1372,7 +1376,20 @@ class WireVeilChecker(tk.Tk):
         else:
             self.network_status_var.set("● Нет подключения")
             self.network_status_label.configure(style="NetworkOffline.TLabel")
+        resume_watch = (
+            status.online
+            and self.watch_waiting_for_network
+            and self.watch_enabled_var.get()
+            and self.watched_uris
+            and not self.running
+            and not self.closing
+        )
+        if resume_watch:
+            self.watch_waiting_for_network = False
         self._schedule_network_refresh()
+        if resume_watch:
+            self._log("Сеть восстановлена: запускаю отложенный контроль серверов.")
+            self.after_idle(self._start_watch_check)
 
     def _configure_update_buttons(self, *, text: str, state: str) -> None:
         for button in self.update_buttons:
@@ -2151,6 +2168,7 @@ class WireVeilChecker(tk.Tk):
             return
         watched = self.watched_uris
         if not watched:
+            self.watch_waiting_for_network = False
             self._log("Контроль доступности: пока нет скопированных годных серверов.")
             return
         binary = find_sing_box()
@@ -2165,17 +2183,13 @@ class WireVeilChecker(tk.Tk):
             timeout, workers = 8, 64
 
         self._cancel_watch_timer()
+        self.watch_waiting_for_network = False
         self.running = True
         self.activity = "watch"
         self.one_click_mode = False
-        self.report = None
-        self.speed_results.clear()
-        self.service_results.clear()
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.status_var.set("Проверяю подключение к сети…")
-        self.summary_var.set("Один HTTPS-прогон без скорости и проверки сайтов")
-        self._clear_table()
         self._set_running_controls(True)
         self._log(
             f"Контроль доступности: один прогон для {len(watched)} "
@@ -2187,9 +2201,8 @@ class WireVeilChecker(tk.Tk):
                 network_status = network_check.check_device_online()
                 self.events.put(("network_state", network_status))
                 if not network_status.online:
-                    raise network_check.NetworkUnavailableError(
-                        network_check.OFFLINE_MESSAGE
-                    )
+                    self.events.put(("watch_offline",))
+                    return
                 imported = local_checker.import_subscription("\n".join(watched))
                 self.events.put(("watch_imported", imported))
 
@@ -2820,6 +2833,19 @@ class WireVeilChecker(tk.Tk):
         self._save_last_results(mode="watch")
         self._schedule_watch_check()
 
+    def _defer_watch_until_online(self) -> None:
+        self.running = False
+        self.activity = None
+        self.progress_var.set(0)
+        self._set_running_controls(False)
+        self.watch_waiting_for_network = True
+        self.status_var.set("Контроль доступности ждёт восстановления сети")
+        self._schedule_network_refresh()
+        self._log(
+            "Контроль доступности отложен: нет подключения. "
+            "Предыдущие результаты сохранены; автозапуск сразу после восстановления сети."
+        )
+
     def _fail_watch_check(self, detail: str) -> None:
         self.running = False
         self.activity = None
@@ -2875,10 +2901,19 @@ class WireVeilChecker(tk.Tk):
                         return
                 elif kind == "watch_imported":
                     imported = event[1]
+                    self.report = None
+                    self.speed_results.clear()
+                    self.service_results.clear()
+                    self.summary_var.set(
+                        "Один HTTPS-прогон без скорости и проверки сайтов"
+                    )
+                    self._clear_table()
                     self._show_pending(imported.lines, 1)
                     self.status_var.set(
                         f"Контроль доступности: подготовлено {len(imported.lines)} серверов"
                     )
+                elif kind == "watch_offline":
+                    self._defer_watch_until_online()
                 elif kind == "watch_progress":
                     done, total, result = event[1], event[2], event[3]
                     self.progress_var.set((done / total) * 100 if total else 0)
@@ -3422,6 +3457,8 @@ class WireVeilChecker(tk.Tk):
             watch_text = "○ выключен"
         elif not watched_count:
             watch_text = "○ ждёт копирования годных серверов"
+        elif self.watch_waiting_for_network:
+            watch_text = f"○ ждёт восстановления сети · {watched_count} серверов"
         elif self.running and self.activity == "watch":
             watch_text = f"● проверка выполняется · {watched_count} серверов"
         elif self.watch_due_at is not None:
@@ -3458,6 +3495,7 @@ class WireVeilChecker(tk.Tk):
 
     def _toggle_watch(self) -> None:
         if not self.watch_enabled_var.get():
+            self.watch_waiting_for_network = False
             self._cancel_watch_timer()
             self._log("Контроль доступности выключен.")
             return
@@ -3531,6 +3569,7 @@ class WireVeilChecker(tk.Tk):
 
     def _schedule_watch_check(self) -> None:
         self._cancel_watch_timer()
+        self.watch_waiting_for_network = False
         if (
             not self.watch_enabled_var.get()
             or not self.watched_uris
