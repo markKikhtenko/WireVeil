@@ -8,6 +8,7 @@ on:
       - "scripts/**"
       - "sources.json"
       - "healthcheck-config.json"
+      - "requirements.txt"
       - "tests/**"
   schedule:
     - cron: "23 * * * *"
@@ -22,7 +23,7 @@ concurrency:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out WireVeil
@@ -78,15 +79,44 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: update WireVeil subscriptions (${total} keys)"
+          run_base="$(git rev-parse HEAD^)"
           for attempt in 1 2 3; do
-            if git push origin HEAD:main; then
-              exit 0
+            if git fetch origin +refs/heads/main:refs/remotes/origin/main; then
+              if ! git merge-base --is-ancestor "$run_base" origin/main; then
+                echo "::notice::main history was rewritten while this run was active; skipping stale generated output."
+                exit 0
+              fi
+
+              changed_inputs="$(
+                git diff --name-only "$run_base"..origin/main -- \
+                  .github/workflows/update.yml \
+                  scripts \
+                  sources.json \
+                  healthcheck-config.json \
+                  requirements.txt \
+                  tests
+              )"
+              if [ -n "$changed_inputs" ]; then
+                echo "::notice::main changed workflow inputs while this run was active; skipping stale generated output."
+                printf 'Changed inputs:\n%s\n' "$changed_inputs"
+                exit 0
+              fi
+
+              if ! git rebase origin/main; then
+                git rebase --abort
+                echo "::notice::main changed generated output while this run was active; skipping the stale update."
+                exit 0
+              fi
+
+              if git push origin HEAD:main; then
+                exit 0
+              fi
             fi
             if [ "$attempt" -eq 3 ]; then
-              echo "Push failed after ${attempt} attempts." >&2
+              echo "Publishing failed after ${attempt} synchronized attempts." >&2
               exit 1
             fi
             delay=$((attempt * 5))
-            echo "Push attempt ${attempt} failed; retrying in ${delay} seconds..." >&2
+            echo "Publish attempt ${attempt} failed; synchronizing again in ${delay} seconds..." >&2
             sleep "$delay"
           done
