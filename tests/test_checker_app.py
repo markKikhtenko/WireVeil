@@ -3,12 +3,14 @@ import tempfile
 import tkinter as tk
 import unittest
 from pathlib import Path
+from tkinter import ttk
 from unittest import mock
 
 from checker_app import (
     SERVICE_COLUMN_BY_NAME,
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
+    _UpdateDialog,
     WireVeilChecker,
     find_app_icon,
     load_checker_settings,
@@ -16,7 +18,7 @@ from checker_app import (
     write_checker_results,
     write_checker_settings,
 )
-from scripts import healthcheck, local_checker, network_check
+from scripts import app_updater, healthcheck, local_checker, network_check
 
 
 class TableSortTests(unittest.TestCase):
@@ -296,6 +298,137 @@ class MainUiLayoutTests(unittest.TestCase):
                     checker._on_close()
 
 
+class UpdateUiTests(unittest.TestCase):
+    @staticmethod
+    def release() -> app_updater.ReleaseUpdate:
+        return app_updater.ReleaseUpdate(
+            version="1.9.99",
+            tag="checker-v1.9.99",
+            page_url=(
+                "https://github.com/markKikhtenko/WireVeil/"
+                "releases/tag/checker-v1.9.99"
+            ),
+            notes="## What's Changed\n* Faster updates",
+            installer_url=(
+                "https://github.com/markKikhtenko/WireVeil/releases/download/"
+                "checker-v1.9.99/WireVeilChecker-Setup-x64.exe"
+            ),
+            checksum_url=(
+                "https://github.com/markKikhtenko/WireVeil/releases/download/"
+                "checker-v1.9.99/WireVeilChecker-Setup-x64.exe.sha256"
+            ),
+        )
+
+    def test_update_confirmation_receives_release_notes(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.update_busy = True
+        checker._ask_to_install_update = mock.Mock(return_value=False)
+        checker._configure_update_buttons = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker._log = mock.Mock()
+        release = self.release()
+
+        checker._finish_update_check(release)
+
+        checker._ask_to_install_update.assert_called_once_with(release)
+        self.assertFalse(checker.update_busy)
+        checker.status_var.set.assert_called_once_with(
+            f"Доступна версия {release.version}"
+        )
+
+    def test_update_dialog_shows_release_notes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker,
+                    "_refresh_network_status",
+                    return_value=None,
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                dialog = None
+                try:
+                    dialog = _UpdateDialog(checker, self.release())
+                    checker.update()
+                    notes = dialog.notes_text.get("1.0", "end-1c")
+                    self.assertIn("Что изменилось", notes)
+                    self.assertIn("Faster updates", notes)
+                    self.assertEqual(
+                        "Скачать и установить",
+                        dialog.install_button.cget("text"),
+                    )
+                finally:
+                    if dialog is not None and dialog.winfo_exists():
+                        dialog.destroy()
+                    checker._on_close()
+
+    def test_known_download_size_updates_progress_bar_and_percentage(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.progress = mock.Mock()
+        checker.progress_var = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker.update_progress_indeterminate = True
+
+        checker._show_update_progress(5 * 1024 * 1024, 20 * 1024 * 1024, "1.9.99")
+
+        checker.progress.stop.assert_called_once_with()
+        checker.progress.configure.assert_called_once_with(
+            mode="determinate", maximum=100
+        )
+        checker.progress_var.set.assert_called_once_with(25.0)
+        checker.status_var.set.assert_called_once_with(
+            "Скачиваем версию 1.9.99: 5.0 / 20.0 МБ — 25%"
+        )
+
+    def test_ctrl_c_and_ctrl_v_work_with_russian_keyboard_layout(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.table = mock.sentinel.table
+        widget = mock.Mock(spec=ttk.Entry)
+        widget.cget.return_value = "normal"
+
+        copy_event = mock.Mock(
+            keycode=67,
+            keysym="Cyrillic_es",
+            widget=widget,
+        )
+        paste_event = mock.Mock(
+            keycode=86,
+            keysym="Cyrillic_em",
+            widget=widget,
+        )
+
+        self.assertEqual(
+            "break", checker._application_clipboard_shortcut(copy_event)
+        )
+        self.assertEqual(
+            "break", checker._application_clipboard_shortcut(paste_event)
+        )
+        self.assertEqual(
+            [mock.call("<<Copy>>"), mock.call("<<Paste>>")],
+            widget.event_generate.call_args_list,
+        )
+
+    def test_table_copy_shortcut_works_with_physical_ctrl_c(self):
+        checker = object.__new__(WireVeilChecker)
+        checker._copy_selected = mock.Mock()
+        event = mock.Mock(keycode=67, keysym="Cyrillic_es")
+
+        self.assertEqual("break", checker._table_keyboard_shortcut(event))
+        checker._copy_selected.assert_called_once_with()
+
+
 class QualifiedExportTests(unittest.TestCase):
     def test_low_ping_is_excluded_when_selected_service_is_unavailable(self):
         targets = tuple(
@@ -347,6 +480,28 @@ class QualifiedExportTests(unittest.TestCase):
 
 
 class AutoCheckTests(unittest.TestCase):
+    @staticmethod
+    def watch_report(
+        *, active: bool = True, delay_ms: int | None = 900
+    ) -> local_checker.CheckReport:
+        uri = "vless://00000000-0000-4000-8000-000000000000@node.example:443"
+        target = healthcheck.ProbeTarget(0, "wv-0000", uri, "vless", {})
+        result = healthcheck.ProbeResult(
+            target,
+            active,
+            delay_ms if active else None,
+            attempts=1,
+            successes=1 if active else 0,
+        )
+        return local_checker.CheckReport(
+            candidates=(uri,),
+            results=(result,),
+            conversion_unsupported={},
+            runtime_rejected={},
+            engine_version="sing-box test",
+            attempts=1,
+        )
+
     def test_countdown_formats_minutes_and_hours(self):
         self.assertEqual("00:01", WireVeilChecker._format_countdown(0.1))
         self.assertEqual("29:59", WireVeilChecker._format_countdown(1798.2))
@@ -492,6 +647,118 @@ class AutoCheckTests(unittest.TestCase):
 
         self.assertIsNone(checker.watch_job)
         checker._start_watch_check.assert_called_once_with()
+
+    @mock.patch("checker_app.threading.Thread")
+    @mock.patch("checker_app.find_sing_box", return_value=Path("sing-box.exe"))
+    def test_watch_speed_checks_all_accessible_servers(
+        self, _find_sing_box, thread_class
+    ):
+        report = self.watch_report(active=True, delay_ms=900)
+        target = report.active_results[0].target
+        checker = object.__new__(WireVeilChecker)
+        checker.running = False
+        checker.report = report
+        checker._qualified_results = mock.Mock(return_value=())
+        checker.timeout_var = mock.Mock()
+        checker.timeout_var.get.return_value = 15
+        checker.workers_var = mock.Mock()
+        checker.workers_var.get.return_value = 8
+        checker._cancel_watch_timer = mock.Mock()
+        checker.progress_var = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker._set_running_controls = mock.Mock()
+        checker._set_speed_cell = mock.Mock()
+        checker._log = mock.Mock()
+
+        checker._start_speed_test(watch_cycle=True)
+
+        self.assertTrue(checker.running)
+        self.assertEqual("watch_speed", checker.activity)
+        checker._qualified_results.assert_not_called()
+        checker._set_speed_cell.assert_called_once_with(target.index, "ожидание…")
+        checker._cancel_watch_timer.assert_called_once_with()
+        thread_class.return_value.start.assert_called_once_with()
+
+    def test_watch_availability_continues_with_speed_before_rescheduling(self):
+        report = self.watch_report()
+        checker = object.__new__(WireVeilChecker)
+        checker.running = True
+        checker.activity = "watch"
+        checker.progress_var = mock.Mock()
+        checker._set_running_controls = mock.Mock()
+        checker._populate_table = mock.Mock()
+        checker._latency_limit = mock.Mock(return_value=500)
+        checker.status_var = mock.Mock()
+        checker.summary_var = mock.Mock()
+        checker.watched_uris = report.candidates
+        checker._log = mock.Mock()
+        checker._restore_result_buttons = mock.Mock()
+        checker._save_last_results = mock.Mock()
+        checker._start_speed_test = mock.Mock()
+        checker._schedule_watch_check = mock.Mock()
+
+        checker._finish_watch_check(report)
+
+        checker._start_speed_test.assert_called_once_with(watch_cycle=True)
+        checker._schedule_watch_check.assert_not_called()
+        checker._save_last_results.assert_called_once_with(mode="watch")
+
+    def test_watch_without_accessible_servers_reschedules_without_speed(self):
+        report = self.watch_report(active=False)
+        checker = object.__new__(WireVeilChecker)
+        checker.running = True
+        checker.activity = "watch"
+        checker.progress_var = mock.Mock()
+        checker._set_running_controls = mock.Mock()
+        checker._populate_table = mock.Mock()
+        checker._latency_limit = mock.Mock(return_value=500)
+        checker.status_var = mock.Mock()
+        checker.summary_var = mock.Mock()
+        checker.watched_uris = report.candidates
+        checker._log = mock.Mock()
+        checker._restore_result_buttons = mock.Mock()
+        checker._save_last_results = mock.Mock()
+        checker._start_speed_test = mock.Mock()
+        checker._schedule_watch_check = mock.Mock()
+
+        checker._finish_watch_check(report)
+
+        checker._start_speed_test.assert_not_called()
+        checker._schedule_watch_check.assert_called_once_with()
+
+    def test_watch_reschedules_only_after_speed_results_are_saved(self):
+        report = self.watch_report()
+        target = report.active_results[0].target
+        speed = local_checker.SpeedResult(
+            target,
+            speed_mbps=12.5,
+            bytes_received=1_000_000,
+            duration_ms=640,
+        )
+        checker = object.__new__(WireVeilChecker)
+        checker.running = True
+        checker.activity = "watch_speed"
+        checker.report = report
+        checker.watched_uris = report.candidates
+        checker.progress_var = mock.Mock()
+        checker._set_running_controls = mock.Mock()
+        checker._update_speed_result = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker.summary_var = mock.Mock()
+        checker._log = mock.Mock()
+        checker._apply_sort = mock.Mock()
+        checker._restore_result_buttons = mock.Mock()
+        checker._save_last_results = mock.Mock()
+        checker._schedule_watch_check = mock.Mock()
+
+        checker._finish_speed_test((speed,))
+
+        checker._update_speed_result.assert_called_once_with(speed)
+        checker._save_last_results.assert_called_once_with(mode="watch")
+        checker._schedule_watch_check.assert_called_once_with()
+        checker.status_var.set.assert_called_once_with(
+            "Контроль доступности и скорости завершён"
+        )
 
     def test_one_click_copies_results_when_auto_copy_is_enabled(self):
         checker = object.__new__(WireVeilChecker)

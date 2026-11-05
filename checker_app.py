@@ -470,6 +470,117 @@ def display_name(uri: str) -> str:
     return "—"
 
 
+class _UpdateDialog(tk.Toplevel):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        release: app_updater.ReleaseUpdate,
+    ) -> None:
+        super().__init__(parent)
+        self.result = False
+        self.title(f"Обновление WireVeil Checker до {release.version}")
+        self.configure(background="#0d1117")
+        self.transient(parent)
+        self.minsize(560, 400)
+        self.geometry("700x500")
+
+        outer = ttk.Frame(self, padding=(20, 18))
+        outer.pack(fill="both", expand=True)
+        ttk.Label(
+            outer,
+            text=f"Доступна версия {release.version}",
+            style="PageTitle.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            outer,
+            text=f"Сейчас установлена версия {APP_VERSION}",
+            style="Summary.TLabel",
+        ).pack(anchor="w", pady=(4, 14))
+
+        notes_frame = ttk.Frame(outer, style="Card.TFrame", padding=(12, 10))
+        notes_frame.pack(fill="both", expand=True)
+        ttk.Label(
+            notes_frame,
+            text="Что изменилось",
+            style="SectionTitle.TLabel",
+        ).pack(anchor="w", pady=(0, 8))
+        text_frame = ttk.Frame(notes_frame, style="CardBody.TFrame")
+        text_frame.pack(fill="both", expand=True)
+        text_frame.rowconfigure(0, weight=1)
+        text_frame.columnconfigure(0, weight=1)
+        self.notes_text = tk.Text(
+            text_frame,
+            wrap="word",
+            background="#0d1117",
+            foreground="#c9d1d9",
+            selectbackground="#1f6feb",
+            selectforeground="#ffffff",
+            insertbackground="#f0f6fc",
+            relief="flat",
+            borderwidth=0,
+            padx=10,
+            pady=8,
+            font=("Segoe UI", 10),
+        )
+        notes_scroll = ttk.Scrollbar(
+            text_frame,
+            orient="vertical",
+            command=self.notes_text.yview,
+        )
+        self.notes_text.configure(yscrollcommand=notes_scroll.set)
+        self.notes_text.grid(row=0, column=0, sticky="nsew")
+        notes_scroll.grid(row=0, column=1, sticky="ns")
+        self.notes_text.insert(
+            "1.0",
+            app_updater.format_release_notes(release.notes),
+        )
+        self.notes_text.configure(state="disabled")
+
+        ttk.Label(
+            outer,
+            text=(
+                "Установщик будет проверен по SHA-256. После этого приложение "
+                "закроется и запустит обновление."
+            ),
+            style="Summary.TLabel",
+            wraplength=650,
+        ).pack(anchor="w", pady=(12, 10))
+        actions = ttk.Frame(outer)
+        actions.pack(fill="x")
+        ttk.Button(
+            actions,
+            text="Позже",
+            command=self._cancel,
+            style="Secondary.TButton",
+        ).pack(side="right")
+        self.install_button = ttk.Button(
+            actions,
+            text="Скачать и установить",
+            command=self._accept,
+            style="Accent.TButton",
+        )
+        self.install_button.pack(side="right", padx=(0, 8))
+
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.bind("<Escape>", lambda _event: self._cancel())
+        self.update_idletasks()
+        width = max(560, self.winfo_width())
+        height = max(400, self.winfo_height())
+        x = max(0, parent.winfo_rootx() + (parent.winfo_width() - width) // 2)
+        y = max(0, parent.winfo_rooty() + (parent.winfo_height() - height) // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.after_idle(self.install_button.focus_set)
+        self.grab_set()
+
+    def _accept(self) -> None:
+        self.result = True
+        self.destroy()
+
+    def _cancel(self) -> None:
+        self.result = False
+        self.destroy()
+
+
 class WireVeilChecker(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -505,6 +616,7 @@ class WireVeilChecker(tk.Tk):
         self.running = False
         self.update_busy = False
         self.update_downloading = False
+        self.update_progress_indeterminate = False
         self.activity: str | None = None
         self.one_click_mode = False
         self.advanced_visible = False
@@ -777,6 +889,11 @@ class WireVeilChecker(tk.Tk):
         )
         self.network_status_label.pack(side="right", padx=(12, 4))
         self.bind_all("<Control-u>", lambda _event: self._check_for_updates())
+        self.bind_all(
+            "<Control-KeyPress>",
+            self._application_clipboard_shortcut,
+            add="+",
+        )
 
         nav_bar = ttk.Frame(shell, style="NavBar.TFrame", padding=(18, 4, 18, 0))
         nav_bar.pack(fill="x")
@@ -1287,7 +1404,7 @@ class WireVeilChecker(tk.Tk):
             xscrollcommand=self.table_scroll_x.set,
         )
         self.table.bind("<<TreeviewSelect>>", self._selection_changed)
-        self.table.bind("<Control-c>", self._copy_selected_event)
+        self.table.bind("<Control-KeyPress>", self._table_keyboard_shortcut)
         self.table.bind("<Configure>", self._schedule_table_fit, add="+")
         table_frame.bind("<Configure>", self._schedule_table_fit, add="+")
         self.bind("<Configure>", self._schedule_table_fit, add="+")
@@ -1408,6 +1525,26 @@ class WireVeilChecker(tk.Tk):
         for button in self.update_buttons:
             button.configure(text=text, state=state)
 
+    def _ask_to_install_update(
+        self, release: app_updater.ReleaseUpdate
+    ) -> bool:
+        dialog = _UpdateDialog(self, release)
+        self.wait_window(dialog)
+        return dialog.result
+
+    def _begin_update_progress(self) -> None:
+        self.progress.stop()
+        self.progress.configure(mode="indeterminate", maximum=100)
+        self.progress_var.set(0)
+        self.progress.start(50)
+        self.update_progress_indeterminate = True
+
+    def _set_update_progress(self, value: float) -> None:
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=100)
+        self.update_progress_indeterminate = False
+        self.progress_var.set(max(0.0, min(100.0, value)))
+
     def _check_for_updates(self) -> None:
         if self.update_busy or self.running or self.closing:
             return
@@ -1436,13 +1573,7 @@ class WireVeilChecker(tk.Tk):
             self._log("Новых стабильных версий нет.")
             return
 
-        install = messagebox.askyesno(
-            APP_TITLE,
-            f"Доступна версия {release.version}.\n\n"
-            "Скачать и установить обновление сейчас? "
-            "После проверки файла приложение закроется, а установщик запустится автоматически.",
-            parent=self,
-        )
+        install = self._ask_to_install_update(release)
         if not install:
             self.update_busy = False
             self._configure_update_buttons(text="Обновления", state="normal")
@@ -1456,6 +1587,7 @@ class WireVeilChecker(tk.Tk):
         self._cancel_background_timers()
         self._set_running_controls(True)
         self.stop_button.configure(state="disabled")
+        self._begin_update_progress()
 
         def progress(downloaded: int, total: int | None) -> None:
             self.events.put(("update_progress", downloaded, total, release.version))
@@ -1474,17 +1606,23 @@ class WireVeilChecker(tk.Tk):
         self, downloaded: int, total: int | None, version: str
     ) -> None:
         downloaded_mb = downloaded / (1024 * 1024)
-        if total:
+        if total is not None and total > 0:
+            percent = min(100.0, (downloaded / total) * 100)
+            self._set_update_progress(percent)
             total_mb = total / (1024 * 1024)
             self.status_var.set(
-                f"Скачиваем версию {version}: {downloaded_mb:.1f} / {total_mb:.1f} МБ"
+                f"Скачиваем версию {version}: {downloaded_mb:.1f} / "
+                f"{total_mb:.1f} МБ — {percent:.0f}%"
             )
         else:
+            if not self.update_progress_indeterminate:
+                self._begin_update_progress()
             self.status_var.set(
                 f"Скачиваем версию {version}: {downloaded_mb:.1f} МБ"
             )
 
     def _finish_update_download(self, installer: Path, version: str) -> None:
+        self._set_update_progress(100)
         self._configure_update_buttons(text="Запуск установщика…", state="disabled")
         self.status_var.set("Контрольная сумма верна. Запускаем установщик…")
         try:
@@ -1506,6 +1644,7 @@ class WireVeilChecker(tk.Tk):
         self.status_var.set("Не удалось обновить WireVeil Checker")
         self._log(f"Ошибка обновления: {detail}")
         if was_downloading:
+            self._set_update_progress(0)
             self._set_running_controls(False)
             self._restore_result_buttons()
         if not self.closing:
@@ -1647,7 +1786,9 @@ class WireVeilChecker(tk.Tk):
             "%d.%m.%Y %H:%M", time.localtime(saved.saved_at)
         )
         if saved.mode == "watch":
-            self.status_var.set("Восстановлен последний контроль доступности")
+            self.status_var.set(
+                "Восстановлен последний контроль доступности и скорости"
+            )
         else:
             self.status_var.set("Восстановлена последняя проверка")
         self.summary_var.set(
@@ -2012,6 +2153,49 @@ class WireVeilChecker(tk.Tk):
             "cyrillic_em": "paste",
             "cyrillic_che": "cut",
         }.get(keysym)
+
+    def _table_keyboard_shortcut(self, event: object) -> str | None:
+        if self._source_shortcut_action(event) != "copy":
+            return None
+        self._copy_selected()
+        return "break"
+
+    def _application_clipboard_shortcut(self, event: object) -> str | None:
+        keysym = str(getattr(event, "keysym", "")).casefold()
+        if keysym in {"a", "c", "v", "x"}:
+            # Standard Tk class bindings already handle the English layout.
+            return None
+        action = self._source_shortcut_action(event)
+        if action is None:
+            return None
+        widget = getattr(event, "widget", None)
+        if widget is self.__dict__.get("table") and action == "copy":
+            self._copy_selected()
+            return "break"
+        if not isinstance(widget, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox)):
+            return None
+        try:
+            state = str(widget.cget("state"))
+            editable = state not in {"disabled", "readonly"}
+            if action == "select_all":
+                if isinstance(widget, tk.Text):
+                    widget.tag_add("sel", "1.0", "end-1c")
+                    widget.mark_set("insert", "end-1c")
+                    widget.see("insert")
+                else:
+                    widget.selection_range(0, tk.END)
+                    widget.icursor(tk.END)
+            elif action == "copy":
+                widget.event_generate("<<Copy>>")
+            elif action == "paste" and editable:
+                widget.event_generate("<<Paste>>")
+            elif action == "cut" and editable:
+                widget.event_generate("<<Cut>>")
+            else:
+                return "break"
+        except tk.TclError:
+            pass
+        return "break"
 
     def _source_copy_selection(self) -> bool:
         selection = self.source.tag_ranges("sel")
@@ -2535,16 +2719,31 @@ class WireVeilChecker(tk.Tk):
 
         threading.Thread(target=work, name="wireveil-service", daemon=True).start()
 
-    def _start_speed_test(self) -> None:
+    def _start_speed_test(self, *, watch_cycle: bool = False) -> None:
         if self.running or self.report is None:
             return
-        targets = tuple(result.target for result in self._qualified_results())
+        probe_results = (
+            self.report.active_results
+            if watch_cycle
+            else self._qualified_results()
+        )
+        targets = tuple(result.target for result in probe_results)
         if not targets:
-            messagebox.showinfo(APP_TITLE, "Нет зелёных серверов для теста скорости.")
+            if watch_cycle:
+                self._save_last_results(mode="watch")
+                self._schedule_watch_check()
+            else:
+                messagebox.showinfo(APP_TITLE, "Нет зелёных серверов для теста скорости.")
             return
         binary = find_sing_box()
         if binary is None:
-            messagebox.showerror(APP_TITLE, "Не найден вложенный sing-box.")
+            if watch_cycle:
+                self.status_var.set("Не удалось запустить контроль скорости")
+                self._log("Контроль скорости: не найден вложенный sing-box.")
+                self._save_last_results(mode="watch")
+                self._schedule_watch_check()
+            else:
+                messagebox.showerror(APP_TITLE, "Не найден вложенный sing-box.")
             return
         try:
             timeout = max(10, min(60, int(self.timeout_var.get())))
@@ -2552,17 +2751,21 @@ class WireVeilChecker(tk.Tk):
         except (ValueError, tk.TclError):
             timeout, workers = 15, 8
 
-        self._cancel_background_timers()
+        if watch_cycle:
+            self._cancel_watch_timer()
+        else:
+            self._cancel_background_timers()
         self.running = True
-        self.activity = "speed"
+        self.activity = "watch_speed" if watch_cycle else "speed"
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.status_var.set("Проверяю подключение к сети…")
         self._set_running_controls(True)
         for target in targets:
             self._set_speed_cell(target.index, "ожидание…")
+        speed_context = "Контроль скорости" if watch_cycle else "Тест скорости"
         self._log(
-            f"Тест скорости: {len(targets)} зелёных серверов, "
+            f"{speed_context}: {len(targets)} доступных серверов, "
             "по 1 МБ загрузки на сервер."
         )
 
@@ -2602,7 +2805,8 @@ class WireVeilChecker(tk.Tk):
                     ("speed_error", f"Непредвиденная ошибка: {type(exc).__name__}: {exc}")
                 )
 
-        threading.Thread(target=work, name="wireveil-speed", daemon=True).start()
+        thread_name = "wireveil-watch-speed" if watch_cycle else "wireveil-speed"
+        threading.Thread(target=work, name=thread_name, daemon=True).start()
 
     @staticmethod
     def _format_speed(result: local_checker.SpeedResult | None) -> str:
@@ -2786,6 +2990,7 @@ class WireVeilChecker(tk.Tk):
     def _finish_speed_test(
         self, results: tuple[local_checker.SpeedResult, ...]
     ) -> None:
+        watch_cycle = self.activity == "watch_speed"
         self.running = False
         self.activity = None
         self.progress_var.set(100)
@@ -2793,31 +2998,66 @@ class WireVeilChecker(tk.Tk):
         for result in results:
             self._update_speed_result(result)
         measured = [result for result in results if result.speed_mbps is not None]
-        self.status_var.set("Тест скорости завершён")
-        if measured:
-            fastest = max(result.speed_mbps or 0 for result in measured)
+        fastest = max((result.speed_mbps or 0 for result in measured), default=None)
+        if watch_cycle:
+            active_count = len(self.report.active_results) if self.report else len(results)
+            self.status_var.set("Контроль доступности и скорости завершён")
+            speed_summary = f"скорость измерена {len(measured)}/{len(results)}"
+            if fastest is not None:
+                speed_summary += f"  |  максимум {fastest:.2f} Мбит/с"
             self.summary_var.set(
-                f"Скорость измерена: {len(measured)}/{len(results)}  |  "
-                f"максимум {fastest:.2f} Мбит/с"
+                f"На контроле {len(self.watched_uris)}  |  доступны {active_count}  |  "
+                f"{speed_summary}"
+            )
+            self._log(
+                f"Контроль сохранённых серверов завершён: доступны {active_count}/"
+                f"{len(self.watched_uris)}, скорость измерена {len(measured)}/"
+                f"{len(results)}"
+                + (f", максимум {fastest:.2f} Мбит/с." if fastest is not None else ".")
             )
         else:
-            self.summary_var.set(f"Скорость не измерена ни для одного из {len(results)} серверов")
-        self._log(f"Тест скорости завершён: успешно {len(measured)}/{len(results)}.")
+            self.status_var.set("Тест скорости завершён")
+            if fastest is not None:
+                self.summary_var.set(
+                    f"Скорость измерена: {len(measured)}/{len(results)}  |  "
+                    f"максимум {fastest:.2f} Мбит/с"
+                )
+            else:
+                self.summary_var.set(
+                    f"Скорость не измерена ни для одного из {len(results)} серверов"
+                )
+            self._log(f"Тест скорости завершён: успешно {len(measured)}/{len(results)}.")
         self.sort_column = "quality"
         self.sort_descending = False
         self._apply_sort()
         self._restore_result_buttons()
-        self._save_last_results()
+        self._save_last_results(mode="watch" if watch_cycle else "full")
+        if watch_cycle:
+            self._schedule_watch_check()
+            return
         if self.one_click_mode:
             self.after_idle(self._start_service_test)
             return
         self._schedule_background_checks()
 
     def _fail_speed_test(self, detail: str) -> None:
+        watch_cycle = self.activity == "watch_speed"
         self.running = False
         self.activity = None
         self.progress_var.set(0)
         self._set_running_controls(False)
+        if watch_cycle:
+            if "cancelled" in detail.lower():
+                self.status_var.set("Контроль скорости остановлен")
+                self._log("Контроль скорости сохранённых серверов остановлен.")
+            else:
+                self.status_var.set("Ошибка контроля скорости")
+                self._log(f"Ошибка контроля скорости сохранённых серверов: {detail}")
+            self._restore_result_buttons()
+            self._save_last_results(mode="watch")
+            if not self.closing:
+                self._schedule_watch_check()
+            return
         if "cancelled" in detail.lower():
             self.status_var.set("Тест скорости остановлен")
             self._log("Тест скорости остановлен пользователем.")
@@ -2842,7 +3082,7 @@ class WireVeilChecker(tk.Tk):
         self._populate_table(report)
         active = report.active_results
         fast = report.fast_results(self._latency_limit())
-        self.status_var.set("Быстрый контроль доступности завершён")
+        self.status_var.set("Доступность проверена, измеряю скорость…")
         self.summary_var.set(
             f"На контроле {len(self.watched_uris)}  |  доступны сейчас {len(active)}  |  "
             f"быстрых {len(fast)}"
@@ -2853,7 +3093,15 @@ class WireVeilChecker(tk.Tk):
         )
         self._restore_result_buttons()
         self._save_last_results(mode="watch")
-        self._schedule_watch_check()
+        if active:
+            self._start_speed_test(watch_cycle=True)
+        else:
+            self.status_var.set("Контроль доступности и скорости завершён")
+            self.summary_var.set(
+                f"На контроле {len(self.watched_uris)}  |  доступны сейчас 0  |  "
+                "тест скорости не запускался"
+            )
+            self._schedule_watch_check()
 
     def _defer_watch_until_online(self) -> None:
         self.running = False
@@ -2927,7 +3175,7 @@ class WireVeilChecker(tk.Tk):
                     self.speed_results.clear()
                     self.service_results.clear()
                     self.summary_var.set(
-                        "Один HTTPS-прогон без скорости и проверки сайтов"
+                        "HTTPS-доступность → скорость доступных серверов"
                     )
                     self._clear_table()
                     self._show_pending(imported.lines, 1)
@@ -2954,7 +3202,12 @@ class WireVeilChecker(tk.Tk):
                 elif kind == "speed_progress":
                     done, total, result = event[1], event[2], event[3]
                     self.progress_var.set((done / total) * 100 if total else 0)
-                    self.status_var.set(f"Проверка скорости: {done} / {total}")
+                    speed_label = (
+                        "Контроль скорости"
+                        if self.activity == "watch_speed"
+                        else "Проверка скорости"
+                    )
+                    self.status_var.set(f"{speed_label}: {done} / {total}")
                     self._update_speed_result(result)
                 elif kind == "speed_done":
                     self._finish_speed_test(event[1])
@@ -3481,8 +3734,9 @@ class WireVeilChecker(tk.Tk):
             watch_text = "○ ждёт копирования годных серверов"
         elif self.watch_waiting_for_network:
             watch_text = f"○ ждёт восстановления сети · {watched_count} серверов"
-        elif self.running and self.activity == "watch":
-            watch_text = f"● проверка выполняется · {watched_count} серверов"
+        elif self.running and self.activity in {"watch", "watch_speed"}:
+            stage = "скорость" if self.activity == "watch_speed" else "доступность"
+            watch_text = f"● проверяется {stage} · {watched_count} серверов"
         elif self.watch_due_at is not None:
             watch_text = (
                 f"● через {self._format_countdown(self.watch_due_at - now)}"

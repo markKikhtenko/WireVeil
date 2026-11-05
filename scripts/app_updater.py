@@ -25,7 +25,9 @@ USER_AGENT = "WireVeilChecker-Updater/1"
 MAX_METADATA_BYTES = 2 * 1024 * 1024
 MAX_CHECKSUM_BYTES = 16 * 1024
 MAX_INSTALLER_BYTES = 512 * 1024 * 1024
+MAX_RELEASE_NOTES_CHARS = 20_000
 _VERSION_RE = re.compile(r"^(?:checker-v)?(\d+)\.(\d+)\.(\d+)$")
+_MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\([^\)]+\)")
 
 
 class UpdateError(RuntimeError):
@@ -52,6 +54,41 @@ def version_tuple(value: str) -> tuple[int, int, int]:
 
 def is_newer_version(candidate: str, current: str) -> bool:
     return version_tuple(candidate) > version_tuple(current)
+
+
+def format_release_notes(notes: str) -> str:
+    """Convert GitHub release Markdown into compact readable plain text."""
+    heading_names = {
+        "what's changed": "Что изменилось",
+        "new contributors": "Новые участники",
+        "full changelog": "Полный список изменений",
+    }
+    formatted: list[str] = []
+    normalized = notes.replace("\r\n", "\n").replace("\r", "\n")
+    for raw_line in normalized.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if formatted and formatted[-1]:
+                formatted.append("")
+            continue
+        if line.startswith("#"):
+            heading = line.lstrip("#").strip().strip("*")
+            line = heading_names.get(heading.casefold(), heading)
+        elif line.startswith(("* ", "- ")):
+            line = f"• {line[2:].strip()}"
+        line = re.sub(r"\*\*([^*]+)\*\*", r"\1", line)
+        line = re.sub(r"\x60([^\x60]+)\x60", r"\1", line)
+        line = _MARKDOWN_LINK_RE.sub(r"\1", line)
+        if line.casefold().startswith("full changelog:"):
+            line = "Полный список изменений:" + line.split(":", 1)[1]
+        formatted.append(line)
+
+    text = "\n".join(formatted).strip()
+    if not text:
+        return "Для этой версии список изменений не указан."
+    if len(text) > MAX_RELEASE_NOTES_CHARS:
+        text = text[: MAX_RELEASE_NOTES_CHARS - 2].rstrip() + "\n…"
+    return text
 
 
 def _request(url: str, *, accept: str) -> urllib.request.Request:
@@ -175,6 +212,8 @@ def _download_installer(
             total = int(raw_length) if raw_length is not None else None
             if total is not None and total > MAX_INSTALLER_BYTES:
                 raise UpdateError("Установщик обновления слишком большой.")
+            if progress is not None:
+                progress(0, total)
             with destination.open("wb") as output:
                 while True:
                     chunk = response.read(1024 * 1024)  # type: ignore[attr-defined]

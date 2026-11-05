@@ -63,6 +63,26 @@ class VersionTests(unittest.TestCase):
         with self.assertRaises(app_updater.UpdateError):
             app_updater.version_tuple("nightly")
 
+    def test_release_notes_are_presented_as_readable_plain_text(self):
+        notes = (
+            "## What's Changed\n"
+            "* **Added** [download progress](https://example.com/change)\n\n"
+            "**Full Changelog**: https://example.com/compare"
+        )
+
+        formatted = app_updater.format_release_notes(notes)
+
+        self.assertIn("Что изменилось", formatted)
+        self.assertIn("• Added download progress", formatted)
+        self.assertIn("Полный список изменений:", formatted)
+        self.assertNotIn("##", formatted)
+
+    def test_missing_release_notes_have_an_explicit_fallback(self):
+        self.assertEqual(
+            "Для этой версии список изменений не указан.",
+            app_updater.format_release_notes("  \n"),
+        )
+
 
 class ReleaseCheckTests(unittest.TestCase):
     def test_current_release_needs_no_installer_assets(self):
@@ -110,17 +130,25 @@ class DownloadTests(unittest.TestCase):
                 line = f"{checksum} *{app_updater.INSTALLER_ASSET_NAME}\n"
                 return FakeResponse(line.encode("ascii"))
             if request.full_url == release.installer_url:
-                return FakeResponse(installer_bytes, content_length=False)
+                return FakeResponse(installer_bytes)
             raise AssertionError(request.full_url)
 
+        progress: list[tuple[int, int | None]] = []
         with tempfile.TemporaryDirectory() as temporary:
             update_dir = Path(temporary) / "download"
             update_dir.mkdir()
             with mock.patch(
                 "scripts.app_updater.tempfile.mkdtemp", return_value=str(update_dir)
             ):
-                installer = app_updater.download_update(release, opener=opener)
+                installer = app_updater.download_update(
+                    release,
+                    opener=opener,
+                    progress=lambda done, total: progress.append((done, total)),
+                )
             self.assertEqual(installer_bytes, installer.read_bytes())
+            expected_total = len(installer_bytes)
+            self.assertEqual((0, expected_total), progress[0])
+            self.assertEqual((expected_total, expected_total), progress[-1])
 
     def test_checksum_mismatch_removes_download(self):
         version = "1.8.0"
