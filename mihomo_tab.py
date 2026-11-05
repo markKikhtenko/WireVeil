@@ -21,6 +21,7 @@ from wireveil_paths import user_data_file
 
 SOURCES_FILENAME = "WireVeilChecker.mihomo-sources.json"
 UI_SETTINGS_FILENAME = "WireVeilChecker.mihomo-ui.json"
+CHECKPOINT_FILENAME = "WireVeilChecker.mihomo-checkpoint.json"
 
 
 def load_ui_settings(path: Path) -> dict[str, object]:
@@ -310,6 +311,7 @@ class MihomoCheckerTab(ttk.Frame):
         self.network_callback = network_callback
         self.sources_path = user_data_file(SOURCES_FILENAME)
         self.ui_settings_path = user_data_file(UI_SETTINGS_FILENAME)
+        self.checkpoint_path = user_data_file(CHECKPOINT_FILENAME)
         saved_ui = load_ui_settings(self.ui_settings_path)
         self.sources = mihomo_checker.load_source_specs(self.sources_path)
         self.events: queue.Queue[tuple[object, ...]] = queue.Queue()
@@ -355,7 +357,7 @@ class MihomoCheckerTab(ttk.Frame):
             for key, value in {
                 "sources": "Источников 0 · ошибок 0",
                 "nodes": "Узлы 0",
-                "https": "HTTPS прошло 0",
+                "https": "HTTPS прошло 0\nСервисы ожидают 0",
                 "statuses": "Годных 0 · частично 0 · проблем 0",
                 "checked": "Проверено 0 из 0",
                 "rate": "Темп —",
@@ -495,6 +497,7 @@ class MihomoCheckerTab(ttk.Frame):
             activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
         )
         self.run_options_menu.add_command(label="Проверить выбранные источники", command=self._start_selected)
+        self.run_options_menu.add_command(label="Продолжить незавершённую проверку", command=self._resume_all)
         self.start_selected_button = ttk.Menubutton(
             run_controls, text="Другой запуск", menu=self.run_options_menu, style="Mihomo.TButton",
         )
@@ -841,10 +844,22 @@ class MihomoCheckerTab(ttk.Frame):
         for key in ("gstatic", "cloudflare"):
             attempts = result.base_endpoint_results.get(key, [])
             success = sum(item.success for item in attempts)
-            errors = ", ".join(item.error_code or "ошибка" for item in attempts if not item.success)
+            errors = ", ".join(
+                " / ".join(
+                    part for part in (
+                        item.error_code or "ошибка",
+                        f"HTTP {item.controller_http_status}" if item.controller_http_status else "",
+                        mihomo_checker.sanitize_text(item.diagnostic_reason, 120) if item.diagnostic_reason else "",
+                    ) if part
+                )
+                for item in attempts if not item.success
+            )
             base_lines.append(f"{key}: {success}/{len(attempts)}" + (f" — {errors}" if errors else ""))
         service_lines = [
-            f"{name}: {value.status}; {value.error_code or (str(value.latency_ms) + ' ms' if value.latency_ms is not None else 'ok')}"
+            f"{name}: {value.status}; "
+            f"{value.error_code or (str(value.latency_ms) + ' ms' if value.latency_ms is not None else 'ok')}"
+            f"{(' / HTTP ' + str(value.controller_http_status)) if value.controller_http_status else ''}"
+            f"{(' / ' + mihomo_checker.sanitize_text(value.diagnostic_reason, 120)) if value.diagnostic_reason else ''}"
             for name, value in result.services.items()
         ]
         detail = "\n".join((
@@ -853,6 +868,8 @@ class MihomoCheckerTab(ttk.Frame):
             f"Узел: {result.node.source_original_names.get(source_id, '—')}",
             f"Протокол: {result.node.protocol}",
             f"Статус: {result.overall_status}",
+            f"Состояние этапа: {result.check_state}",
+            f"Проверено: {result.checked_at or '—'}",
             *base_lines,
             *(service_lines or ["Сервисы: не проверялись"]),
             f"Категория: {result.error_category or mihomo_checker.error_category_for_code(result.error_code) or '—'}",
@@ -1322,13 +1339,23 @@ class MihomoCheckerTab(ttk.Frame):
         return attempts, timeout, workers, node_limit, per_source_limit, seed, base_policy
 
     def _start_all(self) -> None:
-        self._start(tuple(self.sources))
+        self._start(tuple(self.sources), resume=False)
+
+    def _resume_all(self) -> None:
+        if not self.checkpoint_path.is_file():
+            messagebox.showinfo(
+                "WireVeil Checker",
+                "Сохранённая незавершённая проверка не найдена.",
+                parent=self,
+            )
+            return
+        self._start(tuple(self.sources), resume=True)
 
     def _start_selected(self) -> None:
         selected = self._selected_source_ids()
-        self._start(tuple(item for item in self.sources if item.source_id in selected))
+        self._start(tuple(item for item in self.sources if item.source_id in selected), resume=False)
 
-    def _start(self, sources: tuple[mihomo_checker.SourceSpec, ...]) -> None:
+    def _start(self, sources: tuple[mihomo_checker.SourceSpec, ...], *, resume: bool = False) -> None:
         if self.running:
             return
         if not sources:
@@ -1368,6 +1395,8 @@ class MihomoCheckerTab(ttk.Frame):
         self._set_export_buttons(False)
         limit_label = self.node_limit_var.get().casefold()
         self.status_var.set("Проверяю подключение к сети…")
+        if resume:
+            self.status_var.set("Загружаю источники и сопоставляю локальный checkpoint…")
         self._save_ui_settings()
 
         def work() -> None:
@@ -1391,6 +1420,8 @@ class MihomoCheckerTab(ttk.Frame):
                     per_source_limit=per_source_limit,
                     sampling_seed=seed,
                     base_policy=base_policy,
+                    checkpoint_path=self.checkpoint_path,
+                    resume=resume,
                     source_callback=lambda parsed: self.events.put(("source", parsed)),
                     node_callback=lambda done, total, result: self.events.put(("node", done, total, result)),
                     progress_callback=lambda update: self.events.put(("progress", update)),
@@ -1423,10 +1454,23 @@ class MihomoCheckerTab(ttk.Frame):
     def _update_kpis(self, progress: mihomo_checker.ProgressUpdate | None = None) -> None:
         results = self.report.node_results if self.report is not None else list(self.live_results.values())
         statuses = [item.overall_status for item in results]
-        https_passed = sum(item.base_attempts > 0 and item.base_successes == item.base_attempts for item in results)
+        base_required = int(self.attempts_var.get()) if self.base_policy_var.get() == "Строго 2/2" else 1
+        https_passed = sum(
+            item.base_attempts > 0 and item.base_successes >= base_required
+            for item in results
+        )
+        selected_services = {name for name, variable in self.service_vars.items() if variable.get()}
+        services_pending = sum(
+            item.base_successes > 0
+            and item.check_state in {"services_pending", "services_running"}
+            and any(name not in item.services or item.services[name].status == "not_tested" for name in selected_services)
+            for item in results
+        )
         checked = sum(item.overall_status != "not_tested" for item in results)
         self.kpi_vars["nodes"].set(f"Узлы {len(results)}")
-        self.kpi_vars["https"].set(f"HTTPS прошло {https_passed}")
+        self.kpi_vars["https"].set(
+            f"HTTPS прошло {https_passed}\nСервисы ожидают {services_pending}"
+        )
         self.kpi_vars["statuses"].set(
             f"Годных {statuses.count('good')} · частично {statuses.count('partial')} · "
             f"проблем {statuses.count('failed') + statuses.count('unsupported')}"
@@ -1549,7 +1593,7 @@ class MihomoCheckerTab(ttk.Frame):
         if cancelled:
             self.state_var.set("Отменено")
             self.status_var.set(
-                "Проверка остановлена. Доступные частичные результаты можно экспортировать."
+                "Проверка остановлена. Результаты сохранены; выберите «Другой запуск → Продолжить», чтобы проверить оставшиеся сервисы."
             )
         else:
             self.state_var.set("Завершено")
@@ -1588,6 +1632,9 @@ class MihomoCheckerTab(ttk.Frame):
     def _set_running_controls(self, running: bool) -> None:
         state = "disabled" if running else "normal"
         self.start_all_button.configure(state=state)
+        self.start_selected_button.configure(state=state)
+        self.run_options_menu.entryconfigure(0, state=state)
+        self.run_options_menu.entryconfigure(1, state=state)
         self.stop_button.configure(state="normal" if running else "disabled")
         if running:
             self.stop_button.grid()
