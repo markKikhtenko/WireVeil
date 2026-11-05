@@ -202,6 +202,13 @@ class InstallerDefinitionTests(unittest.TestCase):
             workflow.count("WireVeilChecker-Setup-x64.exe"), 4
         )
         self.assertIn("WireVeilChecker-Setup-x64.exe.sha256", workflow)
+        self.assertIn("body_path: CHECKER-RELEASE-NOTES.md", workflow)
+        release_notes = (root / "CHECKER-RELEASE-NOTES.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("## Что изменилось", release_notes)
+        self.assertIn("скорость скачивания", release_notes)
+        self.assertIn("прогресс загрузки", release_notes)
 
     @mock.patch("scripts.app_updater.subprocess.Popen")
     def test_ui_update_flag_is_passed_to_installer(self, popen):

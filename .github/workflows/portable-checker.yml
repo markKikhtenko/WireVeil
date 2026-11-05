@@ -20,6 +20,7 @@ on:
       - "requirements.txt"
       - "tests/**"
       - "assets/**"
+      - "CHECKER-RELEASE-NOTES.md"
       - "PORTABLE-CHECKER.md"
       - "README.md"
       - "THIRD-PARTY-NOTICES.md"
@@ -40,6 +41,7 @@ on:
       - "scripts/mihomo_smoke.py"
       - "tests/**"
       - "assets/**"
+      - "CHECKER-RELEASE-NOTES.md"
       - "requirements.txt"
       - "PORTABLE-CHECKER.md"
       - "README.md"
@@ -288,6 +290,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/checker-v')
         uses: softprops/action-gh-release@v2
         with:
+          body_path: CHECKER-RELEASE-NOTES.md
           generate_release_notes: true
           files: |
             WireVeilChecker-windows-x64.zip
