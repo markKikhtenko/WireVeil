@@ -30,7 +30,7 @@ import urllib.request
 import uuid
 import zipfile
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
@@ -39,6 +39,11 @@ import yaml
 
 SCHEMA_VERSION = 2
 SOURCE_STORE_VERSION = 1
+CHECKPOINT_VERSION = 1
+CHECKPOINT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+CHECKPOINT_FLUSH_INTERVAL_SECONDS = 2.0
+CHECKPOINT_FLUSH_BATCH = 100
+TRANSIENT_PROBE_RETRIES = 1
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
 MAX_SOURCES = 200
 MAX_NODES = 20_000
@@ -171,6 +176,7 @@ class DelayResult:
     error_summary: str | None = None
     error_category: str | None = None
     controller_http_status: int | None = None
+    diagnostic_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -182,6 +188,7 @@ class ServiceResult:
     error_summary: str | None = None
     error_category: str | None = None
     controller_http_status: int | None = None
+    diagnostic_reason: str | None = None
 
 
 @dataclass
@@ -198,6 +205,8 @@ class NodeResult:
     error_summary: str | None = None
     error_category: str | None = None
     base_endpoint_results: dict[str, list[DelayResult]] = field(default_factory=dict)
+    checked_at: str | None = None
+    check_state: str = "pending"
 
 
 @dataclass
@@ -1322,15 +1331,25 @@ def error_category_for_code(code: str | None) -> str | None:
         return None
     if code.startswith("CONTROLLER_") or code.startswith("MIHOMO_START"):
         return "controller_api"
-    if code in {"TIMEOUT", "DNS_ERROR", "PROXY_CONNECT_FAILED", "TLS_ERROR", "HTTPS_CHECK_FAILED", "UNSTABLE_BASE_HTTPS"}:
+    if code in {
+        "TIMEOUT", "DNS_ERROR", "PROXY_CONNECT_FAILED", "TLS_ERROR",
+        "HTTPS_CHECK_FAILED", "UNSTABLE_BASE_HTTPS",
+    }:
         return "network"
-    if code.startswith("MIHOMO_") or code in {"INVALID_NODE", "PARSE_ERROR"}:
+    if code in {"PROXY_PROBE_HTTP_503", "PROXY_PROBE_HTTP_504", "PROXY_PROBE_UNAVAILABLE"}:
+        return "probe_infrastructure"
+    if code.startswith("MIHOMO_") or code in {
+        "INVALID_NODE", "PARSE_ERROR", "PROXY_CONFIGURATION_ERROR",
+    }:
         return "invalid_configuration"
     if code in {"UNSUPPORTED_PROTOCOL", "UNSUPPORTED_FORMAT", "EXTERNAL_PROVIDER_NOT_EXPANDED"}:
         return "unsupported"
     if code in {"SITE_HTTP_STATUS", "SITE_PARTIAL"}:
         return "target_service"
-    if code in {"SAMPLE_LIMIT", "QUICK_CHECK_LIMIT", "CANCELLED", "NOT_TESTED"}:
+    if code in {
+        "SAMPLE_LIMIT", "QUICK_CHECK_LIMIT", "CANCELLED", "NOT_TESTED",
+        "SERVICE_CHECK_INCOMPLETE",
+    }:
         return "not_tested"
     return "other"
 
@@ -1349,6 +1368,68 @@ def classify_probe_error(exc: BaseException) -> tuple[str, str]:
     return "HTTPS_CHECK_FAILED", detail or "HTTPS-проверка завершилась ошибкой"
 
 
+def _http_error_reason(exc: urllib.error.HTTPError) -> str | None:
+    """Read a small, credential-sanitised Mihomo error reason."""
+    try:
+        body = exc.read(4096)
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not body:
+        return None
+    text = body.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(text)
+    except (ValueError, json.JSONDecodeError):
+        payload = None
+    if isinstance(payload, Mapping):
+        for key in ("message", "error", "detail"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                text = value
+                break
+    return sanitize_text(text, 300) or None
+
+
+def _classify_probe_http_error(status: int, reason: str | None) -> tuple[str, str, str]:
+    """Classify a local delay-endpoint response without blaming the controller."""
+    lowered = (reason or "").casefold()
+    if status in {503, 504}:
+        if any(marker in lowered for marker in ("timeout", "deadline exceeded", "i/o timeout")):
+            return "TIMEOUT", "Истекло время сетевой проверки прокси", "network"
+        if any(marker in lowered for marker in ("dns", "no such host", "name resolution")):
+            return "DNS_ERROR", "Прокси не прошёл DNS-проверку", "network"
+        if any(marker in lowered for marker in ("tls", "certificate", "x509", "handshake")):
+            return "TLS_ERROR", "Прокси не прошёл TLS-проверку", "network"
+        if any(
+            marker in lowered
+            for marker in ("invalid proxy", "proxy not found", "unsupported protocol", "unsupported proxy")
+        ):
+            return (
+                "PROXY_CONFIGURATION_ERROR",
+                "Mihomo не смог использовать конфигурацию этого прокси",
+                "invalid_configuration",
+            )
+        if any(
+            marker in lowered
+            for marker in (
+                "connection refused", "connection reset", "connect error", "no route",
+                "network is unreachable", "unexpected eof", "actively refused", "connectex",
+            )
+        ):
+            return "PROXY_CONNECT_FAILED", "Прокси не установил HTTPS-соединение", "network"
+        code = f"PROXY_PROBE_HTTP_{status}"
+        return (
+            code,
+            f"Mihomo не завершил проверку этого прокси (HTTP {status})",
+            "probe_infrastructure",
+        )
+    return (
+        "CONTROLLER_API_HTTP_ERROR",
+        f"Локальный API Mihomo вернул HTTP {status or 'ошибку'}",
+        "controller_api",
+    )
+
+
 def api_delay(
     runtime: MihomoRuntime,
     node: NodeRecord,
@@ -1361,38 +1442,64 @@ def api_delay(
     path = f"/proxies/{urllib.parse.quote(node.runtime_name, safe='')}/delay?{query}"
     host = (urllib.parse.urlsplit(url).hostname or "unknown").casefold()
     limiter = _endpoint_limiter(host)
-    try:
-        with limiter:
-            payload = json.loads(
-                runtime._request(path, timeout=(timeout_ms / 1000) + 3).decode("utf-8")
+    for retry in range(TRANSIENT_PROBE_RETRIES + 1):
+        try:
+            with limiter:
+                payload = json.loads(
+                    runtime._request(path, timeout=(timeout_ms / 1000) + 3).decode("utf-8")
+                )
+            delay = int(payload["delay"])
+            if delay < 0:
+                raise ValueError("invalid delay")
+            return DelayResult(True, delay)
+        except urllib.error.HTTPError as exc:
+            status = int(getattr(exc, "code", 0) or 0)
+            reason = _http_error_reason(exc)
+            code, summary, category = _classify_probe_http_error(status, reason)
+            transient = status in {503, 504}
+            if transient and retry < TRANSIENT_PROBE_RETRIES:
+                time.sleep(0.1 * (2 ** retry))
+                continue
+            return DelayResult(
+                False,
+                error_code=code,
+                error_summary=summary,
+                error_category=category,
+                controller_http_status=status or None,
+                diagnostic_reason=reason,
             )
-        delay = int(payload["delay"])
-        if delay < 0:
-            raise ValueError("invalid delay")
-        return DelayResult(True, delay)
-    except urllib.error.HTTPError as exc:
-        status = int(getattr(exc, "code", 0) or 0)
-        code = "CONTROLLER_API_503" if status == 503 else "CONTROLLER_API_ERROR"
-        summary = (
-            "Локальный API Mihomo не смог выполнить upstream-проверку (HTTP 503)"
-            if status == 503
-            else f"Локальный API Mihomo вернул HTTP {status or 'ошибку'}"
-        )
-        return DelayResult(
-            False,
-            error_code=code,
-            error_summary=summary,
-            error_category="controller_api",
-            controller_http_status=status or None,
-        )
-    except (OSError, ValueError, KeyError, json.JSONDecodeError, urllib.error.URLError) as exc:
-        code, summary = classify_probe_error(exc)
-        return DelayResult(
-            False,
-            error_code=code,
-            error_summary=summary,
-            error_category=error_category_for_code(code),
-        )
+        except urllib.error.URLError as exc:
+            reason = getattr(exc, "reason", exc)
+            if isinstance(reason, (TimeoutError, socket.timeout)):
+                code = "CONTROLLER_REQUEST_TIMEOUT"
+                summary = "Локальный API Mihomo не ответил вовремя"
+            else:
+                code = "CONTROLLER_UNAVAILABLE"
+                summary = "Локальный API Mihomo недоступен"
+            return DelayResult(
+                False,
+                error_code=code,
+                error_summary=summary,
+                error_category="controller_api",
+                diagnostic_reason=sanitize_text(reason, 300) or None,
+            )
+        except (ValueError, KeyError, json.JSONDecodeError) as exc:
+            return DelayResult(
+                False,
+                error_code="CONTROLLER_API_INVALID_RESPONSE",
+                error_summary="Локальный API Mihomo вернул некорректный ответ",
+                error_category="controller_api",
+                diagnostic_reason=sanitize_text(exc, 300) or None,
+            )
+        except OSError as exc:
+            return DelayResult(
+                False,
+                error_code="CONTROLLER_UNAVAILABLE",
+                error_summary="Локальный API Mihomo недоступен",
+                error_category="controller_api",
+                diagnostic_reason=sanitize_text(exc, 300) or None,
+            )
+    raise AssertionError("unreachable")
 
 
 def _probe_base_node(
@@ -1404,11 +1511,13 @@ def _probe_base_node(
     cancel_event: threading.Event,
     minimum_successes: int | None = None,
 ) -> NodeResult:
-    result = NodeResult(node=node, base_attempts=attempts)
+    result = NodeResult(node=node, base_attempts=attempts, check_state="base_running")
     required_successes = attempts if minimum_successes is None else max(1, minimum_successes)
     if cancel_event.is_set():
         result.error_code = "CANCELLED"
         result.error_summary = "Проверка отменена"
+        result.error_category = "not_tested"
+        result.check_state = "base_pending"
         return result
     delays: list[int] = []
     base_errors: list[DelayResult] = []
@@ -1420,6 +1529,9 @@ def _probe_base_node(
             result.overall_status = "not_tested"
             result.error_code = "CANCELLED"
             result.error_summary = "Проверка отменена"
+            result.error_category = "not_tested"
+            result.check_state = "services_pending" if delays else "base_pending"
+            result.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
             return result
         endpoint_key, url, expected = BASE_TESTS[attempt % len(BASE_TESTS)]
         probe = api_delay(runtime, node, url=url, timeout_ms=timeout_ms, expected=expected)
@@ -1431,12 +1543,31 @@ def _probe_base_node(
     result.base_successes = len(delays)
     if delays:
         result.base_latency_ms = round(statistics.median(delays))
+    result.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
     if len(delays) != attempts:
-        first = base_errors[0] if base_errors else DelayResult(False, error_code="HTTPS_CHECK_FAILED")
+        decisive = next(
+            (
+                item for item in base_errors
+                if (item.error_category or error_category_for_code(item.error_code))
+                not in {"controller_api", "probe_infrastructure"}
+            ),
+            None,
+        )
+        first = decisive or (base_errors[0] if base_errors else DelayResult(False, error_code="HTTPS_CHECK_FAILED"))
         if len(delays) >= required_successes:
             result.base_error_code = "UNSTABLE_BASE_HTTPS"
             result.base_error_summary = f"Нестабильный базовый HTTPS: {len(delays)}/{attempts}"
             result.error_category = "network"
+            result.check_state = "services_pending"
+        elif decisive is None:
+            result.overall_status = "not_tested"
+            result.base_error_code = first.error_code or "PROXY_PROBE_UNAVAILABLE"
+            result.base_error_summary = first.error_summary or "Базовая HTTPS-проверка не состоялась"
+            result.error_code = result.base_error_code
+            result.error_summary = result.base_error_summary
+            result.error_category = first.error_category or "probe_infrastructure"
+            result.check_state = "base_pending"
+            return result
         else:
             result.overall_status = "failed"
             result.base_error_code = first.error_code or "HTTPS_CHECK_FAILED"
@@ -1444,7 +1575,10 @@ def _probe_base_node(
             result.error_code = result.base_error_code
             result.error_summary = result.base_error_summary
             result.error_category = first.error_category or error_category_for_code(result.error_code)
+            result.check_state = "complete"
             return result
+    else:
+        result.check_state = "services_pending"
     return result
 
 
@@ -1458,11 +1592,23 @@ def _probe_services_node(
     service_step_callback: Callable[[], None] | None = None,
 ) -> NodeResult:
     failed_services: list[str] = []
+    pending_services: list[str] = []
+    result.check_state = "services_running"
     for service in services:
+        existing = result.services.get(service.name)
+        if existing is not None:
+            if existing.status == "failed":
+                failed_services.append(service.name)
+                continue
+            if existing.status != "not_tested":
+                continue
         if cancel_event.is_set():
             result.overall_status = "not_tested"
             result.error_code = "CANCELLED"
             result.error_summary = "Проверка отменена"
+            result.error_category = "not_tested"
+            result.check_state = "services_pending"
+            result.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
             return result
         probe = api_delay(
             runtime,
@@ -1474,28 +1620,47 @@ def _probe_services_node(
         if probe.success:
             result.services[service.name] = ServiceResult("reachable", probe.latency_ms)
         else:
-            failed_services.append(service.name)
+            category = probe.error_category or error_category_for_code(probe.error_code)
+            service_status = "not_tested" if category in {"controller_api", "probe_infrastructure"} else "failed"
+            if service_status == "not_tested":
+                pending_services.append(service.name)
+            else:
+                failed_services.append(service.name)
             result.services[service.name] = ServiceResult(
-                "failed",
+                service_status,
                 error_code=probe.error_code,
                 error_summary=probe.error_summary,
-                error_category=probe.error_category or error_category_for_code(probe.error_code),
+                error_category=category,
                 controller_http_status=probe.controller_http_status,
+                diagnostic_reason=probe.diagnostic_reason,
             )
         if service_step_callback is not None:
             service_step_callback()
-    if failed_services:
+    result.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    if pending_services:
+        result.overall_status = "not_tested"
+        result.error_code = "SERVICE_CHECK_INCOMPLETE"
+        result.error_summary = sanitize_text("Не проверены сервисы: " + ", ".join(pending_services))
+        result.error_category = "not_tested"
+        result.check_state = "services_pending"
+    elif failed_services:
         result.overall_status = "partial"
         result.error_code = "SITE_PARTIAL"
         result.error_summary = sanitize_text("Недоступны: " + ", ".join(failed_services))
         result.error_category = "target_service"
+        result.check_state = "complete"
     elif result.base_successes < result.base_attempts:
         result.overall_status = "partial"
         result.error_code = "UNSTABLE_BASE_HTTPS"
         result.error_summary = f"Нестабильный базовый HTTPS: {result.base_successes}/{result.base_attempts}"
         result.error_category = "network"
+        result.check_state = "complete"
     else:
         result.overall_status = "good"
+        result.error_code = None
+        result.error_summary = None
+        result.error_category = None
+        result.check_state = "complete"
     return result
 
 
@@ -1537,6 +1702,7 @@ def _run_base_probes_adaptive(
     minimum_successes: int,
     cancel_event: threading.Event,
     progress_callback: Callable[[int, int, int], None] | None = None,
+    result_callback: Callable[[NodeResult], None] | None = None,
 ) -> tuple[list[NodeResult], int, list[dict[str, object]]]:
     """Run a bounded queue and reduce concurrency after an early failure storm."""
     if not nodes:
@@ -1596,6 +1762,8 @@ def _run_base_probes_adaptive(
                         error_category=error_category_for_code(code),
                     )
                 results.append(result)
+                if result_callback is not None:
+                    result_callback(result)
                 observed += 1
                 failure_codes = {
                     item.error_code
@@ -1603,7 +1771,10 @@ def _run_base_probes_adaptive(
                     for item in endpoint_results
                     if not item.success
                 }
-                if failure_codes & {"TIMEOUT", "PROXY_CONNECT_FAILED", "CONTROLLER_API_503"}:
+                if failure_codes & {
+                    "TIMEOUT", "PROXY_CONNECT_FAILED", "PROXY_PROBE_HTTP_503",
+                    "PROXY_PROBE_HTTP_504", "PROXY_PROBE_UNAVAILABLE",
+                }:
                     timeout_like += 1
                 if progress_callback is not None:
                     progress_callback(len(results), len(nodes), current_limit)
@@ -1621,7 +1792,7 @@ def _run_base_probes_adaptive(
                         "event": "concurrency_reduced",
                         "from": previous,
                         "to": 8,
-                        "reason": "timeout_or_controller_error_storm",
+                        "reason": "network_or_probe_failure_storm",
                         "observed": observed,
                         "affected": timeout_like,
                     }
@@ -1644,6 +1815,7 @@ def _run_service_probes_bounded(
     timeout_ms: int,
     cancel_event: threading.Event,
     service_step_callback: Callable[[], None] | None = None,
+    result_callback: Callable[[NodeResult], None] | None = None,
 ) -> list[NodeResult]:
     """Keep at most eight node-level service tasks queued at a time."""
     if not base_results:
@@ -1696,6 +1868,8 @@ def _run_service_probes_bounded(
                     original.error_category = error_category_for_code(code)
                     result = original
                 completed_results.append(result)
+                if result_callback is not None:
+                    result_callback(result)
             if cancel_event.is_set():
                 for future in active:
                     future.cancel()
@@ -1714,6 +1888,259 @@ def _direct_baseline(timeout_ms: int) -> str:
             return "ok" if int(response.getcode()) == 204 else "failed"
     except (OSError, ValueError, urllib.error.URLError):
         return "failed"
+
+
+def _delay_checkpoint_payload(item: DelayResult) -> dict[str, object]:
+    return {
+        "success": item.success,
+        "latency_ms": item.latency_ms,
+        "error_code": item.error_code,
+        "error_summary": sanitize_text(item.error_summary) if item.error_summary else None,
+        "error_category": item.error_category,
+        "controller_http_status": item.controller_http_status,
+        "diagnostic_reason": sanitize_text(item.diagnostic_reason) if item.diagnostic_reason else None,
+    }
+
+
+def _delay_from_checkpoint(value: object) -> DelayResult | None:
+    if not isinstance(value, Mapping) or not isinstance(value.get("success"), bool):
+        return None
+    return DelayResult(
+        success=bool(value["success"]),
+        latency_ms=value.get("latency_ms") if isinstance(value.get("latency_ms"), int) else None,
+        error_code=value.get("error_code") if isinstance(value.get("error_code"), str) else None,
+        error_summary=value.get("error_summary") if isinstance(value.get("error_summary"), str) else None,
+        error_category=value.get("error_category") if isinstance(value.get("error_category"), str) else None,
+        controller_http_status=(
+            value.get("controller_http_status")
+            if isinstance(value.get("controller_http_status"), int) else None
+        ),
+        diagnostic_reason=(
+            value.get("diagnostic_reason")
+            if isinstance(value.get("diagnostic_reason"), str) else None
+        ),
+    )
+
+
+def _service_checkpoint_payload(item: ServiceResult) -> dict[str, object]:
+    return {
+        "status": item.status,
+        "latency_ms": item.latency_ms,
+        "http_status": item.http_status,
+        "error_code": item.error_code,
+        "error_summary": sanitize_text(item.error_summary) if item.error_summary else None,
+        "error_category": item.error_category,
+        "controller_http_status": item.controller_http_status,
+        "diagnostic_reason": sanitize_text(item.diagnostic_reason) if item.diagnostic_reason else None,
+    }
+
+
+def _service_from_checkpoint(value: object) -> ServiceResult | None:
+    if not isinstance(value, Mapping) or not isinstance(value.get("status"), str):
+        return None
+    return ServiceResult(
+        status=value["status"],
+        latency_ms=value.get("latency_ms") if isinstance(value.get("latency_ms"), int) else None,
+        http_status=value.get("http_status") if isinstance(value.get("http_status"), int) else None,
+        error_code=value.get("error_code") if isinstance(value.get("error_code"), str) else None,
+        error_summary=value.get("error_summary") if isinstance(value.get("error_summary"), str) else None,
+        error_category=value.get("error_category") if isinstance(value.get("error_category"), str) else None,
+        controller_http_status=(
+            value.get("controller_http_status")
+            if isinstance(value.get("controller_http_status"), int) else None
+        ),
+        diagnostic_reason=(
+            value.get("diagnostic_reason")
+            if isinstance(value.get("diagnostic_reason"), str) else None
+        ),
+    )
+
+
+class CheckpointStore:
+    """Bounded, atomic local persistence containing results but no proxy configs."""
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        attempts: int,
+        base_policy: str,
+        selected_services: Sequence[str],
+        resume: bool,
+        max_age_seconds: int = CHECKPOINT_MAX_AGE_SECONDS,
+    ) -> None:
+        self.path = path
+        self.settings = {
+            "attempts": attempts,
+            "base_policy": base_policy,
+            "selected_services": list(selected_services),
+        }
+        self.max_age_seconds = max_age_seconds
+        self.status = "new"
+        self.error: str | None = None
+        self._lock = threading.Lock()
+        self._last_flush = 0.0
+        self._dirty_count = 0
+        self._payload: dict[str, object] = {
+            "version": CHECKPOINT_VERSION,
+            "saved_at": None,
+            "settings": self.settings,
+            "nodes": {},
+        }
+        if resume:
+            self._load()
+
+    def _load(self) -> None:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            self.status = "missing"
+            return
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            self.status = "corrupt"
+            self.error = sanitize_text(exc)
+            return
+        if (
+            not isinstance(raw, dict)
+            or raw.get("version") != CHECKPOINT_VERSION
+            or not isinstance(raw.get("nodes"), dict)
+            or not isinstance(raw.get("settings"), dict)
+        ):
+            self.status = "corrupt"
+            self.error = "Некорректная структура checkpoint"
+            return
+        saved_at = raw.get("saved_at")
+        try:
+            saved = datetime.fromisoformat(saved_at) if isinstance(saved_at, str) else None
+            expired = saved is None or datetime.now().astimezone() - saved > timedelta(seconds=self.max_age_seconds)
+        except (TypeError, ValueError):
+            expired = True
+        if expired:
+            self.status = "expired"
+            return
+        stored_settings = raw["settings"]
+        assert isinstance(stored_settings, dict)
+        if (
+            stored_settings.get("attempts") != self.settings["attempts"]
+            or stored_settings.get("base_policy") != self.settings["base_policy"]
+        ):
+            self.status = "settings_changed"
+            return
+        self._payload = raw
+        self.status = "loaded"
+
+    def restore(
+        self,
+        nodes: Sequence[NodeRecord],
+        *,
+        selected_services: Sequence[str],
+        minimum_successes: int,
+    ) -> dict[str, NodeResult]:
+        if self.status != "loaded":
+            return {}
+        raw_nodes = self._payload.get("nodes")
+        if not isinstance(raw_nodes, Mapping):
+            return {}
+        restored: dict[str, NodeResult] = {}
+        selected = set(selected_services)
+        for node in nodes:
+            raw = raw_nodes.get(node.node_id)
+            if not isinstance(raw, Mapping):
+                continue
+            attempts = raw.get("base_attempts")
+            successes = raw.get("base_successes")
+            if attempts != self.settings["attempts"] or not isinstance(successes, int):
+                continue
+            if successes < minimum_successes:
+                continue
+            endpoints: dict[str, list[DelayResult]] = {}
+            raw_endpoints = raw.get("base_endpoint_results")
+            if isinstance(raw_endpoints, Mapping):
+                for key, values in raw_endpoints.items():
+                    if not isinstance(key, str) or not isinstance(values, list):
+                        continue
+                    decoded = [item for value in values if (item := _delay_from_checkpoint(value))]
+                    if decoded:
+                        endpoints[key] = decoded
+            services: dict[str, ServiceResult] = {}
+            raw_services = raw.get("services")
+            if isinstance(raw_services, Mapping):
+                for name, value in raw_services.items():
+                    if name not in selected:
+                        continue
+                    service = _service_from_checkpoint(value)
+                    if service is not None:
+                        services[str(name)] = service
+            result = NodeResult(
+                node=node,
+                overall_status=(raw.get("overall_status") if isinstance(raw.get("overall_status"), str) else "not_tested"),
+                base_successes=successes,
+                base_attempts=attempts,
+                base_latency_ms=raw.get("base_latency_ms") if isinstance(raw.get("base_latency_ms"), int) else None,
+                base_error_code=raw.get("base_error_code") if isinstance(raw.get("base_error_code"), str) else None,
+                base_error_summary=(raw.get("base_error_summary") if isinstance(raw.get("base_error_summary"), str) else None),
+                services=services,
+                error_code=raw.get("error_code") if isinstance(raw.get("error_code"), str) else None,
+                error_summary=raw.get("error_summary") if isinstance(raw.get("error_summary"), str) else None,
+                error_category=raw.get("error_category") if isinstance(raw.get("error_category"), str) else None,
+                base_endpoint_results=endpoints,
+                checked_at=raw.get("checked_at") if isinstance(raw.get("checked_at"), str) else None,
+                check_state=raw.get("check_state") if isinstance(raw.get("check_state"), str) else "services_pending",
+            )
+            restored[node.node_id] = result
+        return restored
+
+    def update(self, result: NodeResult, *, force: bool = False) -> None:
+        entry: dict[str, object] = {
+            "node_id": result.node.node_id,
+            "source_ids": list(result.node.source_ids),
+            "overall_status": result.overall_status,
+            "base_successes": result.base_successes,
+            "base_attempts": result.base_attempts,
+            "base_latency_ms": result.base_latency_ms,
+            "base_error_code": result.base_error_code,
+            "base_error_summary": sanitize_text(result.base_error_summary) if result.base_error_summary else None,
+            "services": {name: _service_checkpoint_payload(item) for name, item in result.services.items()},
+            "error_code": result.error_code,
+            "error_summary": sanitize_text(result.error_summary) if result.error_summary else None,
+            "error_category": result.error_category,
+            "base_endpoint_results": {
+                key: [_delay_checkpoint_payload(item) for item in values]
+                for key, values in result.base_endpoint_results.items()
+            },
+            "checked_at": result.checked_at or datetime.now().astimezone().isoformat(timespec="seconds"),
+            "check_state": result.check_state,
+        }
+        with self._lock:
+            raw_nodes = self._payload.setdefault("nodes", {})
+            assert isinstance(raw_nodes, dict)
+            raw_nodes[result.node.node_id] = entry
+            self._dirty_count += 1
+            should_flush = (
+                force
+                or self._dirty_count >= CHECKPOINT_FLUSH_BATCH
+                or time.monotonic() - self._last_flush >= CHECKPOINT_FLUSH_INTERVAL_SECONDS
+            )
+        if should_flush:
+            self.flush(force=force)
+
+    def flush(self, *, force: bool = False) -> None:
+        with self._lock:
+            if not force and not self._dirty_count:
+                return
+            self._payload["version"] = CHECKPOINT_VERSION
+            self._payload["settings"] = self.settings
+            self._payload["saved_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            content = json.dumps(self._payload, ensure_ascii=False, indent=2) + "\n"
+            self._dirty_count = 0
+            self._last_flush = time.monotonic()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.path.with_name(self.path.name + ".tmp")
+            temporary.write_text(content, encoding="utf-8")
+            temporary.replace(self.path)
+        except OSError as exc:
+            self.error = sanitize_text(exc)
 
 
 class BatchRunner:
@@ -1755,6 +2182,9 @@ class BatchRunner:
         per_source_limit: int | None = None,
         sampling_seed: str = "wireveil-default",
         base_policy: str = "strict",
+        checkpoint_path: Path | None = None,
+        resume: bool = False,
+        checkpoint_max_age_seconds: int = CHECKPOINT_MAX_AGE_SECONDS,
         source_callback: Callable[[ParsedSource], None] | None = None,
         node_callback: Callable[[int, int, NodeResult], None] | None = None,
         progress_callback: Callable[[ProgressUpdate], None] | None = None,
@@ -1777,6 +2207,21 @@ class BatchRunner:
             services = tuple(SERVICE_BY_NAME[name] for name in dict.fromkeys(selected_services))
         except KeyError as exc:
             raise MihomoCheckError("INVALID_SETTINGS", f"Неизвестный сервис: {exc.args[0]}") from exc
+
+        checkpoint = (
+            CheckpointStore(
+                checkpoint_path,
+                attempts=attempts,
+                base_policy=base_policy,
+                selected_services=tuple(service.name for service in services),
+                resume=resume,
+                max_age_seconds=checkpoint_max_age_seconds,
+            )
+            if checkpoint_path is not None
+            else None
+        )
+        if checkpoint is not None and not resume:
+            checkpoint.flush(force=True)
 
         reporter = _ProgressReporter(progress_callback)
         effective_workers = workers
@@ -1933,6 +2378,8 @@ class BatchRunner:
                 return
             completed_ids.add(result.node.node_id)
             node_results.append(result)
+            if checkpoint is not None:
+                checkpoint.update(result)
             if node_callback is not None:
                 node_callback(len(node_results), len(nodes), result)
 
@@ -1969,6 +2416,28 @@ class BatchRunner:
             )
 
         supported = list(selected_nodes)
+        minimum_successes = attempts if base_policy == "strict" else 1
+        resumed_results = (
+            checkpoint.restore(
+                supported,
+                selected_services=tuple(service.name for service in services),
+                minimum_successes=minimum_successes,
+            )
+            if checkpoint is not None and resume
+            else {}
+        )
+        if checkpoint is not None and resume:
+            reporter.emit(
+                "deduplication",
+                candidate_count,
+                candidate_count,
+                (
+                    f"Checkpoint: восстановлено базовых результатов {len(resumed_results)}"
+                    if checkpoint.status == "loaded"
+                    else f"Checkpoint не использован: {checkpoint.status}"
+                ),
+                force=True,
+            )
         direct_baseline = "skipped"
         engine_version = "unknown"
         runtime_log_summary: str | None = None
@@ -2052,16 +2521,31 @@ class BatchRunner:
                     if not self.cancel_event.is_set():
                         direct_baseline = _direct_baseline(timeout_ms)
 
-                    probe_nodes = [] if self.cancel_event.is_set() else supported
+                    resumed_base = {
+                        node.node_id: resumed_results[node.node_id]
+                        for node in supported
+                        if node.node_id in resumed_results
+                    }
+                    probe_nodes = (
+                        []
+                        if self.cancel_event.is_set()
+                        else [node for node in supported if node.node_id not in resumed_base]
+                    )
                     base_passed: dict[str, NodeResult] = {}
-                    minimum_successes = attempts if base_policy == "strict" else 1
+                    for node_id, result in resumed_base.items():
+                        result.overall_status = "not_tested"
+                        result.error_code = None
+                        result.error_summary = None
+                        result.error_category = None
+                        result.check_state = "services_pending"
+                        base_passed[node_id] = result
 
                     def base_progress(done: int, total: int, concurrency: int) -> None:
                         reporter.emit(
                             "https",
-                            done,
-                            total,
-                            f"Базовый HTTPS обработан: {done} из {total}; параллельность {concurrency}",
+                            len(resumed_base) + done,
+                            len(supported),
+                            f"Базовый HTTPS обработан: {len(resumed_base) + done} из {len(supported)}; параллельность {concurrency}",
                         )
 
                     base_results, effective_workers, adaptive_events = _run_base_probes_adaptive(
@@ -2073,13 +2557,14 @@ class BatchRunner:
                         minimum_successes=minimum_successes,
                         cancel_event=self.cancel_event,
                         progress_callback=base_progress,
+                        result_callback=(checkpoint.update if checkpoint is not None else None),
                     )
                     if adaptive_events:
                         reporter.emit(
                             "https",
-                            len(base_results),
+                            len(resumed_base) + len(base_results),
                             len(supported),
-                            "Параллельность автоматически снижена до 8 из-за шквала тайм-аутов/API 503",
+                            "Параллельность автоматически снижена до 8 из-за шквала сетевых или probe-ошибок",
                             force=True,
                         )
                     for result in base_results:
@@ -2092,6 +2577,11 @@ class BatchRunner:
                                 result.error_summary = "Проверка остановлена пользователем"
                                 result.error_category = "not_tested"
                             add_result(result)
+
+                    if checkpoint is not None:
+                        for result in base_passed.values():
+                            checkpoint.update(result)
+                        checkpoint.flush(force=True)
 
                     for node in supported:
                         if node.node_id in completed_ids or node.node_id in base_passed:
@@ -2117,6 +2607,8 @@ class BatchRunner:
                             result.overall_status = "not_tested"
                             result.error_code = "CANCELLED"
                             result.error_summary = "Проверка сервисов отменена"
+                            result.error_category = "not_tested"
+                            result.check_state = "services_pending"
                             add_result(result)
                     elif not services:
                         reporter.emit("services", 0, 0, "Проверки сервисов не выбраны", force=True)
@@ -2128,10 +2620,21 @@ class BatchRunner:
                                 result.error_category = "network"
                             else:
                                 result.overall_status = "good"
+                                result.error_code = None
+                                result.error_summary = None
+                                result.error_category = None
+                            result.check_state = "complete"
+                            result.checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
                             add_result(result)
                         reporter.emit("services", 1, 1, "Узлы отмечены по базовому HTTPS", force=True)
                     elif base_passed:
-                        service_total = len(base_passed) * len(services)
+                        service_total = sum(
+                            1
+                            for result in base_passed.values()
+                            for service in services
+                            if service.name not in result.services
+                            or result.services[service.name].status == "not_tested"
+                        )
                         service_state = {"done": 0}
                         service_lock = threading.Lock()
 
@@ -2160,6 +2663,7 @@ class BatchRunner:
                             timeout_ms=timeout_ms,
                             cancel_event=self.cancel_event,
                             service_step_callback=service_step,
+                            result_callback=(checkpoint.update if checkpoint is not None else None),
                         )
                         for result in service_results:
                             add_result(result)
@@ -2169,6 +2673,8 @@ class BatchRunner:
                             result.overall_status = "not_tested"
                             result.error_code = "CANCELLED"
                             result.error_summary = "Проверка сервисов отменена"
+                            result.error_category = "not_tested"
+                            result.check_state = "services_pending"
                             add_result(result)
                         reporter.emit(
                             "services",
@@ -2213,6 +2719,8 @@ class BatchRunner:
                     )
                 )
         node_results.sort(key=lambda item: item.node.node_id)
+        if checkpoint is not None:
+            checkpoint.flush(force=True)
         report = BatchReport(
             generated_at=datetime.now().astimezone().isoformat(timespec="seconds"),
             engine_version=engine_version,
@@ -2225,6 +2733,8 @@ class BatchRunner:
             sampling={
                 **sampling,
                 "base_policy": base_policy,
+                "checkpoint_status": checkpoint.status if checkpoint is not None else "disabled",
+                "resumed_nodes": len(resumed_results),
             },
             requested_workers=workers,
             effective_workers=effective_workers,
@@ -2321,6 +2831,10 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                 "error_code": first_error.error_code if first_error else None,
                 "error_category": first_error.error_category if first_error else None,
                 "controller_http_status": first_error.controller_http_status if first_error else None,
+                "diagnostic_reason": (
+                    sanitize_text(first_error.diagnostic_reason)
+                    if first_error and first_error.diagnostic_reason else None
+                ),
                 "error_summary": sanitize_text(first_error.error_summary) if first_error and first_error.error_summary else None,
             }
         nodes.append(
@@ -2351,6 +2865,10 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                         "error_code": service.error_code,
                         "error_category": service.error_category or error_category_for_code(service.error_code),
                         "controller_http_status": service.controller_http_status,
+                        "diagnostic_reason": (
+                            sanitize_text(service.diagnostic_reason)
+                            if service.diagnostic_reason else None
+                        ),
                         "error_summary": sanitize_text(service.error_summary) if service.error_summary else None,
                     }
                     for name, service in result.services.items()
@@ -2358,9 +2876,12 @@ def report_payload(report: BatchReport) -> dict[str, object]:
                 "error_code": result.error_code,
                 "error_category": result.error_category or error_category_for_code(result.error_code),
                 "error_summary": sanitize_text(result.error_summary) if result.error_summary else None,
+                "check_state": result.check_state,
+                "checked_at": result.checked_at,
             }
         )
     statuses = [item.overall_status for item in report.node_results]
+    base_required = report.attempts if report.sampling.get("base_policy") == "strict" else 1
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": report.generated_at,
@@ -2398,6 +2919,20 @@ def report_payload(report: BatchReport) -> dict[str, object]:
             "failed": statuses.count("failed"),
             "unsupported": statuses.count("unsupported"),
             "not_tested": statuses.count("not_tested"),
+            "base_https_passed": sum(
+                item.base_attempts > 0 and item.base_successes >= base_required
+                for item in report.node_results
+            ),
+            "services_pending": sum(
+                item.base_successes > 0
+                and item.check_state in {"services_pending", "services_running"}
+                for item in report.node_results
+            ),
+            "checker_infrastructure_errors": sum(
+                (item.error_category or error_category_for_code(item.error_code))
+                in {"controller_api", "probe_infrastructure"}
+                for item in report.node_results
+            ),
         },
     }
 
@@ -2414,6 +2949,8 @@ def summary_markdown(report: BatchReport) -> str:
         f"- Источников: {totals['sources']}",
         f"- Уникальных узлов: {totals['unique_nodes']} (записей по источникам: {totals['source_node_entries']})",
         f"- Статусы: good {totals['good']}, partial {totals['partial']}, failed {totals['failed']}, unsupported {totals['unsupported']}, not_tested {totals['not_tested']}",
+        f"- Базовый HTTPS пройден: {totals['base_https_passed']}; ожидают сервисы: {totals['services_pending']}",
+        f"- Ошибки инфраструктуры проверки: {totals['checker_infrastructure_errors']}",
         f"- Прямой HTTPS baseline: {report.direct_baseline}",
         f"- Выбранные сервисы: {', '.join(report.selected_services) or 'нет'}",
         f"- Семплирование: {report.sampling.get('strategy', 'не указано')}, seed `{sanitize_text(report.sampling.get('seed', '—'), 80)}`; выбрано {report.sampling.get('selected_nodes', '—')}",
@@ -2458,6 +2995,7 @@ def summary_markdown(report: BatchReport) -> str:
             "- Предположение: `SOURCE_FETCH_FAILED` обычно означает сетевой сбой, DNS, блокировку или истёкший URL подписки.",
             "- Предположение: `MIHOMO_CONFIG_REJECTED` означает, что конкретные параметры узла не приняты этой версией Mihomo.",
             "- `partial` подтверждает базовый HTTPS, но не доступность всех выбранных доменов.",
+            "- `not_tested` с `check_state: services_pending` означает, что базовый HTTPS мог быть подтверждён, но сервисный этап не завершился.",
             "- Проверка URL сервиса не гарантирует вход в аккаунт, работу мобильного приложения, CDN, видео, UDP или QUIC.",
             "- Этот архив обезличен. Для исправления приватных конфигураций нужен исходный YAML или отдельный приватный экспорт, который нельзя отправлять посторонним.",
             "",
@@ -2477,7 +3015,7 @@ def nodes_csv(report: BatchReport) -> str:
     for name in service_names:
         key = SERVICE_BY_NAME[name].key
         header.extend((f"{key}_status", f"{key}_latency_ms"))
-    header.extend(("error_category", "error_code", "error_summary"))
+    header.extend(("error_category", "error_code", "error_summary", "check_state", "checked_at"))
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(header)
     source_names = {parsed.spec.source_id: sanitize_text(parsed.spec.name, 160) for parsed in report.sources}
@@ -2517,6 +3055,8 @@ def nodes_csv(report: BatchReport) -> str:
                 result.error_category or error_category_for_code(result.error_code) or "",
                 result.error_code or "",
                 sanitize_text(result.error_summary or ""),
+                result.check_state,
+                result.checked_at or "",
             ))
             writer.writerow([safe_cell(value) for value in row])
     return "\ufeff" + output.getvalue()

@@ -1,3 +1,4 @@
+import io
 import json
 import subprocess
 import tempfile
@@ -869,7 +870,7 @@ class ApiClassificationTests(unittest.TestCase):
         self.assertIn("expected=204", path)
         self.assertIn("timeout=8000", path)
 
-    def test_timeout_error_is_normalized_without_remote_body(self):
+    def test_local_controller_timeout_is_not_blame_on_proxy(self):
         runtime = mock.Mock()
         runtime._request.side_effect = urllib.error.URLError(TimeoutError("secret-token timeout"))
         node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
@@ -877,10 +878,21 @@ class ApiClassificationTests(unittest.TestCase):
             runtime, node, url="https://example.com", timeout_ms=1000, expected="200-299"
         )
         self.assertFalse(result.success)
-        self.assertEqual("TIMEOUT", result.error_code)
+        self.assertEqual("CONTROLLER_REQUEST_TIMEOUT", result.error_code)
+        self.assertEqual("controller_api", result.error_category)
         self.assertNotIn("secret-token", result.error_summary or "")
 
-    def test_controller_503_is_not_reported_as_target_http_status(self):
+    def test_unreachable_local_controller_is_infrastructure_not_proxy_failure(self):
+        runtime = mock.Mock()
+        runtime._request.side_effect = urllib.error.URLError(ConnectionRefusedError("refused"))
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        result = mihomo_checker.api_delay(
+            runtime, node, url="https://example.com", timeout_ms=1000, expected="200-299"
+        )
+        self.assertEqual("CONTROLLER_UNAVAILABLE", result.error_code)
+        self.assertEqual("controller_api", result.error_category)
+
+    def test_unknown_503_is_an_indeterminate_proxy_probe(self):
         runtime = mock.Mock()
         error = urllib.error.HTTPError(
             "http://127.0.0.1:9090/proxies/node/delay", 503, "upstream secret", {}, None
@@ -891,11 +903,53 @@ class ApiClassificationTests(unittest.TestCase):
             runtime, node, url="https://chatgpt.com/", timeout_ms=8000, expected="200-499"
         )
         self.assertFalse(result.success)
-        self.assertEqual("CONTROLLER_API_503", result.error_code)
-        self.assertEqual("controller_api", result.error_category)
+        self.assertEqual("PROXY_PROBE_HTTP_503", result.error_code)
+        self.assertEqual("probe_infrastructure", result.error_category)
         self.assertEqual(503, result.controller_http_status)
         self.assertNotIn("chatgpt", result.error_summary or "")
         error.close()
+
+    def test_503_and_504_preserve_status_and_classify_reported_reason(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        for status in (503, 504):
+            runtime = mock.Mock()
+            errors = [
+                urllib.error.HTTPError(
+                    "http://127.0.0.1/proxies/node/delay",
+                    status,
+                    "failure",
+                    {},
+                    io.BytesIO(b'{"message":"context deadline exceeded"}'),
+                ),
+                urllib.error.HTTPError(
+                    "http://127.0.0.1/proxies/node/delay",
+                    status,
+                    "failure",
+                    {},
+                    io.BytesIO(b'{"message":"context deadline exceeded"}'),
+                ),
+            ]
+            runtime._request.side_effect = errors
+            result = mihomo_checker.api_delay(
+                runtime, node, url="https://example.com/", timeout_ms=1000, expected="200-399"
+            )
+            self.assertEqual("TIMEOUT", result.error_code)
+            self.assertEqual("network", result.error_category)
+            self.assertEqual(status, result.controller_http_status)
+            self.assertEqual("context deadline exceeded", result.diagnostic_reason)
+            for error in errors:
+                error.close()
+
+    def test_proxy_name_is_url_encoded_as_one_path_segment(self):
+        runtime = mock.Mock()
+        runtime._request.return_value = b'{"delay": 10}'
+        node = parsed_source(source("src"), [vless_proxy("A/B ?#")]).nodes[0]
+        node.runtime_name = "A/B ?#"
+        mihomo_checker.api_delay(
+            runtime, node, url="https://example.com/", timeout_ms=1000, expected="200-399"
+        )
+        path = runtime._request.call_args.args[0]
+        self.assertIn("/proxies/A%2FB%20%3F%23/delay?", path)
 
     def test_base_endpoints_are_kept_separately(self):
         node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
@@ -914,6 +968,26 @@ class ApiClassificationTests(unittest.TestCase):
         self.assertEqual(1, strict.base_successes)
         self.assertEqual("failed", strict.overall_status)
         self.assertEqual("TIMEOUT", strict.error_code)
+
+    def test_unknown_probe_503_does_not_turn_node_into_failed(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        unknown = mihomo_checker.DelayResult(
+            False,
+            error_code="PROXY_PROBE_HTTP_503",
+            error_summary="indeterminate",
+            error_category="probe_infrastructure",
+            controller_http_status=503,
+        )
+        with mock.patch(
+            "scripts.mihomo_checker.api_delay",
+            side_effect=[mihomo_checker.DelayResult(True, 40), unknown],
+        ):
+            result = mihomo_checker._probe_base_node(
+                mock.Mock(), node, attempts=2, timeout_ms=8000, cancel_event=threading.Event()
+            )
+        self.assertEqual("not_tested", result.overall_status)
+        self.assertEqual("PROXY_PROBE_HTTP_503", result.error_code)
+        self.assertEqual("base_pending", result.check_state)
 
     def test_one_of_two_policy_marks_unstable_but_allows_services(self):
         node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
@@ -984,6 +1058,190 @@ class ApiClassificationTests(unittest.TestCase):
         self.assertEqual(24, len(completed))
         self.assertLessEqual(maximum, 8)
         self.assertGreater(maximum, 1)
+
+
+class CheckpointTests(unittest.TestCase):
+    def test_checkpoint_round_trip_keeps_base_and_partial_services_without_secrets(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        result = mihomo_checker.NodeResult(
+            node,
+            overall_status="not_tested",
+            base_successes=2,
+            base_attempts=2,
+            base_latency_ms=45,
+            services={"ChatGPT": mihomo_checker.ServiceResult("reachable", 50)},
+            base_endpoint_results={
+                "gstatic": [mihomo_checker.DelayResult(True, 40)],
+                "cloudflare": [mihomo_checker.DelayResult(True, 50)],
+            },
+            checked_at="2026-11-05T12:00:00+03:00",
+            check_state="services_pending",
+        )
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "checkpoint.json"
+            store = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=("ChatGPT", "YouTube"),
+                resume=False,
+            )
+            store.update(result, force=True)
+            raw = path.read_text(encoding="utf-8")
+            resumed = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=("ChatGPT", "YouTube"),
+                resume=True,
+            )
+            restored = resumed.restore(
+                [node], selected_services=("ChatGPT", "YouTube"), minimum_successes=2
+            )
+        self.assertNotIn(UUID_A, raw)
+        self.assertNotIn("edge.example.com", raw)
+        self.assertEqual(2, restored[node.node_id].base_successes)
+        self.assertEqual({"ChatGPT"}, set(restored[node.node_id].services))
+        self.assertEqual("services_pending", restored[node.node_id].check_state)
+
+    def test_corrupt_checkpoint_is_ignored(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "checkpoint.json"
+            path.write_text("{broken", encoding="utf-8")
+            store = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=(),
+                resume=True,
+            )
+        self.assertEqual("corrupt", store.status)
+        self.assertEqual({}, store.restore([], selected_services=(), minimum_successes=2))
+
+    def test_expired_checkpoint_is_ignored_and_fresh_run_replaces_it(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "checkpoint.json"
+            store = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=(),
+                resume=False,
+            )
+            store.update(
+                mihomo_checker.NodeResult(
+                    node, base_successes=2, base_attempts=2, check_state="services_pending"
+                ),
+                force=True,
+            )
+            expired = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=(),
+                resume=True,
+                max_age_seconds=-1,
+            )
+            fresh = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=(),
+                resume=False,
+            )
+            fresh.flush(force=True)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual("expired", expired.status)
+        self.assertEqual({}, payload["nodes"])
+
+    def test_runner_resumes_services_without_repeating_successful_base(self):
+        spec = source("src")
+        node = parsed_source(spec, [vless_proxy()]).nodes[0]
+
+        class Runtime:
+            version = "test"
+            log_summary = None
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "checkpoint.json"
+            store = mihomo_checker.CheckpointStore(
+                path,
+                attempts=2,
+                base_policy="strict",
+                selected_services=("ChatGPT",),
+                resume=False,
+            )
+            store.update(
+                mihomo_checker.NodeResult(
+                    node,
+                    base_successes=2,
+                    base_attempts=2,
+                    base_latency_ms=40,
+                    base_endpoint_results={
+                        "gstatic": [mihomo_checker.DelayResult(True, 35)],
+                        "cloudflare": [mihomo_checker.DelayResult(True, 45)],
+                    },
+                    check_state="services_pending",
+                ),
+                force=True,
+            )
+            with (
+                mock.patch("scripts.mihomo_checker.read_source_text", return_value=source_yaml([vless_proxy()])),
+                mock.patch("scripts.mihomo_checker.validate_runtime_nodes", side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), [])),
+                mock.patch("scripts.mihomo_checker.MihomoRuntime", Runtime),
+                mock.patch("scripts.mihomo_checker._direct_baseline", return_value="ok"),
+                mock.patch(
+                    "scripts.mihomo_checker.api_delay",
+                    return_value=mihomo_checker.DelayResult(True, 55),
+                ) as delay,
+            ):
+                report = mihomo_checker.BatchRunner().run(
+                    binary=Path("mihomo.exe"),
+                    source_specs=(spec,),
+                    selected_services=("ChatGPT",),
+                    checkpoint_path=path,
+                    resume=True,
+                )
+        self.assertEqual(1, delay.call_count)
+        self.assertEqual("good", report.node_results[0].overall_status)
+        self.assertEqual(1, report.sampling["resumed_nodes"])
+
+    def test_stop_during_services_preserves_completed_service_and_base(self):
+        node = parsed_source(source("src"), [vless_proxy()]).nodes[0]
+        result = mihomo_checker.NodeResult(
+            node,
+            base_successes=2,
+            base_attempts=2,
+            check_state="services_pending",
+        )
+        cancel = threading.Event()
+
+        def first_probe(*_args, **_kwargs):
+            cancel.set()
+            return mihomo_checker.DelayResult(True, 25)
+
+        with mock.patch("scripts.mihomo_checker.api_delay", side_effect=first_probe):
+            stopped = mihomo_checker._probe_services_node(
+                mock.Mock(),
+                result,
+                services=mihomo_checker.SERVICE_DEFINITIONS[:2],
+                timeout_ms=1000,
+                cancel_event=cancel,
+            )
+        self.assertEqual(2, stopped.base_successes)
+        self.assertEqual({"ChatGPT"}, set(stopped.services))
+        self.assertEqual("services_pending", stopped.check_state)
+        self.assertEqual("CANCELLED", stopped.error_code)
 
 
 def diagnostic_report():
