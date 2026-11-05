@@ -250,6 +250,11 @@ class MainUiLayoutTests(unittest.TestCase):
                     self.assertTrue(checker.advanced_window.winfo_ismapped())
                     self.assertTrue(checker.schedule_frame.winfo_ismapped())
                     self.assertTrue(checker.log_toggle_button.winfo_ismapped())
+
+                    checker._toggle_log()
+                    checker.update()
+                    self.assertTrue(checker.log_frame.winfo_ismapped())
+                    self.assertTrue(checker.log_toggle_button.winfo_ismapped())
                 finally:
                     checker._on_close()
 

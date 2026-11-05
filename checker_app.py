@@ -1325,7 +1325,6 @@ class WireVeilChecker(tk.Tk):
         ).pack(anchor="w", pady=(2, 0))
 
         self.table_frame = ttk.Frame(outer, style="Panel.TFrame", padding=1)
-        self.table_frame.pack(fill="both", expand=True)
         table_frame = self.table_frame
         self.table = ttk.Treeview(
             table_frame,
@@ -1434,9 +1433,7 @@ class WireVeilChecker(tk.Tk):
         self.log.pack(fill="x")
 
         self.progress = ttk.Progressbar(outer, variable=self.progress_var, maximum=100)
-        self.progress.pack(fill="x", pady=(5, 3))
         statusbar = ttk.Frame(outer)
-        statusbar.pack(fill="x")
         ttk.Label(statusbar, textvariable=self.status_var).pack(side="left")
         self.log_toggle_button = ttk.Button(
             statusbar,
@@ -1445,6 +1442,9 @@ class WireVeilChecker(tk.Tk):
             style="Utility.TButton",
         )
         self.log_toggle_button.pack(side="right")
+        statusbar.pack(side="bottom", fill="x")
+        self.progress.pack(side="bottom", fill="x", pady=(5, 3))
+        self.table_frame.pack(fill="both", expand=True)
 
         self.mihomo_tab = MihomoCheckerTab(
             mihomo_page,
@@ -1807,7 +1807,9 @@ class WireVeilChecker(tk.Tk):
             self.log_visible = False
             self.log_toggle_button.configure(text="Журнал")
             return
-        self.log_frame.pack(fill="x", pady=(5, 0), before=self.progress)
+        self.table_frame.pack_forget()
+        self.log_frame.pack(side="bottom", fill="x", pady=(5, 0))
+        self.table_frame.pack(fill="both", expand=True)
         self.log_visible = True
         self.log_toggle_button.configure(text="Скрыть журнал")
 
