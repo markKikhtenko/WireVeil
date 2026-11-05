@@ -35,6 +35,7 @@ hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160?insecure=1&sn
 hysteria2://184cdec28da5a09450803c8debcd2cc9@138.3.208.26:50160?insecure=1&sni=1#🇩🇪
 hysteria2://84a506ca5aca505696a454d828420b3f@140.238.213.114:50160?insecure=1&sni=140.238.213.114#🇨🇦
 hysteria2://70043bfa-d6fb-4980-b27e-773e9e8b2004@141.0.187.15:443/?sni=crt.onecloudstream.com#1@oneclickvpnkeys
+hysteria2://kztyblVC7ZlEKR3ZO5HW@142.11.207.17:443?sni=www.bing.com&up=50&down=200#🇺🇸
 hysteria2://6da2c981-8c77-4340-bda3-93399b7aea26@144.124.245.52:443?sni=store.blog-forme.ru#🇳🇱
 hysteria2://d105c6ae-621b-47c1-b85b-075fd6a39aca@144.24.109.215:51000?insecure=1&sni=cn.cremedelamer.com#_IN_%E5%8D%B0%E5%BA%A6_IPV4
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@144.31.109.158:4444?sni=fl3.nexfile.net#🇺🇸
@@ -79,7 +80,7 @@ hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@18.193.79.104:443?insecure=1&security=tls&s
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@18.194.242.173:443?insecure=1&security=tls&sni=127.0.0.1#🇩🇪
 hysteria2://b4bd0613-ff7c-4f2f-954d-185915e6ddad@181.214.99.162:35000?insecure=1&sni=api.kermanshahi.org&obfs=salamander&obfs-password=@JavidnamanIran-Javid-SHAH-KingRezaPahlavi#%40KAFING_2
 hysteria2://769f34f0-1500-488f-b414-03bc90666502@185.153.55.28:443?sni=se.mimowhat.online#🇳🇱
-hysteria2://gf1:gfhysteria2024@185.156.44.99:443?sni=www.amazon.com#🇷🇴
+hysteria2://gf1:gfhysteria2024@185.156.44.99:443?sni=css.rbxcdn.com&downmbps=50&type=tcp&upmbps=10#🇷🇴
 hy2://18cf8030-1ceb-4b7d-8c0c-c036413c144e@185.228.139.247:4433/?insecure=1&sni=de2.xiaoliyu.cyou#%F0%9F%9A%9843%40oneclickvpnkeys
 hysteria2://a0052f4f-4c63-0002-a16f-ab2d5d718cd3@192.142.23.46:443?insecure=1&sni=diffoscope.com#@V2ray_Collector
 hysteria2://46647da9-d4b4-407f-bea6-ad0b1abc561f@192.236.226.182:2053?insecure=1&security=tls&sni=192.236.226.182#🇺🇸
@@ -134,7 +135,7 @@ hysteria2://f4b80b26-b6d4-49a6-a460-f50efb7a457c@45.91.237.78:443?sni=node.aweom
 hysteria2://CQUPACy34t6Tjx8FdQdkCiYW@47.129.112.129:20000?insecure=1&alpn=h3&sni=sg-transit-3.nebulacloud.win#🇸🇬
 hysteria2://7e68e32f-8015-4f37-9082-70e8b0b58043@47.129.229.144:443?insecure=1&sni=www.bing.com#🇸🇬
 hysteria2://4eedcde6-d16a-11ef-973a-f23c913c8d2b@4cbb5b88-tm96o0-tnhquc-1j0a4.los.hyhuawei.com:443?sni=4cbb5b88-tm96o0-tnhquc-1j0a4.los.hyhuawei.com#🇩🇪
-hysteria2://gf1:gfhysteria2024@5.129.235.85:443?sni=t.me#🇳🇱
+hysteria2://gf1:gfhysteria2024@5.129.235.85:443?sni=speedtest.tinkoff.ru#🇳🇱
 hysteria2://b4bd0613-ff7c-4f2f-954d-185915e6ddad@5.175.249.174:35000?insecure=1&sni=api.kermanshahi.org&obfs=salamander&obfs-password=@JavidnamanIran-Javid-SHAH-KingRezaPahlavi#%40KAFING_2%20%232
 hysteria2://Hc9_NX924RE_Mn948rgrwiub_m93V84nll@5.254.51.109:9443?sni=keyhop-voxility-at.dynuddns.com#@V2ray_Collector
 hysteria2://miaoge110@5.45.100.100:51511?insecure=1&sni=5.45.100.100#%F0%9F%87%A9%F0%9F%87%AA%20%7C%20%40WhiteDNS%20%7C%20DE208%7C33.2MB%2Fs%7CDNSOK%7CGPT%E2%81%BA-DE
