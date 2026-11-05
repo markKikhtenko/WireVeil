@@ -88,6 +88,9 @@ jobs:
           $output | ForEach-Object { Write-Host $_ }
           if ($exitCode -ne 0) {
             $summary = (($output | Select-Object -Last 80) | Out-String)
+            if ($summary.Length -gt 3000) {
+              $summary = $summary.Substring($summary.Length - 3000)
+            }
             $summary = $summary.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
             Write-Output "::error title=Offline tests failed::$summary"
             exit $exitCode
