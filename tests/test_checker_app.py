@@ -493,6 +493,36 @@ class AutoCheckTests(unittest.TestCase):
         self.assertIsNone(checker.watch_job)
         checker._start_watch_check.assert_called_once_with()
 
+    def test_one_click_copies_results_when_auto_copy_is_enabled(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.one_click_mode = True
+        checker.auto_copy_results_var = mock.Mock()
+        checker.auto_copy_results_var.get.return_value = True
+        checker._copy_fast = mock.Mock()
+        checker._log = mock.Mock()
+
+        checker._complete_one_click()
+
+        self.assertFalse(checker.one_click_mode)
+        checker._copy_fast.assert_called_once_with()
+        checker._log.assert_not_called()
+
+    def test_one_click_leaves_clipboard_unchanged_when_auto_copy_is_disabled(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.one_click_mode = True
+        checker.auto_copy_results_var = mock.Mock()
+        checker.auto_copy_results_var.get.return_value = False
+        checker._copy_fast = mock.Mock()
+        checker._log = mock.Mock()
+
+        checker._complete_one_click()
+
+        self.assertFalse(checker.one_click_mode)
+        checker._copy_fast.assert_not_called()
+        checker._log.assert_called_once_with(
+            "Автокопирование рабочих ключей отключено."
+        )
+
     def test_copying_good_servers_replaces_the_watched_set(self):
         target = healthcheck.ProbeTarget(
             0,
@@ -570,6 +600,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             "timeout": 12,
             "workers": 24,
             "latency": 350,
+            "auto_copy_results": False,
             "auto_enabled": True,
             "auto_interval": 17,
             "watch_enabled": True,
@@ -588,6 +619,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual(12, loaded["timeout"])
             self.assertEqual(24, loaded["workers"])
             self.assertEqual(350, loaded["latency"])
+            self.assertFalse(loaded["auto_copy_results"])
             self.assertTrue(loaded["auto_enabled"])
             self.assertEqual(17, loaded["auto_interval"])
             self.assertTrue(loaded["watch_enabled"])
@@ -614,6 +646,7 @@ class SettingsPersistenceTests(unittest.TestCase):
                         "timeout": "broken",
                         "workers": 0,
                         "latency": -1,
+                        "auto_copy_results": "yes",
                         "auto_enabled": "yes",
                         "auto_interval": 0,
                         "watch_enabled": "yes",
@@ -633,6 +666,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual(8, loaded["timeout"])
             self.assertEqual(64, loaded["workers"])
             self.assertEqual(500, loaded["latency"])
+            self.assertTrue(loaded["auto_copy_results"])
             self.assertFalse(loaded["auto_enabled"])
             self.assertEqual(30, loaded["auto_interval"])
             self.assertFalse(loaded["watch_enabled"])

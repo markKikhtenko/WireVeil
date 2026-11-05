@@ -357,6 +357,7 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "timeout": 8,
         "workers": 64,
         "latency": 500,
+        "auto_copy_results": True,
         "auto_enabled": False,
         "auto_interval": 30,
         "watch_enabled": False,
@@ -403,6 +404,9 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "timeout": _bounded_int(raw.get("timeout"), 8, 1, 60),
         "workers": _bounded_int(raw.get("workers"), 64, 1, 256),
         "latency": _bounded_int(raw.get("latency"), 500, 1, 10_000),
+        "auto_copy_results": raw.get("auto_copy_results")
+        if isinstance(raw.get("auto_copy_results"), bool)
+        else True,
         "auto_enabled": raw.get("auto_enabled")
         if isinstance(raw.get("auto_enabled"), bool)
         else False,
@@ -537,6 +541,9 @@ class WireVeilChecker(tk.Tk):
         self.timeout_var = tk.IntVar(value=int(saved_settings["timeout"]))
         self.workers_var = tk.IntVar(value=int(saved_settings["workers"]))
         self.latency_var = tk.IntVar(value=int(saved_settings["latency"]))
+        self.auto_copy_results_var = tk.BooleanVar(
+            value=bool(saved_settings["auto_copy_results"])
+        )
         self.auto_enabled_var = tk.BooleanVar(
             value=bool(saved_settings["auto_enabled"])
         )
@@ -907,6 +914,12 @@ class WireVeilChecker(tk.Tk):
             text="Пинг → скорость → доступ к сайтам → готовые ключи",
             style="Hero.TLabel",
         ).pack(anchor="w", pady=(2, 0))
+        ttk.Checkbutton(
+            command_copy,
+            text="Автоматически копировать рабочие ключи в буфер",
+            variable=self.auto_copy_results_var,
+            style="Panel.TCheckbutton",
+        ).pack(anchor="w", pady=(4, 0))
         self.advanced_toggle_button = ttk.Button(
             command_bar,
             text="Расширенные настройки",
@@ -1506,6 +1519,7 @@ class WireVeilChecker(tk.Tk):
             self.timeout_var,
             self.workers_var,
             self.latency_var,
+            self.auto_copy_results_var,
             self.auto_enabled_var,
             self.auto_interval_var,
             self.watch_enabled_var,
@@ -1568,6 +1582,7 @@ class WireVeilChecker(tk.Tk):
             "latency": _bounded_int(
                 self._saved_int(self.latency_var, 500), 500, 1, 10_000
             ),
+            "auto_copy_results": bool(self.auto_copy_results_var.get()),
             "auto_enabled": bool(self.auto_enabled_var.get()),
             "auto_interval": _bounded_int(
                 self._saved_int(self.auto_interval_var, 30), 30, 1, 1440
@@ -2119,9 +2134,10 @@ class WireVeilChecker(tk.Tk):
         self._clear_table()
         self._clear_log()
         if self.one_click_mode:
-            self._log(
-                "Режим «Сделать заебись»: ping → скорость → все сайты → буфер."
-            )
+            steps = "ping → скорость → все сайты"
+            if self.auto_copy_results_var.get():
+                steps += " → буфер"
+            self._log(f"Режим «Сделать заебись»: {steps}.")
         else:
             self._log("Запуск проверки из текущей сети.")
         self._set_running_controls(True)
@@ -2736,11 +2752,17 @@ class WireVeilChecker(tk.Tk):
         self._restore_result_buttons()
         self._save_last_results()
         if self.one_click_mode:
-            self.one_click_mode = False
-            self._copy_fast()
+            self._complete_one_click()
             self._schedule_background_checks()
             return
         self._schedule_background_checks()
+
+    def _complete_one_click(self) -> None:
+        self.one_click_mode = False
+        if self.auto_copy_results_var.get():
+            self._copy_fast()
+        else:
+            self._log("Автокопирование рабочих ключей отключено.")
 
     def _fail_service_test(self, service_names: tuple[str, ...], detail: str) -> None:
         self.running = False
