@@ -34,7 +34,6 @@ hy2://zhangyang@130.61.50.75:6443/?insecure=1&sni=dash.cloudflare.com#%40nekopin
 hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160?insecure=1&sni=132.226.226.189#🇸🇪
 hysteria2://184cdec28da5a09450803c8debcd2cc9@138.3.208.26:50160?insecure=1&sni=1#🇩🇪
 hysteria2://84a506ca5aca505696a454d828420b3f@140.238.213.114:50160?insecure=1&sni=140.238.213.114#🇨🇦
-hysteria2://kztyblVC7ZlEKR3ZO5HW@142.11.207.17:443?sni=www.bing.com&insecure=1#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Dallas%20%7C%20%5BBL%5D
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@144.31.109.158:4444?sni=fl3.nexfile.net#🇺🇸
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@144.31.109.240:4444?sni=fl3.nexfile.net#🇺🇸
 hysteria2://cf83b611-6cba-4535-adcb-8da06c6a9146@144.31.212.253:443?insecure=1&security=tls&sni=vps155-edge.kermemehori.ru#@OutlineReleasedKey
@@ -60,7 +59,7 @@ hysteria2://099830134df5ac3a04a4b21d39b8c395@163.192.14.135:50160/?insecure=1&sn
 hysteria2://6da2c981-8c77-4340-bda3-93399b7aea26@163.245.41.48:443?sni=blogs.blog-forme.ru#🇺🇸
 hysteria2://ee78c844-83b6-4508-b1f9-b3f00c8e0556@167.148.201.99:443?sni=us.mi11o4ka.com#@V2ray_Collector
 hysteria2://948b48e5-a202-4770-8552-f35a12dac378@172.245.6.155:18687?insecure=1&sni=www.bing.com#🇺🇸
-hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443?sni=fi1.obxodvpn.us&fp=firefox&alpn=h3#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Orem%20%7C%20%5BBL%5D
+hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@177.202.75.56:443?sni=fi1.obxodvpn.us&fp=firefox#🇺🇸
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@179.253.82.19:4444?sni=fl3.nexfile.net#🇫🇮
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@179.253.82.33:4444?sni=fl3.nexfile.net#🇫🇮
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@179.253.82.47:4444?sni=fl3.nexfile.net#🇫🇮
@@ -83,7 +82,7 @@ hysteria2://d5530551-5e9a-4ac5-8539-cee87e38d9e2@2.26.3.75:443/?insecure=1&sni=f
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@2.27.210.6:4444?sni=lv2.nexfile.net&alpn=h3#🇬🇧
 hysteria2://cd74c0a406664a5bc0bac098220a2468@2.27.59.206:443?security=tls&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0&insecure=1&sni=de1.sferavpn.pro#%28%40VmessProtocol%29%D8%A8%D8%B1%D8%A7%DB%8C%20%D8%AE%D8%B1%DB%8C%D8%AF%20%D9%88%20%D8%A7%D8%AA%D8%B5%D8%A7%D9%84%20%D8%AF%D8%A7%D8%A6%D9%85%DB%8C%20%D8%AC%D9%88%DB%8C%D9%86%20%D8%B4%D9%88%F0%9F%87%A9%F0%9F%87%AA
 hysteria2://c9aca131-c6a4-4518-9d7d-be52a60b4a3f@201.58.187.25:443?sni=nl1.obxodvpn.us#@OutlineReleasedKey
-hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@201.8.64.7:443?sni=nlll.obxodvpn.us#%F0%9F%8C%90%20Anycast-IP%20%7C%20%F0%9F%87%B7%F0%9F%87%BA%20%F0%9F%87%BA%F0%9F%87%B8%20%7C%20%5BBL%5D
+hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@201.8.64.7:443?sni=nlll.obxodvpn.us#🇺🇸
 hysteria2://23c82941-70f4-4381-90db-bd28e9a902e9@201.8.71.59:443/?sni=steel7.hadsvpn.com#%F0%9F%9A%A92@oneclickvpnkeys
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@202.146.222.174:443?insecure=1&sni=https%253A%252F%252Ft.me%252FWangCai2%25F0%259F%2587%25A8%25F0%259F%2587%25B3#🇨🇦
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@202.146.222.29:443?insecure=1&security=tls&sni=www.bing.com#🇸🇪
@@ -187,7 +186,7 @@ hysteria2://43212c32-01f2-4356-b216-67dc1c178262@ees92.shhflow.xyz:5443/?sni=ees
 hysteria2://5a4c13ae-6673-11ee-a149-f23c9164ca5d@f452bbe9-tmm5c0-tpda83-1lkbs.los.hyhuawei.com:443?sni=f452bbe9-tmm5c0-tpda83-1lkbs.los.hyhuawei.com#🇨🇦
 hysteria2://203d1d64-3313-11ed-bb74-f23c9164ca5d@fbe34f09-tmm5c0-trpvht-1ey07.los.hyhuawei.com:443?sni=fbe34f09-tmm5c0-trpvht-1ey07.los.hyhuawei.com#🇨🇦
 hysteria2://p5xt6oLOA3qikIaj@fi-p1.h1cloud.net:25482?headerType=none&encryption=none&sni=www.bing.com&pinSHA256=4497916255a25d50d37e1b256f8206cdb82fef904921cc519dcceaa4ad0530fa&insecure=1#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%28Innenstadt%20I%29%20%7C%20%5BBL%5D
-hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@fi1.obxodvpn.us:443/?sni=fi1.obxodvpn.us#%F0%9F%87%BA%F0%9F%87%B8%20United%20States%2C%20Orem%20%7C%20%5BBL%5D
+hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@fi1.obxodvpn.us:443/?sni=fi1.obxodvpn.us#🇺🇸
 hysteria2://f83ce3c4-07d9-4895-bd14-cb74abbcab37@finkawwwbroy5.qcloud.surf:20326?security=tls&sni=finkawwwbroy5.qcloud.surf&alpn=h3&insecure=0#@OutlineReleasedKey
 hysteria2://7d43670b-6b08-45b9-8a24-8f3971abc132@finland.biznes.lol:8443?security=tls&alpn=h3&insecure=0&sni=finland.biznes.lol#@OutlineReleasedKey
 hysteria2://a35c508f-4d5d-4531-842e-6e9d43c762c0@fl3.nexfile.net:4444?security=tls&alpn=h3&insecure=0&sni=fl3.nexfile.net#🇫🇮
