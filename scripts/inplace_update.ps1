@@ -34,6 +34,31 @@ function Get-Sha256([string] $path) {
     }
 }
 
+function Get-FileManifest {
+    param(
+        [Parameter(Mandatory = $true)][string] $Root,
+        [string] $Prefix = ""
+    )
+
+    foreach ($child in Get-ChildItem -LiteralPath $Root) {
+        $relativePath = if ($Prefix) {
+            Join-Path $Prefix $child.Name
+        }
+        else {
+            $child.Name
+        }
+        if ($child.PSIsContainer) {
+            Get-FileManifest -Root $child.FullName -Prefix $relativePath
+        }
+        else {
+            [pscustomobject]@{
+                FullName = $child.FullName
+                RelativePath = $relativePath
+            }
+        }
+    }
+}
+
 function Start-WireVeil([string] $executable) {
     if ($NoRestart) {
         return
@@ -110,9 +135,9 @@ try {
         Copy-Item -LiteralPath $payloadChild.FullName -Destination $stageRoot -Recurse -Force
     }
 
-    $sourceFiles = @(Get-ChildItem -LiteralPath $resolvedPayloadRoot -Recurse -File)
+    $sourceFiles = @(Get-FileManifest -Root $resolvedPayloadRoot)
     foreach ($sourceFile in $sourceFiles) {
-        $relative = $sourceFile.FullName.Substring($resolvedPayloadRoot.Length + 1)
+        $relative = $sourceFile.RelativePath
         $stagedFile = Join-Path $stageRoot $relative
         if (-not (Test-Path -LiteralPath $stagedFile -PathType Leaf)) {
             throw "Staged file is missing: $relative"
@@ -162,7 +187,7 @@ try {
         Remove-Item -LiteralPath $stageRoot -Force
 
         foreach ($sourceFile in $sourceFiles) {
-            $relative = $sourceFile.FullName.Substring($resolvedPayloadRoot.Length + 1)
+            $relative = $sourceFile.RelativePath
             $installedFile = Join-Path $script:resolvedInstallRoot $relative
             if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
                 throw "Installed file is missing: $relative"
