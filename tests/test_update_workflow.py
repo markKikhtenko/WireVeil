@@ -19,6 +19,8 @@ class UpdateWorkflowTests(unittest.TestCase):
 
     def test_runtime_download_retries_transient_network_failures(self):
         self.assertIn("--retry 8 --retry-delay 10 --retry-all-errors", self.workflow)
+        self.assertIn("api.github.com/repos/SagerNet/sing-box/releases/tags", self.workflow)
+        self.assertIn('"Accept: application/octet-stream"', self.workflow)
 
     def test_publish_retries_synchronize_with_main(self):
         self.assertIn(
