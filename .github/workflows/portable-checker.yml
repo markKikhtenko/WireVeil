@@ -106,7 +106,7 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP "sing-box.zip"
           $url = "https://github.com/SagerNet/sing-box/releases/download/v$env:SING_BOX_VERSION/sing-box-$env:SING_BOX_VERSION-windows-amd64.zip"
-          Invoke-WebRequest -Uri $url -OutFile $archive
+          Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRetryCount 8 -RetryIntervalSec 10
           $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $env:SING_BOX_ARCHIVE_SHA256) {
             throw "sing-box archive checksum mismatch: $actual"
@@ -124,7 +124,7 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP "mihomo.zip"
           $url = "https://github.com/MetaCubeX/mihomo/releases/download/v$env:MIHOMO_VERSION/mihomo-windows-amd64-v$env:MIHOMO_VERSION.zip"
-          Invoke-WebRequest -Uri $url -OutFile $archive
+          Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRetryCount 8 -RetryIntervalSec 10
           $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $env:MIHOMO_ARCHIVE_SHA256) {
             throw "Mihomo archive checksum mismatch: $actual"
@@ -141,7 +141,7 @@ jobs:
             Copy-Item -LiteralPath $source.FullName -Destination $target
           }
           $license = Join-Path $runtime "LICENSE"
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/v$env:MIHOMO_VERSION/LICENSE" -OutFile $license
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MetaCubeX/mihomo/v$env:MIHOMO_VERSION/LICENSE" -OutFile $license -MaximumRetryCount 8 -RetryIntervalSec 10
           $licenseHash = (Get-FileHash -LiteralPath $license -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($licenseHash -ne $env:MIHOMO_LICENSE_SHA256) {
             throw "Mihomo license checksum mismatch: $licenseHash"

@@ -1526,6 +1526,7 @@ class PortableBuildTests(unittest.TestCase):
         workflow = (root / ".github" / "workflows" / "portable-checker.yml").read_text(encoding="utf-8")
         self.assertIn('MIHOMO_VERSION: "1.19.33"', workflow)
         self.assertIn("6ab2180875f9f6fff8b19386d760daec257f66b45f72b3afc650634272fa837a", workflow)
+        self.assertEqual(workflow.count("-MaximumRetryCount 8 -RetryIntervalSec 10"), 3)
         self.assertIn('--add-binary "$env:WIREVEIL_MIHOMO;."', workflow)
         self.assertIn('"dist\\WireVeilChecker\\_internal\\mihomo.exe"', workflow)
         self.assertIn("mihomo-GPL-3.0.txt", workflow)

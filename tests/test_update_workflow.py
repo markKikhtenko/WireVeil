@@ -17,6 +17,9 @@ class UpdateWorkflowTests(unittest.TestCase):
     def test_dependency_changes_trigger_a_fresh_update(self):
         self.assertIn('- "requirements.txt"', self.workflow)
 
+    def test_runtime_download_retries_transient_network_failures(self):
+        self.assertIn("--retry 8 --retry-delay 10 --retry-all-errors", self.workflow)
+
     def test_publish_retries_synchronize_with_main(self):
         self.assertIn(
             "git fetch origin +refs/heads/main:refs/remotes/origin/main",
