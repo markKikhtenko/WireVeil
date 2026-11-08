@@ -492,19 +492,21 @@ class _UpdateDialog(tk.Toplevel):
 
         outer = ttk.Frame(self, padding=(20, 18))
         outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(2, weight=1)
         ttk.Label(
             outer,
             text=f"Доступна версия {release.version}",
             style="PageTitle.TLabel",
-        ).pack(anchor="w")
+        ).grid(row=0, column=0, sticky="w")
         ttk.Label(
             outer,
             text=f"Сейчас установлена версия {APP_VERSION}",
             style="Summary.TLabel",
-        ).pack(anchor="w", pady=(4, 14))
+        ).grid(row=1, column=0, sticky="w", pady=(4, 14))
 
         notes_frame = ttk.Frame(outer, style="Card.TFrame", padding=(12, 10))
-        notes_frame.pack(fill="both", expand=True)
+        notes_frame.grid(row=2, column=0, sticky="nsew")
         ttk.Label(
             notes_frame,
             text="Что изменилось",
@@ -527,6 +529,7 @@ class _UpdateDialog(tk.Toplevel):
             padx=10,
             pady=8,
             font=("Segoe UI", 10),
+            height=10,
         )
         notes_scroll = ttk.Scrollbar(
             text_frame,
@@ -550,9 +553,9 @@ class _UpdateDialog(tk.Toplevel):
             ),
             style="Summary.TLabel",
             wraplength=650,
-        ).pack(anchor="w", pady=(12, 10))
+        ).grid(row=3, column=0, sticky="ew", pady=(12, 10))
         actions = ttk.Frame(outer)
-        actions.pack(fill="x")
+        actions.grid(row=4, column=0, sticky="ew")
         ttk.Button(
             actions,
             text="Позже",

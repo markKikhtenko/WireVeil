@@ -426,6 +426,7 @@ class UpdateUiTests(unittest.TestCase):
                     self.skipTest(f"Tk is unavailable: {exc}")
                 dialog = None
                 try:
+                    checker.tk.call("tk", "scaling", 1.5)
                     dialog = _UpdateDialog(checker, self.release())
                     checker.update()
                     notes = dialog.notes_text.get("1.0", "end-1c")
@@ -435,6 +436,13 @@ class UpdateUiTests(unittest.TestCase):
                         "Скачать и установить",
                         dialog.install_button.cget("text"),
                     )
+                    self.assertTrue(dialog.install_button.winfo_ismapped())
+                    button_bottom = (
+                        dialog.install_button.winfo_rooty()
+                        + dialog.install_button.winfo_height()
+                    )
+                    dialog_bottom = dialog.winfo_rooty() + dialog.winfo_height()
+                    self.assertLessEqual(button_bottom, dialog_bottom)
                 finally:
                     if dialog is not None and dialog.winfo_exists():
                         dialog.destroy()
