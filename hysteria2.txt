@@ -119,7 +119,7 @@ hysteria2://d4ca9415f0eac7897472e1e5b86d2e96@50.7.38.243:443?sni=promo.betust.ne
 hysteria2://082f5694-9019-4110-b67b-8125dbb9bab8@50.7.87.150:54183?sni=outh.yandex-cloud.org#@V2ray_Collector
 hysteria2://HowdyHysteria2023w0W@51.15.19.206:8443/?sni=t.me&obfs=salamander&obfs-password=HysteriaHowdy&insecure=1#🇩🇪
 hysteria2://qQe1z5kU8kN6SlKnDt9Ru3Qp@54.213.89.22:443?insecure=1&sni=vk.com#%F0%9F%87%BA%F0%9F%87%B8139909%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me/S...
-hy2://dongtaiwang.com@62.210.124.146:22000/?insecure=1&sni=www.microsoft.com#%F0%9F%A6%8475%40oneclickvpnkeys
+hysteria2://dongtaiwang.com@62.210.124.146:22000?insecure=1&sni=www.microsoft.com#FR
 hysteria2://1cce7df2-251c-11ee-9409-f23c9164ca5d@633b0024-tmm5c0-ttx5yr-1j0y6.hk3.hyhuawei.com:443?sni=633b0024-tmm5c0-ttx5yr-1j0y6.hk3.hyhuawei.com#🇨🇦
 hysteria2://0abd5d38-fdf1-11ed-bade-f23c91369f2d@64.32.13.230:443?sni=6f9a8496-tmm5c0-txkkcl-1fli7.los.hyhuawei.com#🇺🇸
 hysteria2://9bfd0dde-957e-11ec-a8bf-f23c91cfbbc9@6ec450f1-tmm5c0-ttyyk7-1h0r9.los.hyhuawei.com:443?sni=6ec450f1-tmm5c0-ttyyk7-1h0r9.los.hyhuawei.com#🇩🇪
