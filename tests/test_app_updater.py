@@ -207,8 +207,8 @@ class InstallerDefinitionTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("## Что изменилось", release_notes)
-        self.assertIn("скорость скачивания", release_notes)
-        self.assertIn("прогресс загрузки", release_notes)
+        self.assertIn("системного proxy", release_notes)
+        self.assertIn("остаётся отзывчивым", release_notes)
 
     @mock.patch("scripts.app_updater.subprocess.Popen")
     def test_ui_update_flag_is_passed_to_installer(self, popen):
