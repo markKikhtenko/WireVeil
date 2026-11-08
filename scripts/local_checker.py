@@ -145,13 +145,26 @@ def _decode_subscription(body: bytes) -> str:
         raise LocalCheckError("Подписка должна быть в кодировке UTF-8.") from exc
 
 
+def _current_system_proxy_opener() -> urllib.request.OpenerDirector:
+    """Build an opener from the current OS proxy settings.
+
+    urllib.request.urlopen() keeps a process-global opener.  On Windows that
+    opener also keeps the proxy address that was active when it was created,
+    so changing a local proxy's port leaves a long-running checker connected
+    to the old port until the process restarts.
+    """
+    proxies = urllib.request.getproxies()
+    return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+
+
 def fetch_subscription(url: str, *, timeout: float = 25.0) -> ImportedSubscription:
     parsed = urllib.parse.urlsplit(url.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise LocalCheckError("Укажите корректную ссылку http:// или https://.")
     request = urllib.request.Request(url.strip(), headers={"User-Agent": USER_AGENT})
+    opener = _current_system_proxy_opener()
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with opener.open(request, timeout=timeout) as response:
             declared = response.headers.get("Content-Length")
             if declared and int(declared) > MAX_SUBSCRIPTION_BYTES:
                 raise LocalCheckError("Подписка больше 32 МБ; загрузка отменена.")

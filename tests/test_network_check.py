@@ -26,13 +26,36 @@ class NetworkCheckTests(unittest.TestCase):
         error = urllib.error.HTTPError(
             "https://example.test/blocked", 403, "Forbidden", {}, None
         )
-        with mock.patch("urllib.request.urlopen", side_effect=error):
+        opener = mock.Mock()
+        opener.open.side_effect = error
+        with mock.patch.object(
+            network_check, "_current_system_proxy_opener", return_value=opener
+        ):
             status = network_check._probe_endpoint(
                 "https://example.test/blocked", 0.5
             )
 
         self.assertTrue(status.online)
         self.assertGreaterEqual(status.latency_ms or 0, 1)
+
+    def test_each_probe_reads_current_system_proxy_settings(self):
+        first = {"https": "http://127.0.0.1:11080"}
+        second = {"https": "http://127.0.0.1:12080"}
+        with (
+            mock.patch(
+                "urllib.request.getproxies", side_effect=(first, second)
+            ) as getproxies,
+            mock.patch(
+                "urllib.request.build_opener",
+                side_effect=(mock.Mock(), mock.Mock()),
+            ) as build,
+        ):
+            network_check._current_system_proxy_opener()
+            network_check._current_system_proxy_opener()
+
+        self.assertEqual(2, getproxies.call_count)
+        self.assertEqual(first, build.call_args_list[0].args[0].proxies)
+        self.assertEqual(second, build.call_args_list[1].args[0].proxies)
 
     def test_all_failed_probes_report_offline(self):
         def probe(endpoint: str, _timeout: float) -> network_check.NetworkStatus:

@@ -51,6 +51,12 @@ TABLE_COLUMNS = (
 TABLE_COLUMN_POSITIONS = {
     column: position for position, column in enumerate(TABLE_COLUMNS)
 }
+UI_EVENT_BATCH_LIMIT = 64
+UI_EVENT_TIME_BUDGET_SECONDS = 0.008
+UI_ACTIVE_POLL_MS = 16
+UI_IDLE_POLL_MS = 100
+PENDING_ROW_BATCH_LIMIT = 64
+PENDING_ROW_TIME_BUDGET_SECONDS = 0.006
 
 
 def resource_root() -> Path:
@@ -643,6 +649,10 @@ class WireVeilChecker(tk.Tk):
         self.network_job: str | None = None
         self.table_resize_job: str | None = None
         self.poll_job: str | None = None
+        self.pending_table_job: str | None = None
+        self.pending_table_lines: tuple[str, ...] = ()
+        self.pending_table_attempts = 0
+        self.pending_table_position = 0
         self.network_check_in_progress = False
         self.auto_due_at: float | None = None
         self.watch_due_at: float | None = None
@@ -3134,9 +3144,12 @@ class WireVeilChecker(tk.Tk):
 
     def _poll_events(self) -> None:
         self.poll_job = None
+        batch_started = time.perf_counter()
+        processed_events = 0
         try:
-            while True:
+            while processed_events < UI_EVENT_BATCH_LIMIT:
                 event = self.events.get_nowait()
+                processed_events += 1
                 kind = event[0]
                 if kind == "network_state":
                     self._apply_network_status(event[1])
@@ -3238,10 +3251,13 @@ class WireVeilChecker(tk.Tk):
                     if self.closing:
                         self.destroy()
                         return
+                if time.perf_counter() - batch_started >= UI_EVENT_TIME_BUDGET_SECONDS:
+                    break
         except queue.Empty:
             pass
         if not self.closing:
-            self.poll_job = self.after(100, self._poll_events)
+            delay = UI_ACTIVE_POLL_MS if not self.events.empty() else UI_IDLE_POLL_MS
+            self.poll_job = self.after(delay, self._poll_events)
 
     def _finish(self, report: local_checker.CheckReport) -> None:
         self.running = False
@@ -3318,6 +3334,7 @@ class WireVeilChecker(tk.Tk):
             self.service_button.configure(state="disabled")
 
     def _clear_table(self) -> None:
+        self._cancel_pending_table_fill()
         children = self.table.get_children()
         if children:
             self.table.delete(*children)
@@ -3383,8 +3400,38 @@ class WireVeilChecker(tk.Tk):
         self._schedule_resort()
 
     def _show_pending(self, lines: tuple[str, ...], attempts: int) -> None:
-        """Display every imported server before the first network result arrives."""
-        for index, uri in enumerate(lines):
+        """Display imported servers incrementally without blocking Tk events."""
+        self._cancel_pending_table_fill()
+        self.pending_table_lines = lines
+        self.pending_table_attempts = attempts
+        self.pending_table_position = 0
+        if lines and not self.closing:
+            self.pending_table_job = self.after_idle(self._insert_pending_table_batch)
+
+    def _cancel_pending_table_fill(self) -> None:
+        job = getattr(self, "pending_table_job", None)
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                pass
+        self.pending_table_job = None
+        self.pending_table_lines = ()
+        self.pending_table_attempts = 0
+        self.pending_table_position = 0
+
+    def _insert_pending_table_batch(self) -> None:
+        self.pending_table_job = None
+        started = time.perf_counter()
+        processed = 0
+        total = len(self.pending_table_lines)
+        while self.pending_table_position < total and processed < PENDING_ROW_BATCH_LIMIT:
+            index = self.pending_table_position
+            uri = self.pending_table_lines[index]
+            self.pending_table_position += 1
+            processed += 1
+            if index in self.table_items:
+                continue
             try:
                 parsed = build.parse_uri(uri)
             except build.ValidationError:
@@ -3398,13 +3445,23 @@ class WireVeilChecker(tk.Tk):
                 "—",
                 "—",
                 *("—" for _service in local_checker.SERVICE_DEFINITIONS),
-                f"0/{attempts}",
+                f"0/{self.pending_table_attempts}",
             )
             item = self.table.insert(
                 "", "end", values=values, tags=("pending",)
             )
             self.table_items[index] = item
             self.item_uris[item] = uri
+            if time.perf_counter() - started >= PENDING_ROW_TIME_BUDGET_SECONDS:
+                break
+        if self.pending_table_position < total and not self.closing:
+            self.pending_table_job = self.after(
+                UI_ACTIVE_POLL_MS, self._insert_pending_table_batch
+            )
+            return
+        self.pending_table_lines = ()
+        self.pending_table_attempts = 0
+        self.pending_table_position = 0
         self._schedule_resort()
 
     def _populate_table(self, report: local_checker.CheckReport) -> None:
@@ -3468,7 +3525,9 @@ class WireVeilChecker(tk.Tk):
         self._apply_sort()
 
     def _schedule_resort(self) -> None:
-        if self.sort_column is None or self.sort_job is not None:
+        # Reordering thousands of Treeview rows while results are arriving can
+        # starve Tk's window event loop. The finish handlers sort once instead.
+        if self.running or self.sort_column is None or self.sort_job is not None:
             return
         self.sort_job = self.after(250, self._resort_current)
 
@@ -3562,6 +3621,12 @@ class WireVeilChecker(tk.Tk):
         )
 
     def _apply_sort(self) -> None:
+        if self.sort_job is not None:
+            try:
+                self.after_cancel(self.sort_job)
+            except tk.TclError:
+                pass
+            self.sort_job = None
         column = self.sort_column
         if column is None:
             return
@@ -3904,6 +3969,8 @@ class WireVeilChecker(tk.Tk):
             "network_job",
             "table_resize_job",
             "poll_job",
+            "pending_table_job",
+            "sort_job",
         ):
             job = getattr(self, job_name, None)
             if job is not None:

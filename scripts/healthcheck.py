@@ -541,7 +541,10 @@ def _api_request(url: str, *, timeout: float) -> dict:
         url,
         headers={"Authorization": "Bearer wireveil-healthcheck"},
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    # The controller is always a loopback service.  Do not let a system proxy
+    # change capture this connection or keep it pinned to a stale proxy port.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(request, timeout=timeout) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return payload if isinstance(payload, dict) else {}
 

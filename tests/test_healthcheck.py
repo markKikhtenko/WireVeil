@@ -12,6 +12,23 @@ from scripts import build, healthcheck
 from tests.test_build import UUID1, UUID2, vmess_uri
 
 
+class LocalControllerRequestTests(unittest.TestCase):
+    def test_controller_request_always_bypasses_system_proxy(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"delay": 42}'
+        opener = mock.Mock()
+        opener.open.return_value = response
+
+        with mock.patch("urllib.request.build_opener", return_value=opener) as build_opener:
+            payload = healthcheck._api_request(
+                "http://127.0.0.1:19090/proxies/test", timeout=1.0
+            )
+
+        self.assertEqual({"delay": 42}, payload)
+        self.assertEqual({}, build_opener.call_args.args[0].proxies)
+        opener.open.assert_called_once()
+
+
 class GoodConfigTests(unittest.TestCase):
     def test_cli_defaults_to_repository_config(self):
         args = healthcheck.parse_args(["--sing-box", "sing-box"])

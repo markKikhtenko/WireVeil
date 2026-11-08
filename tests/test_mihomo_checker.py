@@ -1,5 +1,6 @@
 import io
 import json
+import queue
 import subprocess
 import tempfile
 import threading
@@ -1368,6 +1369,37 @@ class SourceStoreTests(unittest.TestCase):
 
 
 class MockUiTests(unittest.TestCase):
+    def test_event_poll_yields_with_a_large_progress_backlog(self):
+        update = mihomo_checker.ProgressUpdate(
+            "https", 1, 100, 1.0, 2.0, 50.0, "Проверка"
+        )
+        tab = object.__new__(MihomoCheckerTab)
+        tab.events = queue.Queue()
+        for _index in range(100):
+            tab.events.put(("progress", update))
+        tab.poll_job = None
+        tab.closing = False
+        tab.parsed_by_id = {}
+        tab.pending_node_results = {}
+        tab.stop_requested = False
+        tab.active_progress = None
+        tab.active_progress_received_at = 0.0
+        tab.kpi_refresh_pending = False
+        tab.last_kpi_refresh_at = 0.0
+        tab.running = False
+        tab.progress_var = mock.Mock()
+        tab._append_progress_log = mock.Mock()
+        tab._update_kpis = mock.Mock()
+        tab.after = mock.Mock(return_value="next-poll")
+
+        with mock.patch("mihomo_tab.time.perf_counter", return_value=0.0):
+            tab._poll_events()
+
+        self.assertEqual(64, tab._append_progress_log.call_count)
+        self.assertEqual(36, tab.events.qsize())
+        tab._update_kpis.assert_called_once_with(update)
+        tab.after.assert_called_once_with(16, tab._poll_events)
+
     def test_duplicate_source_url_is_warned_and_not_added(self):
         existing = mihomo_checker.SourceSpec(
             "src-000000000001", "Existing", "url", "https://provider.example/sub.yaml"

@@ -22,6 +22,11 @@ from wireveil_paths import user_data_file
 SOURCES_FILENAME = "WireVeilChecker.mihomo-sources.json"
 UI_SETTINGS_FILENAME = "WireVeilChecker.mihomo-ui.json"
 CHECKPOINT_FILENAME = "WireVeilChecker.mihomo-checkpoint.json"
+UI_EVENT_BATCH_LIMIT = 64
+UI_EVENT_TIME_BUDGET_SECONDS = 0.008
+UI_ACTIVE_POLL_MS = 16
+UI_IDLE_POLL_MS = 100
+KPI_REFRESH_INTERVAL_SECONDS = 0.15
 
 
 def load_ui_settings(path: Path) -> dict[str, object]:
@@ -322,6 +327,8 @@ class MihomoCheckerTab(ttk.Frame):
         self.pending_node_results: dict[str, mihomo_checker.NodeResult] = {}
         self.active_progress: mihomo_checker.ProgressUpdate | None = None
         self.active_progress_received_at = 0.0
+        self.kpi_refresh_pending = False
+        self.last_kpi_refresh_at = 0.0
         self.node_sort_column: str | None = None
         self.node_sort_descending = False
         self.source_sort_column: str | None = None
@@ -1497,7 +1504,8 @@ class MihomoCheckerTab(ttk.Frame):
         finish_report: mihomo_checker.BatchReport | None = None
         failure: object | None = None
         processed_events = 0
-        while processed_events < 300:
+        batch_started = time.perf_counter()
+        while processed_events < UI_EVENT_BATCH_LIMIT:
             try:
                 event = self.events.get_nowait()
             except queue.Empty:
@@ -1514,6 +1522,7 @@ class MihomoCheckerTab(ttk.Frame):
                 assert isinstance(result, mihomo_checker.NodeResult)
                 self.live_results[result.node.node_id] = result
                 self.pending_node_results[result.node.node_id] = result
+                self.kpi_refresh_pending = True
             elif kind == "progress":
                 update = event[1]
                 assert isinstance(update, mihomo_checker.ProgressUpdate)
@@ -1522,13 +1531,15 @@ class MihomoCheckerTab(ttk.Frame):
                 if not self.stop_requested:
                     self.active_progress = update
                     self.active_progress_received_at = time.monotonic()
-                self._update_kpis(update)
+                self.kpi_refresh_pending = True
             elif kind == "done":
                 report = event[1]
                 assert isinstance(report, mihomo_checker.BatchReport)
                 finish_report = report
             elif kind == "error":
                 failure = event[1]
+            if time.perf_counter() - batch_started >= UI_EVENT_TIME_BUDGET_SECONDS:
+                break
 
         if refresh_sources:
             self._refresh_source_tree()
@@ -1536,7 +1547,14 @@ class MihomoCheckerTab(ttk.Frame):
             pending = list(self.pending_node_results.values())
             self.pending_node_results.clear()
             self._update_node_rows(pending)
+        now = time.monotonic()
+        if (
+            self.kpi_refresh_pending
+            and now - self.last_kpi_refresh_at >= KPI_REFRESH_INTERVAL_SECONDS
+        ):
             self._update_kpis(self.active_progress)
+            self.last_kpi_refresh_at = now
+            self.kpi_refresh_pending = False
         if finish_report is not None:
             self._finish(finish_report)
         elif failure is not None:
@@ -1550,7 +1568,7 @@ class MihomoCheckerTab(ttk.Frame):
                 f"{label}: {count} · этап {update.stage_elapsed_seconds + since_update:.1f} с · "
                 f"всего {update.total_elapsed_seconds + since_update:.1f} с — {update.message}"
             )
-        delay = 10 if not self.events.empty() else 100
+        delay = UI_ACTIVE_POLL_MS if not self.events.empty() else UI_IDLE_POLL_MS
         self.poll_job = self.after(delay, self._poll_events)
 
     def _finish(self, report: mihomo_checker.BatchReport) -> None:
@@ -1558,6 +1576,7 @@ class MihomoCheckerTab(ttk.Frame):
         self.running = False
         self.stop_requested = False
         self.active_progress = None
+        self.kpi_refresh_pending = False
         self.runner = None
         self.progress_var.set(100)
         self._set_running_controls(False)

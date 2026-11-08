@@ -35,6 +35,12 @@ class NetworkUnavailableError(RuntimeError):
     """A safe, user-presentable connectivity failure."""
 
 
+def _current_system_proxy_opener() -> urllib.request.OpenerDirector:
+    """Use a fresh snapshot so Windows proxy changes need no app restart."""
+    proxies = urllib.request.getproxies()
+    return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+
+
 def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
     started = time.monotonic()
     request = urllib.request.Request(
@@ -47,7 +53,7 @@ def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _current_system_proxy_opener().open(request, timeout=timeout) as response:
             response.read(1)
     except urllib.error.HTTPError as exc:
         # Any HTTP response proves that DNS, TLS and the route to the internet work.

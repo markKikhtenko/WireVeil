@@ -38,6 +38,48 @@ class SubscriptionImportTests(unittest.TestCase):
         with self.assertRaises(local_checker.LocalCheckError):
             local_checker.parse_subscription_text("not a proxy subscription")
 
+    def test_subscription_requests_refresh_system_proxy_settings(self):
+        first = {"https": "http://127.0.0.1:11080"}
+        second = {"https": "http://127.0.0.1:12080"}
+        with (
+            mock.patch(
+                "urllib.request.getproxies", side_effect=(first, second)
+            ) as getproxies,
+            mock.patch(
+                "urllib.request.build_opener",
+                side_effect=(mock.Mock(), mock.Mock()),
+            ) as build,
+        ):
+            local_checker._current_system_proxy_opener()
+            local_checker._current_system_proxy_opener()
+
+        self.assertEqual(2, getproxies.call_count)
+        self.assertEqual(first, build.call_args_list[0].args[0].proxies)
+        self.assertEqual(second, build.call_args_list[1].args[0].proxies)
+
+    def test_fetch_subscription_uses_fresh_proxy_opener(self):
+        uri = vless(UUID1, "one.example.com")
+
+        class Response(io.BytesIO):
+            headers: dict[str, str] = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(uri.encode())
+        with mock.patch.object(
+            local_checker, "_current_system_proxy_opener", return_value=opener
+        ) as current_opener:
+            imported = local_checker.fetch_subscription("https://example.test/sub")
+
+        self.assertEqual((uri,), imported.lines)
+        current_opener.assert_called_once_with()
+        opener.open.assert_called_once()
+
 
 class ReportTests(unittest.TestCase):
     def result(self, index: int, uri: str, active: bool, delay: int | None):

@@ -1,4 +1,5 @@
 import json
+import queue
 import tempfile
 import tkinter as tk
 import unittest
@@ -128,6 +129,66 @@ class TableSortTests(unittest.TestCase):
             WireVeilChecker._smart_sort_value(tuple(equally_fast)),
             WireVeilChecker._smart_sort_value(slow),
         )
+
+
+class UiResponsivenessTests(unittest.TestCase):
+    def test_event_poll_yields_with_a_large_backlog(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.events = queue.Queue()
+        for index in range(100):
+            checker.events.put(("network_state", index))
+        checker.poll_job = None
+        checker.closing = False
+        checker._apply_network_status = mock.Mock()
+        checker.after = mock.Mock(return_value="next-poll")
+
+        with mock.patch("checker_app.time.perf_counter", return_value=0.0):
+            checker._poll_events()
+
+        self.assertEqual(64, checker._apply_network_status.call_count)
+        self.assertEqual(36, checker.events.qsize())
+        checker.after.assert_called_once_with(16, checker._poll_events)
+
+    def test_live_updates_do_not_schedule_full_table_sort(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.running = True
+        checker.sort_column = "quality"
+        checker.sort_job = None
+        checker.after = mock.Mock()
+
+        checker._schedule_resort()
+
+        checker.after.assert_not_called()
+
+    def test_pending_rows_are_inserted_in_bounded_batches(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.pending_table_job = None
+        checker.pending_table_lines = ()
+        checker.pending_table_attempts = 0
+        checker.pending_table_position = 0
+        checker.table_items = {}
+        checker.item_uris = {}
+        checker.closing = False
+        checker.running = True
+        checker.sort_column = "quality"
+        checker.sort_job = None
+        checker.after_cancel = mock.Mock()
+        checker.after_idle = mock.Mock(return_value="initial-fill")
+        checker.after = mock.Mock(return_value="next-fill")
+        checker.table = mock.Mock()
+        checker.table.insert.side_effect = [f"row-{index}" for index in range(65)]
+        lines = tuple(
+            f"vless://550e8400-e29b-41d4-a716-446655440000@node-{index}.example.com:443?security=tls"
+            for index in range(65)
+        )
+
+        checker._show_pending(lines, 2)
+        with mock.patch("checker_app.time.perf_counter", return_value=0.0):
+            checker._insert_pending_table_batch()
+
+        self.assertEqual(64, checker.table.insert.call_count)
+        self.assertEqual(64, checker.pending_table_position)
+        checker.after.assert_called_once_with(16, checker._insert_pending_table_batch)
 
 
 class AppIconTests(unittest.TestCase):
