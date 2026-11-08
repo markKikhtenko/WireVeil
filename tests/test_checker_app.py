@@ -8,6 +8,8 @@ from tkinter import ttk
 from unittest import mock
 
 from checker_app import (
+    DEFAULT_SORT_COLUMN,
+    DEFAULT_SORT_DESCENDING,
     SERVICE_COLUMN_BY_NAME,
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
@@ -1112,6 +1114,36 @@ class ResultsPersistenceTests(unittest.TestCase):
         self.assertTrue(loaded.service_results[(0, "ChatGPT")].available)
         self.assertEqual("quality", loaded.sort_column)
         self.assertTrue(loaded.sort_descending)
+
+    def test_restored_results_always_start_sorted_by_rating(self):
+        report, speeds, services = self.sample_results()
+        saved = mock.Mock(
+            report=report,
+            speed_results=speeds,
+            service_results=services,
+            saved_at=1_700_000_000,
+            sort_column="latency",
+            sort_descending=True,
+            mode="full",
+        )
+        checker = object.__new__(WireVeilChecker)
+        checker.results_path = Path("saved-results.json")
+        checker._populate_table = mock.Mock()
+        checker._update_service_quality = mock.Mock()
+        checker._apply_sort = mock.Mock()
+        checker.progress_var = mock.Mock()
+        checker._latency_limit = mock.Mock(return_value=500)
+        checker.status_var = mock.Mock()
+        checker.summary_var = mock.Mock()
+        checker._restore_result_buttons = mock.Mock()
+        checker._log = mock.Mock()
+
+        with mock.patch("checker_app.load_checker_results", return_value=saved):
+            checker._restore_last_results("subscription")
+
+        self.assertEqual(DEFAULT_SORT_COLUMN, checker.sort_column)
+        self.assertEqual(DEFAULT_SORT_DESCENDING, checker.sort_descending)
+        checker._apply_sort.assert_called_once_with()
 
     def test_results_from_another_subscription_are_not_restored(self):
         report, speeds, services = self.sample_results()

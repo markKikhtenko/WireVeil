@@ -51,6 +51,8 @@ TABLE_COLUMNS = (
 TABLE_COLUMN_POSITIONS = {
     column: position for position, column in enumerate(TABLE_COLUMNS)
 }
+DEFAULT_SORT_COLUMN = "quality"
+DEFAULT_SORT_DESCENDING = False
 UI_EVENT_BATCH_LIMIT = 64
 UI_EVENT_TIME_BUDGET_SECONDS = 0.008
 UI_ACTIVE_POLL_MS = 16
@@ -78,8 +80,8 @@ class SavedCheckerResults:
     speed_results: dict[int, local_checker.SpeedResult]
     service_results: dict[tuple[int, str], local_checker.ServiceResult]
     saved_at: int
-    sort_column: str | None = "quality"
-    sort_descending: bool = False
+    sort_column: str | None = DEFAULT_SORT_COLUMN
+    sort_descending: bool = DEFAULT_SORT_DESCENDING
     mode: str = "full"
 
 
@@ -102,8 +104,8 @@ def write_checker_results(
     speed_results: dict[int, local_checker.SpeedResult],
     service_results: dict[tuple[int, str], local_checker.ServiceResult],
     *,
-    sort_column: str | None = "quality",
-    sort_descending: bool = False,
+    sort_column: str | None = DEFAULT_SORT_COLUMN,
+    sort_descending: bool = DEFAULT_SORT_DESCENDING,
     mode: str = "full",
 ) -> None:
     payload: dict[str, object] = {
@@ -309,10 +311,10 @@ def load_checker_results(path: Path, source: str) -> SavedCheckerResults | None:
 
         sort_column = raw.get("sort_column")
         if sort_column is not None and sort_column not in TABLE_COLUMNS:
-            sort_column = "quality"
+            sort_column = DEFAULT_SORT_COLUMN
         sort_descending = raw.get("sort_descending")
         if not isinstance(sort_descending, bool):
-            sort_descending = False
+            sort_descending = DEFAULT_SORT_DESCENDING
         mode = raw.get("mode")
         if mode not in {"full", "watch"}:
             mode = "full"
@@ -643,8 +645,8 @@ class WireVeilChecker(tk.Tk):
         self.speed_results: dict[int, local_checker.SpeedResult] = {}
         self.service_results: dict[tuple[int, str], local_checker.ServiceResult] = {}
         self.column_headings: dict[str, str] = {}
-        self.sort_column: str | None = "quality"
-        self.sort_descending = False
+        self.sort_column: str | None = DEFAULT_SORT_COLUMN
+        self.sort_descending = DEFAULT_SORT_DESCENDING
         self.sort_job: str | None = None
         self.auto_job: str | None = None
         self.watch_job: str | None = None
@@ -1789,8 +1791,10 @@ class WireVeilChecker(tk.Tk):
         self.imported = local_checker.ImportedSubscription(saved.report.candidates)
         self.speed_results = dict(saved.speed_results)
         self.service_results = dict(saved.service_results)
-        self.sort_column = saved.sort_column
-        self.sort_descending = saved.sort_descending
+        # Every application launch starts from the useful smart ranking,
+        # regardless of the temporary column selected in the previous session.
+        self.sort_column = DEFAULT_SORT_COLUMN
+        self.sort_descending = DEFAULT_SORT_DESCENDING
         self._populate_table(saved.report)
         if self.service_results:
             for result in saved.report.results:
