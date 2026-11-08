@@ -24,12 +24,12 @@ WireVeil собирает публичные proxy URI, проверяет фо�
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-11-08T12:14:58+03:00** (UTC: 2026-11-08T09:14:58Z). Проверено через `sing-box version 1.14.0`: **854 из 2172** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **854**.
+Последняя проверка реального подключения: **2026-11-08T12:36:03+03:00** (UTC: 2026-11-08T09:36:03Z). Проверено через `sing-box version 1.14.0`: **842 из 2172** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **842**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 854 | 153.2 KiB |
-| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 631 | 110.1 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 842 | 149.3 KiB |
+| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 618 | 107.4 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 - `good.txt` — рабочие узлы с задержкой не выше 500 мс; рекомендуемый вариант.
