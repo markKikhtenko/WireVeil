@@ -548,8 +548,9 @@ class _UpdateDialog(tk.Toplevel):
         ttk.Label(
             outer,
             text=(
-                "Установщик будет проверен по SHA-256. После этого приложение "
-                "закроется и запустит обновление."
+                "Portable-пакет будет проверен по SHA-256. Затем приложение "
+                "закроется, а его файлы обновятся на месте. Для Program Files "
+                "Windows может запросить права администратора."
             ),
             style="Summary.TLabel",
             wraplength=650,
@@ -1607,11 +1608,11 @@ class WireVeilChecker(tk.Tk):
 
         def worker() -> None:
             try:
-                installer = app_updater.download_update(release, progress=progress)
+                package = app_updater.download_update(release, progress=progress)
             except app_updater.UpdateError as exc:
                 self.events.put(("update_error", str(exc)))
             else:
-                self.events.put(("update_downloaded", installer, release.version))
+                self.events.put(("update_downloaded", package, release.version))
 
         threading.Thread(target=worker, daemon=True, name="wireveil-update-download").start()
 
@@ -1634,17 +1635,21 @@ class WireVeilChecker(tk.Tk):
                 f"Скачиваем версию {version}: {downloaded_mb:.1f} МБ"
             )
 
-    def _finish_update_download(self, installer: Path, version: str) -> None:
+    def _finish_update_download(self, package: Path, version: str) -> None:
         self._set_update_progress(100)
-        self._configure_update_buttons(text="Запуск установщика…", state="disabled")
-        self.status_var.set("Контрольная сумма верна. Запускаем установщик…")
+        self._configure_update_buttons(text="Подготовка обновления…", state="disabled")
+        self.status_var.set("Контрольная сумма верна. Подготавливаем замену файлов…")
         try:
-            app_updater.launch_installer(installer)
+            app_updater.launch_in_place_update(
+                package,
+                current_version=APP_VERSION,
+                new_version=version,
+            )
         except app_updater.UpdateError as exc:
             self._finish_update_error(str(exc))
             return
         self._log(
-            f"Установщик версии {version} проверен и запущен; приложение закрывается."
+            f"Пакет версии {version} проверен; файлы будут заменены после закрытия."
         )
         self.closing = True
         self.after(150, self._on_close)

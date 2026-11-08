@@ -20,6 +20,7 @@ from checker_app import (
     write_checker_settings,
 )
 from scripts import app_updater, healthcheck, local_checker, network_check
+from wireveil_version import APP_VERSION
 
 
 class TableSortTests(unittest.TestCase):
@@ -465,6 +466,28 @@ class UpdateUiTests(unittest.TestCase):
         checker.status_var.set.assert_called_once_with(
             "Скачиваем версию 1.9.99: 5.0 / 20.0 МБ — 25%"
         )
+
+    @mock.patch("checker_app.app_updater.launch_in_place_update")
+    def test_verified_package_starts_in_place_update(self, launch_update):
+        checker = object.__new__(WireVeilChecker)
+        checker._set_update_progress = mock.Mock()
+        checker._configure_update_buttons = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker._log = mock.Mock()
+        checker.after = mock.Mock()
+        checker._on_close = mock.Mock()
+        checker.closing = False
+        package = Path("WireVeilChecker-windows-x64.zip")
+
+        checker._finish_update_download(package, "1.9.99")
+
+        launch_update.assert_called_once_with(
+            package,
+            current_version=APP_VERSION,
+            new_version="1.9.99",
+        )
+        self.assertTrue(checker.closing)
+        checker.after.assert_called_once_with(150, checker._on_close)
 
     def test_ctrl_c_and_ctrl_v_work_with_russian_keyboard_layout(self):
         checker = object.__new__(WireVeilChecker)
