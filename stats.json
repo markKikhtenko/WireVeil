@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-11-08T18:55:09Z",
-    "msk": "2026-11-08T21:55:09+03:00"
+    "utc": "2026-11-08T19:05:28Z",
+    "msk": "2026-11-08T22:05:28+03:00"
   },
   "sources": [
     {
@@ -106,8 +106,8 @@
   "valid_keys_before_deduplication": 4595,
   "rejected_keys": 37,
   "duplicates_removed": 2446,
-  "semantic_duplicates_removed": 1116,
-  "endpoint_duplicates_removed": 1330,
+  "semantic_duplicates_removed": 1115,
+  "endpoint_duplicates_removed": 1331,
   "eligible_keys_before_mix": 2064,
   "mix_target": null,
   "total_keys": 2064,
@@ -131,30 +131,30 @@
     "argh94-all-config": 889
   },
   "change": {
-    "added": 369,
-    "removed": 429,
-    "net": -60
+    "added": 15,
+    "removed": 15,
+    "net": 0
   },
   "changes_by_protocol": {
     "vless": {
-      "added": 216,
-      "removed": 270,
-      "net": -54
+      "added": 0,
+      "removed": 0,
+      "net": 0
     },
     "trojan": {
-      "added": 76,
-      "removed": 84,
-      "net": -8
+      "added": 0,
+      "removed": 0,
+      "net": 0
     },
     "shadowsocks": {
-      "added": 27,
-      "removed": 21,
-      "net": 6
+      "added": 0,
+      "removed": 0,
+      "net": 0
     },
     "vmess": {
-      "added": 38,
-      "removed": 39,
-      "net": -1
+      "added": 0,
+      "removed": 0,
+      "net": 0
     },
     "hysteria": {
       "added": 0,
@@ -162,27 +162,27 @@
       "net": 0
     },
     "hysteria2": {
-      "added": 12,
-      "removed": 15,
-      "net": -3
-    },
-    "tuic": {
       "added": 0,
       "removed": 0,
+      "net": 0
+    },
+    "tuic": {
+      "added": 15,
+      "removed": 15,
       "net": 0
     }
   },
   "geography": {
     "ru_excluded": 85,
-    "unknown_kept": 869,
-    "non_ru_kept": 1195
+    "unknown_kept": 865,
+    "non_ru_kept": 1199
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
       "keys": 2064,
-      "bytes": 427639,
-      "sha256": "b2962b09a5d0170fd9ad0ef3381903e186a622d42e14bf6213e75cbab34e0b18"
+      "bytes": 427202,
+      "sha256": "916d9b497945bddafa228583f75f52084add3c575c4937227cc936c5d2b98e12"
     },
     "vless.txt": {
       "keys": 816,
@@ -216,8 +216,8 @@
     },
     "tuic.txt": {
       "keys": 253,
-      "bytes": 66177,
-      "sha256": "6f158d38933d66979073d9c81be4d3b4fd1278522345a88b724b78d76e35d807"
+      "bytes": 65740,
+      "sha256": "4cde85a422133dc1c01f61c1a94b8a5a1a853707e564025d09305a4dcd033728"
     }
   }
 }
