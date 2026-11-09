@@ -183,7 +183,7 @@ hysteria2://02df03e3-3029-4c95-bffe-8f211b480672@edge.hankli1214.xyz:443?securit
 hysteria2://43212c32-01f2-4356-b216-67dc1c178262@ees92.shhflow.xyz:5443/?sni=ees92.shhflow.xyz#@V2ray_Collector
 hysteria2://5a4c13ae-6673-11ee-a149-f23c9164ca5d@f452bbe9-tmm5c0-tpda83-1lkbs.los.hyhuawei.com:443?sni=f452bbe9-tmm5c0-tpda83-1lkbs.los.hyhuawei.com#🇨🇦
 hysteria2://203d1d64-3313-11ed-bb74-f23c9164ca5d@fbe34f09-tmm5c0-trpvht-1ey07.los.hyhuawei.com:443?sni=fbe34f09-tmm5c0-trpvht-1ey07.los.hyhuawei.com#🇨🇦
-hysteria2://p5xt6oLOA3qikIaj@fi-p1.h1cloud.net:25482?headerType=none&encryption=none&sni=www.bing.com&pinSHA256=4497916255a25d50d37e1b256f8206cdb82fef904921cc519dcceaa4ad0530fa&insecure=1#%F0%9F%87%A9%F0%9F%87%AA%20Germany%2C%20Frankfurt%20am%20Main%20%28Innenstadt%20I%29%20%7C%20%5BBL%5D
+hysteria2://p5xt6oLOA3qikIaj@fi-p1.h1cloud.net:25482?headerType=none&encryption=none&sni=www.bing.com&pinSHA256=4497916255a25d50d37e1b256f8206cdb82fef904921cc519dcceaa4ad0530fa&insecure=1#🇩🇪
 hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@fi1.obxodvpn.us:443?insecure=0&sni=fi1.obxodvpn.us#7%40exclavevpn
 hysteria2://f83ce3c4-07d9-4895-bd14-cb74abbcab37@finkawwwbroy5.qcloud.surf:20326?security=tls&sni=finkawwwbroy5.qcloud.surf&alpn=h3&insecure=0#@OutlineReleasedKey
 hysteria2://7d43670b-6b08-45b9-8a24-8f3971abc132@finland.biznes.lol:8443?security=tls&alpn=h3&insecure=0&sni=finland.biznes.lol#@OutlineReleasedKey
