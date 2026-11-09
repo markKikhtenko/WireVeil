@@ -10,9 +10,12 @@ from unittest import mock
 from checker_app import (
     DEFAULT_SORT_COLUMN,
     DEFAULT_SORT_DESCENDING,
+    LIVE_SORT_DELAY_MS,
+    PENDING_ROW_BATCH_LIMIT,
     SERVICE_COLUMN_BY_NAME,
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
+    UI_EVENT_BATCH_LIMIT,
     _UpdateDialog,
     WireVeilChecker,
     find_app_icon,
@@ -148,20 +151,109 @@ class UiResponsivenessTests(unittest.TestCase):
         with mock.patch("checker_app.time.perf_counter", return_value=0.0):
             checker._poll_events()
 
-        self.assertEqual(64, checker._apply_network_status.call_count)
-        self.assertEqual(36, checker.events.qsize())
+        self.assertEqual(UI_EVENT_BATCH_LIMIT, checker._apply_network_status.call_count)
+        self.assertEqual(100 - UI_EVENT_BATCH_LIMIT, checker.events.qsize())
         checker.after.assert_called_once_with(16, checker._poll_events)
 
-    def test_live_updates_do_not_schedule_full_table_sort(self):
+    def test_live_updates_schedule_batched_incremental_sort(self):
         checker = object.__new__(WireVeilChecker)
         checker.running = True
         checker.sort_column = "quality"
         checker.sort_job = None
-        checker.after = mock.Mock()
+        checker.dirty_sort_items = set()
+        checker.quality_sort_values = {}
+        checker.after = mock.Mock(return_value="live-sort")
 
-        checker._schedule_resort()
+        checker._schedule_resort("row-7")
 
-        checker.after.assert_not_called()
+        self.assertEqual({"row-7"}, checker.dirty_sort_items)
+        self.assertEqual("live-sort", checker.sort_job)
+        checker.after.assert_called_once_with(
+            LIVE_SORT_DELAY_MS, checker._resort_current
+        )
+
+    def test_progress_labels_are_coalesced_per_ui_batch(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.events = queue.Queue()
+        for done in range(1, 11):
+            checker.events.put(("progress", done, 10, f"result-{done}", 2))
+        checker.poll_job = None
+        checker.closing = False
+        checker.progress_var = mock.Mock()
+        checker.status_var = mock.Mock()
+        checker._update_live_result = mock.Mock()
+        checker.after = mock.Mock(return_value="next-poll")
+
+        with mock.patch("checker_app.time.perf_counter", return_value=0.0):
+            checker._poll_events()
+
+        self.assertEqual(10, checker._update_live_result.call_count)
+        checker.progress_var.set.assert_called_once_with(100.0)
+        checker.status_var.set.assert_called_once_with("Проверено запросов: 10 / 10")
+
+    def test_live_quality_sort_moves_only_changed_rows(self):
+        class FakeTable:
+            def __init__(self, rows):
+                self.values = dict(rows)
+                self.children = list(self.values)
+                self.detached = []
+                self.moves = []
+
+            def get_children(self, _parent=""):
+                return tuple(self.children)
+
+            def item(self, item, option=None, **kwargs):
+                if "values" in kwargs:
+                    self.values[item] = tuple(kwargs["values"])
+                if option == "values":
+                    return self.values[item]
+                return {"values": self.values[item]}
+
+            def detach(self, *items):
+                self.detached.extend(items)
+                for item in items:
+                    self.children.remove(item)
+
+            def move(self, item, _parent, position):
+                if item in self.children:
+                    self.children.remove(item)
+                self.children.insert(position, item)
+                self.moves.append((item, position))
+
+        pending = TableSortTests.ranked_row(
+            number=1,
+            passes="0/2",
+            speed="—",
+            latency="ожидание…",
+            chatgpt="—",
+        )
+        active = TableSortTests.ranked_row(
+            number=2,
+            passes="1/2",
+            speed="—",
+            latency="80 ms",
+            chatgpt="—",
+        )
+        table = FakeTable((("row-1", pending), ("row-2", active)))
+        checker = object.__new__(WireVeilChecker)
+        checker.table = table
+        checker.table_values = dict(table.values)
+        checker.quality_sort_values = {}
+        checker.sort_column = "quality"
+        checker.sort_descending = False
+        checker.pending_rank_items = {}
+        checker.rank_job = None
+        checker.closing = False
+        checker.after_idle = mock.Mock(return_value="rank-update")
+
+        checker._apply_live_sort({"row-2"})
+
+        self.assertEqual(["row-2", "row-1"], table.children)
+        self.assertEqual(["row-2"], table.detached)
+        self.assertEqual([("row-2", 0)], table.moves)
+        quality = TABLE_COLUMN_POSITIONS["quality"]
+        self.assertEqual("★ 1", checker.table_values["row-2"][quality])
+        self.assertEqual("2", checker.table_values["row-1"][quality])
 
     def test_pending_rows_are_inserted_in_bounded_batches(self):
         checker = object.__new__(WireVeilChecker)
@@ -171,6 +263,7 @@ class UiResponsivenessTests(unittest.TestCase):
         checker.pending_table_position = 0
         checker.table_items = {}
         checker.item_uris = {}
+        checker.table_values = {}
         checker.closing = False
         checker.running = True
         checker.sort_column = "quality"
@@ -189,8 +282,8 @@ class UiResponsivenessTests(unittest.TestCase):
         with mock.patch("checker_app.time.perf_counter", return_value=0.0):
             checker._insert_pending_table_batch()
 
-        self.assertEqual(64, checker.table.insert.call_count)
-        self.assertEqual(64, checker.pending_table_position)
+        self.assertEqual(PENDING_ROW_BATCH_LIMIT, checker.table.insert.call_count)
+        self.assertEqual(PENDING_ROW_BATCH_LIMIT, checker.pending_table_position)
         checker.after.assert_called_once_with(16, checker._insert_pending_table_batch)
 
 

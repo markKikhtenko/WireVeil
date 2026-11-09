@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import functools
 import hashlib
 import json
 import math
@@ -53,12 +54,15 @@ TABLE_COLUMN_POSITIONS = {
 }
 DEFAULT_SORT_COLUMN = "quality"
 DEFAULT_SORT_DESCENDING = False
-UI_EVENT_BATCH_LIMIT = 64
-UI_EVENT_TIME_BUDGET_SECONDS = 0.008
+UI_EVENT_BATCH_LIMIT = 32
+UI_EVENT_TIME_BUDGET_SECONDS = 0.004
 UI_ACTIVE_POLL_MS = 16
 UI_IDLE_POLL_MS = 100
-PENDING_ROW_BATCH_LIMIT = 64
-PENDING_ROW_TIME_BUDGET_SECONDS = 0.006
+PENDING_ROW_BATCH_LIMIT = 32
+PENDING_ROW_TIME_BUDGET_SECONDS = 0.003
+LIVE_SORT_DELAY_MS = 50
+RANK_UPDATE_BATCH_LIMIT = 32
+RANK_UPDATE_TIME_BUDGET_SECONDS = 0.003
 
 
 def resource_root() -> Path:
@@ -641,6 +645,8 @@ class WireVeilChecker(tk.Tk):
         self.imported: local_checker.ImportedSubscription | None = None
         self.table_items: dict[int, str] = {}
         self.item_uris: dict[str, str] = {}
+        self.table_values: dict[str, tuple[str, ...]] = {}
+        self.quality_sort_values: dict[str, tuple[object, ...]] = {}
         self.live_results: dict[int, dict[str, object]] = {}
         self.speed_results: dict[int, local_checker.SpeedResult] = {}
         self.service_results: dict[tuple[int, str], local_checker.ServiceResult] = {}
@@ -648,6 +654,9 @@ class WireVeilChecker(tk.Tk):
         self.sort_column: str | None = DEFAULT_SORT_COLUMN
         self.sort_descending = DEFAULT_SORT_DESCENDING
         self.sort_job: str | None = None
+        self.dirty_sort_items: set[str] = set()
+        self.pending_rank_items: dict[str, None] = {}
+        self.rank_job: str | None = None
         self.auto_job: str | None = None
         self.watch_job: str | None = None
         self.countdown_job: str | None = None
@@ -2596,6 +2605,7 @@ class WireVeilChecker(tk.Tk):
             self.table_scroll_x.grid()
 
     def _clear_service_cells(self) -> None:
+        self.quality_sort_values.clear()
         service_positions = (
             TABLE_COLUMN_POSITIONS["quality"],
             *(
@@ -2604,12 +2614,14 @@ class WireVeilChecker(tk.Tk):
             ),
         )
         for item in self.table.get_children(""):
-            values = list(self.table.item(item, "values"))
+            values = list(self._table_values_for(item))
             if len(values) != len(TABLE_COLUMNS):
                 continue
             for position in service_positions:
                 values[position] = "—"
-            self.table.item(item, values=values)
+            normalized = tuple(str(value) for value in values)
+            self.table_values[item] = normalized
+            self.table.item(item, values=normalized)
 
     def _restore_base_tags(self) -> None:
         if self.report is None:
@@ -2844,11 +2856,13 @@ class WireVeilChecker(tk.Tk):
         item = self.table_items.get(index)
         if not item:
             return
-        values = list(self.table.item(item, "values"))
+        values = list(self._table_values_for(item))
         if len(values) >= 7:
             values[5] = value
-            self.table.item(item, values=values)
-            self._schedule_resort()
+            normalized = tuple(str(cell) for cell in values)
+            self.table_values[item] = normalized
+            self.table.item(item, values=normalized)
+            self._schedule_resort(item)
 
     def _update_speed_result(self, result: local_checker.SpeedResult) -> None:
         self.speed_results[result.target.index] = result
@@ -2901,22 +2915,24 @@ class WireVeilChecker(tk.Tk):
                 tag = "active"
             else:
                 tag = "dead"
-        values = list(self.table.item(item, "values"))
+        values = list(self._table_values_for(item))
         if len(values) == len(TABLE_COLUMNS):
             self.table.item(item, values=values, tags=(tag,) if tag else ())
-            self._schedule_resort()
+            self._schedule_resort(item)
 
     def _set_service_cell(self, index: int, service_name: str, value: str) -> None:
         item = self.table_items.get(index)
         if not item:
             return
-        values = list(self.table.item(item, "values"))
+        values = list(self._table_values_for(item))
         column = SERVICE_COLUMN_BY_NAME[service_name]
         position = TABLE_COLUMN_POSITIONS[column]
         if len(values) == len(TABLE_COLUMNS):
             values[position] = value
-            self.table.item(item, values=values)
-            self._schedule_resort()
+            normalized = tuple(str(cell) for cell in values)
+            self.table_values[item] = normalized
+            self.table.item(item, values=normalized)
+            self._schedule_resort(item)
 
     def _update_service_result(self, result: local_checker.ServiceResult) -> None:
         self.service_results[(result.target.index, result.service_name)] = result
@@ -3158,6 +3174,7 @@ class WireVeilChecker(tk.Tk):
         self.poll_job = None
         batch_started = time.perf_counter()
         processed_events = 0
+        latest_progress: tuple[float, str] | None = None
         try:
             while processed_events < UI_EVENT_BATCH_LIMIT:
                 event = self.events.get_nowait()
@@ -3183,15 +3200,19 @@ class WireVeilChecker(tk.Tk):
                     )
                 elif kind == "progress":
                     done, total, result, rounds = event[1], event[2], event[3], event[4]
-                    self.progress_var.set((done / total) * 100 if total else 0)
-                    self.status_var.set(f"Проверено запросов: {done} / {total}")
+                    latest_progress = (
+                        (done / total) * 100 if total else 0,
+                        f"Проверено запросов: {done} / {total}",
+                    )
                     self._update_live_result(result, rounds)
                 elif kind == "done":
+                    latest_progress = None
                     self._finish(event[1])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "error":
+                    latest_progress = None
                     self._fail(event[1])
                     if self.closing:
                         self.destroy()
@@ -3213,52 +3234,62 @@ class WireVeilChecker(tk.Tk):
                     self._defer_watch_until_online()
                 elif kind == "watch_progress":
                     done, total, result = event[1], event[2], event[3]
-                    self.progress_var.set((done / total) * 100 if total else 0)
-                    self.status_var.set(f"Контроль доступности: {done} / {total}")
+                    latest_progress = (
+                        (done / total) * 100 if total else 0,
+                        f"Контроль доступности: {done} / {total}",
+                    )
                     self._update_live_result(result, 1)
                 elif kind == "watch_done":
+                    latest_progress = None
                     self._finish_watch_check(event[1])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "watch_error":
+                    latest_progress = None
                     self._fail_watch_check(event[1])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "speed_progress":
                     done, total, result = event[1], event[2], event[3]
-                    self.progress_var.set((done / total) * 100 if total else 0)
                     speed_label = (
                         "Контроль скорости"
                         if self.activity == "watch_speed"
                         else "Проверка скорости"
                     )
-                    self.status_var.set(f"{speed_label}: {done} / {total}")
+                    latest_progress = (
+                        (done / total) * 100 if total else 0,
+                        f"{speed_label}: {done} / {total}",
+                    )
                     self._update_speed_result(result)
                 elif kind == "speed_done":
+                    latest_progress = None
                     self._finish_speed_test(event[1])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "speed_error":
+                    latest_progress = None
                     self._fail_speed_test(event[1])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "service_progress":
                     done, total, result = event[1], event[2], event[3]
-                    self.progress_var.set((done / total) * 100 if total else 0)
-                    self.status_var.set(
-                        f"Проверка сайтов: {done} / {total} · сейчас {result.service_name}"
+                    latest_progress = (
+                        (done / total) * 100 if total else 0,
+                        f"Проверка сайтов: {done} / {total} · сейчас {result.service_name}",
                     )
                     self._update_service_result(result)
                 elif kind == "service_done":
+                    latest_progress = None
                     self._finish_service_test(event[1], event[2])
                     if self.closing:
                         self.destroy()
                         return
                 elif kind == "service_error":
+                    latest_progress = None
                     self._fail_service_test(event[1], event[2])
                     if self.closing:
                         self.destroy()
@@ -3267,6 +3298,10 @@ class WireVeilChecker(tk.Tk):
                     break
         except queue.Empty:
             pass
+        if latest_progress is not None:
+            progress, status = latest_progress
+            self.progress_var.set(progress)
+            self.status_var.set(status)
         if not self.closing:
             delay = UI_ACTIVE_POLL_MS if not self.events.empty() else UI_IDLE_POLL_MS
             self.poll_job = self.after(delay, self._poll_events)
@@ -3347,13 +3382,31 @@ class WireVeilChecker(tk.Tk):
 
     def _clear_table(self) -> None:
         self._cancel_pending_table_fill()
+        rank_job = getattr(self, "rank_job", None)
+        if rank_job is not None:
+            try:
+                self.after_cancel(rank_job)
+            except tk.TclError:
+                pass
+            self.rank_job = None
         children = self.table.get_children()
         if children:
             self.table.delete(*children)
         self.table_items.clear()
         self.item_uris.clear()
+        self.table_values.clear()
+        self.quality_sort_values.clear()
+        self.dirty_sort_items.clear()
+        self.pending_rank_items.clear()
         self.live_results.clear()
         self.copy_selected_button.configure(state="disabled")
+
+    def _table_values_for(self, item: str) -> tuple[str, ...]:
+        values = self.table_values.get(item)
+        if values is None:
+            values = tuple(str(value) for value in self.table.item(item, "values"))
+            self.table_values[item] = values
+        return values
 
     def _clear_log(self) -> None:
         self.log.configure(state="normal")
@@ -3391,6 +3444,13 @@ class WireVeilChecker(tk.Tk):
             test = "timeout"
             tag = "dead"
             name = str(state["error"] or "Нет ответа")[:180]
+        item = self.table_items.get(index)
+        current_values = self._table_values_for(item) if item else ()
+        current_quality = (
+            current_values[TABLE_COLUMN_POSITIONS["quality"]]
+            if len(current_values) == len(TABLE_COLUMNS)
+            else "—"
+        )
         values = (
             index + 1,
             result.target.protocol,
@@ -3398,18 +3458,18 @@ class WireVeilChecker(tk.Tk):
             name,
             test,
             "—",
-            "—",
+            current_quality,
             *("—" for _service in local_checker.SERVICE_DEFINITIONS),
             f"{state['successes']}/{attempts}",
         )
-        item = self.table_items.get(index)
         if item:
             self.table.item(item, values=values, tags=(tag,))
         else:
             item = self.table.insert("", "end", values=values, tags=(tag,))
             self.table_items[index] = item
             self.item_uris[item] = result.target.uri
-        self._schedule_resort()
+        self.table_values[item] = tuple(str(value) for value in values)
+        self._schedule_resort(item)
 
     def _show_pending(self, lines: tuple[str, ...], attempts: int) -> None:
         """Display imported servers incrementally without blocking Tk events."""
@@ -3464,6 +3524,7 @@ class WireVeilChecker(tk.Tk):
             )
             self.table_items[index] = item
             self.item_uris[item] = uri
+            self.table_values[item] = tuple(str(value) for value in values)
             if time.perf_counter() - started >= PENDING_ROW_TIME_BUDGET_SECONDS:
                 break
         if self.pending_table_position < total and not self.closing:
@@ -3525,6 +3586,9 @@ class WireVeilChecker(tk.Tk):
             )
             self.table_items[result.target.index] = item
             self.item_uris[item] = result.target.uri
+            self.table_values[item] = tuple(
+                str(value) for value in self.table.item(item, "values")
+            )
         if self.sort_column is not None:
             self._apply_sort()
 
@@ -3536,16 +3600,26 @@ class WireVeilChecker(tk.Tk):
             self.sort_descending = False
         self._apply_sort()
 
-    def _schedule_resort(self) -> None:
-        # Reordering thousands of Treeview rows while results are arriving can
-        # starve Tk's window event loop. The finish handlers sort once instead.
-        if self.running or self.sort_column is None or self.sort_job is not None:
+    def _schedule_resort(self, item: str | None = None) -> None:
+        if self.sort_column is None:
             return
-        self.sort_job = self.after(250, self._resort_current)
+        if item is not None:
+            self.quality_sort_values.pop(item, None)
+            self.dirty_sort_items.add(item)
+        if self.sort_job is not None:
+            return
+        delay = LIVE_SORT_DELAY_MS if self.running else 250
+        self.sort_job = self.after(delay, self._resort_current)
 
     def _resort_current(self) -> None:
         self.sort_job = None
-        if self.sort_column is not None:
+        if self.sort_column is None:
+            return
+        dirty_items = set(self.dirty_sort_items)
+        self.dirty_sort_items.clear()
+        if self.running and dirty_items:
+            self._apply_live_sort(dirty_items)
+        else:
             self._apply_sort()
 
     @staticmethod
@@ -3632,6 +3706,113 @@ class WireVeilChecker(tk.Tk):
             number,
         )
 
+    def _row_sort_value(self, item: str) -> object | None:
+        values = self._table_values_for(item)
+        if self.sort_column == "quality":
+            return self._quality_sort_value_for(item)
+        if self.sort_column is None:
+            return None
+        return self._column_sort_value(self.sort_column, values)
+
+    def _quality_sort_value_for(self, item: str) -> tuple[object, ...]:
+        value = self.quality_sort_values.get(item)
+        if value is None:
+            value = self._smart_sort_value(self._table_values_for(item))
+            self.quality_sort_values[item] = value
+        return value
+
+    def _ordered_rows(self, items: list[str]) -> list[str]:
+        values = {item: self._row_sort_value(item) for item in items}
+        numbers = {
+            item: self._column_sort_value("number", self._table_values_for(item))
+            for item in items
+        }
+
+        def compare(left: str, right: str) -> int:
+            left_value = values[left]
+            right_value = values[right]
+            if left_value is None and right_value is not None:
+                return 1
+            if right_value is None and left_value is not None:
+                return -1
+            if (
+                left_value is not None
+                and right_value is not None
+                and left_value != right_value
+            ):
+                if self.sort_descending:
+                    return -1 if left_value > right_value else 1
+                return -1 if left_value < right_value else 1
+            left_number = numbers[left]
+            right_number = numbers[right]
+            if left_number == right_number:
+                return 0
+            if left_number is None:
+                return 1
+            if right_number is None:
+                return -1
+            return -1 if left_number < right_number else 1
+
+        return sorted(items, key=functools.cmp_to_key(compare))
+
+    def _queue_quality_rank_updates(self, items: list[str]) -> list[str]:
+        ranked = sorted(
+            items,
+            key=self._quality_sort_value_for,
+        )
+        quality_position = TABLE_COLUMN_POSITIONS["quality"]
+        for rank, item in enumerate(ranked, start=1):
+            current_values = self._table_values_for(item)
+            values = list(current_values)
+            if len(values) != len(TABLE_COLUMNS):
+                continue
+            label = f"★ {rank}" if rank == 1 else str(rank)
+            if current_values[quality_position] == label:
+                continue
+            values[quality_position] = label
+            self.table_values[item] = tuple(str(value) for value in values)
+            self.pending_rank_items[item] = None
+        if self.pending_rank_items and self.rank_job is None and not self.closing:
+            self.rank_job = self.after_idle(self._flush_rank_updates)
+        return ranked
+
+    def _flush_rank_updates(self) -> None:
+        self.rank_job = None
+        started = time.perf_counter()
+        processed = 0
+        for item in tuple(self.pending_rank_items):
+            self.pending_rank_items.pop(item, None)
+            values = self.table_values.get(item)
+            if values is not None:
+                self.table.item(item, values=values)
+            processed += 1
+            if processed >= RANK_UPDATE_BATCH_LIMIT:
+                break
+            if time.perf_counter() - started >= RANK_UPDATE_TIME_BUDGET_SECONDS:
+                break
+        if self.pending_rank_items and not self.closing:
+            self.rank_job = self.after(UI_ACTIVE_POLL_MS, self._flush_rank_updates)
+
+    def _apply_live_sort(self, dirty_items: set[str]) -> None:
+        children = list(self.table.get_children(""))
+        if not children:
+            return
+        dirty_items.intersection_update(children)
+        ranked = self._queue_quality_rank_updates(children)
+        if not dirty_items:
+            return
+        if self.sort_column == "quality":
+            ordered = list(reversed(ranked)) if self.sort_descending else ranked
+        else:
+            ordered = self._ordered_rows(children)
+        if ordered == children:
+            return
+        dirty_ordered = [item for item in ordered if item in dirty_items]
+        self.table.detach(*dirty_ordered)
+        positions = {item: position for position, item in enumerate(ordered)}
+        for item in dirty_ordered:
+            self.table.move(item, "", positions[item])
+
     def _apply_sort(self) -> None:
         if self.sort_job is not None:
             try:
@@ -3639,41 +3820,19 @@ class WireVeilChecker(tk.Tk):
             except tk.TclError:
                 pass
             self.sort_job = None
+        self.dirty_sort_items.clear()
         column = self.sort_column
         if column is None:
             return
-        rows = [
-            (
-                item,
-                tuple(str(value) for value in self.table.item(item, "values")),
-            )
-            for item in self.table.get_children("")
-        ]
-        ranked = sorted(rows, key=lambda entry: self._smart_sort_value(entry[1]))
-        for rank, (item, values) in enumerate(ranked, start=1):
-            updated = list(values)
-            updated[TABLE_COLUMN_POSITIONS["quality"]] = (
-                f"★ {rank}" if rank == 1 else str(rank)
-            )
-            self.table.item(item, values=updated)
-
-        valid: list[tuple[object, str]] = []
-        missing: list[str] = []
-        for item in self.table.get_children(""):
-            values = tuple(str(value) for value in self.table.item(item, "values"))
-            value = (
-                self._smart_sort_value(values)
-                if column == "quality"
-                else self._column_sort_value(column, values)
-            )
-            if value is None:
-                missing.append(item)
-            else:
-                valid.append((value, item))
-        valid.sort(key=lambda entry: entry[0], reverse=self.sort_descending)
-        ordered = [item for _value, item in valid] + missing
-        for position, item in enumerate(ordered):
-            self.table.move(item, "", position)
+        children = list(self.table.get_children(""))
+        ranked = self._queue_quality_rank_updates(children)
+        if column == "quality":
+            ordered = list(reversed(ranked)) if self.sort_descending else ranked
+        else:
+            ordered = self._ordered_rows(children)
+        if ordered != children:
+            for position, item in enumerate(ordered):
+                self.table.move(item, "", position)
         self._refresh_sort_headers()
 
     def _refresh_sort_headers(self) -> None:
@@ -3983,6 +4142,7 @@ class WireVeilChecker(tk.Tk):
             "poll_job",
             "pending_table_job",
             "sort_job",
+            "rank_job",
         ):
             job = getattr(self, job_name, None)
             if job is not None:
