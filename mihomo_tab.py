@@ -22,8 +22,8 @@ from wireveil_paths import user_data_file
 SOURCES_FILENAME = "WireVeilChecker.mihomo-sources.json"
 UI_SETTINGS_FILENAME = "WireVeilChecker.mihomo-ui.json"
 CHECKPOINT_FILENAME = "WireVeilChecker.mihomo-checkpoint.json"
-UI_EVENT_BATCH_LIMIT = 64
-UI_EVENT_TIME_BUDGET_SECONDS = 0.008
+UI_EVENT_BATCH_LIMIT = 24
+UI_EVENT_TIME_BUDGET_SECONDS = 0.003
 UI_ACTIVE_POLL_MS = 16
 UI_IDLE_POLL_MS = 100
 KPI_REFRESH_INTERVAL_SECONDS = 0.15
@@ -1401,7 +1401,7 @@ class MihomoCheckerTab(ttk.Frame):
         self._set_running_controls(True)
         self._set_export_buttons(False)
         limit_label = self.node_limit_var.get().casefold()
-        self.status_var.set("Проверяю подключение к сети…")
+        self.status_var.set("Загружаю источники…")
         if resume:
             self.status_var.set("Загружаю источники и сопоставляю локальный checkpoint…")
         self._save_ui_settings()
@@ -1409,13 +1409,6 @@ class MihomoCheckerTab(ttk.Frame):
         def work() -> None:
             assert self.runner is not None
             try:
-                network_status = network_check.check_device_online()
-                if self.network_callback is not None:
-                    self.network_callback(network_status)
-                if not network_status.online:
-                    raise network_check.NetworkUnavailableError(
-                        network_check.OFFLINE_MESSAGE
-                    )
                 report = self.runner.run(
                     binary=binary,
                     source_specs=sources,

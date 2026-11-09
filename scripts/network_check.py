@@ -38,10 +38,24 @@ class NetworkUnavailableError(RuntimeError):
 def _current_system_proxy_opener() -> urllib.request.OpenerDirector:
     """Use a fresh snapshot so Windows proxy changes need no app restart."""
     proxies = urllib.request.getproxies()
+    registry_reader = getattr(urllib.request, "getproxies_registry", None)
+    if callable(registry_reader):
+        registry_proxies = registry_reader()
+        if registry_proxies:
+            proxies = registry_proxies
     return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
 
 
-def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
+def _direct_opener() -> urllib.request.OpenerDirector:
+    """Build an opener that ignores a stale or unreachable system proxy."""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _probe_endpoint_with_opener(
+    endpoint: str,
+    timeout: float,
+    opener_factory: Callable[[], urllib.request.OpenerDirector],
+) -> NetworkStatus:
     started = time.monotonic()
     request = urllib.request.Request(
         endpoint,
@@ -53,7 +67,7 @@ def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
         method="GET",
     )
     try:
-        with _current_system_proxy_opener().open(request, timeout=timeout) as response:
+        with opener_factory().open(request, timeout=timeout) as response:
             response.read(1)
     except urllib.error.HTTPError as exc:
         # Any HTTP response proves that DNS, TLS and the route to the internet work.
@@ -64,25 +78,36 @@ def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
     return NetworkStatus(online=True, latency_ms=latency_ms, endpoint=endpoint)
 
 
+def _probe_endpoint(endpoint: str, timeout: float) -> NetworkStatus:
+    return _probe_endpoint_with_opener(endpoint, timeout, _current_system_proxy_opener)
+
+
+def _probe_endpoint_direct(endpoint: str, timeout: float) -> NetworkStatus:
+    return _probe_endpoint_with_opener(endpoint, timeout, _direct_opener)
+
+
 def check_device_online(
     timeout: float = 3.0,
     endpoints: Iterable[str] = DEFAULT_ENDPOINTS,
     *,
-    probe: Callable[[str, float], NetworkStatus] = _probe_endpoint,
+    probe: Callable[[str, float], NetworkStatus] | None = None,
 ) -> NetworkStatus:
-    """Return as soon as one of several independent HTTPS probes succeeds."""
+    """Return after either the current proxy or a direct HTTPS route succeeds."""
 
     urls = tuple(dict.fromkeys(item.strip() for item in endpoints if item.strip()))
     if not urls:
         return NetworkStatus(online=False)
 
     per_probe_timeout = max(0.2, float(timeout))
+    probes = (probe,) if probe is not None else (_probe_endpoint, _probe_endpoint_direct)
     executor = concurrent.futures.ThreadPoolExecutor(
-        max_workers=len(urls),
+        max_workers=len(urls) * len(probes),
         thread_name_prefix="wireveil-network-probe",
     )
     futures = {
-        executor.submit(probe, endpoint, per_probe_timeout) for endpoint in urls
+        executor.submit(route_probe, endpoint, per_probe_timeout)
+        for route_probe in probes
+        for endpoint in urls
     }
     deadline = time.monotonic() + per_probe_timeout
     try:

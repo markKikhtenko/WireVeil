@@ -45,6 +45,7 @@ class NetworkCheckTests(unittest.TestCase):
             mock.patch(
                 "urllib.request.getproxies", side_effect=(first, second)
             ) as getproxies,
+            mock.patch("urllib.request.getproxies_registry", return_value={}),
             mock.patch(
                 "urllib.request.build_opener",
                 side_effect=(mock.Mock(), mock.Mock()),
@@ -56,6 +57,38 @@ class NetworkCheckTests(unittest.TestCase):
         self.assertEqual(2, getproxies.call_count)
         self.assertEqual(first, build.call_args_list[0].args[0].proxies)
         self.assertEqual(second, build.call_args_list[1].args[0].proxies)
+
+    def test_fresh_windows_registry_proxy_wins_over_stale_environment(self):
+        environment = {"https": "http://127.0.0.1:11080"}
+        registry = {"https": "http://127.0.0.1:12080"}
+        with (
+            mock.patch("urllib.request.getproxies", return_value=environment),
+            mock.patch(
+                "urllib.request.getproxies_registry", return_value=registry
+            ) as get_registry,
+            mock.patch("urllib.request.build_opener", return_value=mock.Mock()) as build,
+        ):
+            network_check._current_system_proxy_opener()
+
+        get_registry.assert_called_once_with()
+        self.assertEqual(registry, build.call_args.args[0].proxies)
+
+    def test_direct_route_recovers_from_stale_system_proxy(self):
+        offline = network_check.NetworkStatus(False, endpoint="https://one.test")
+        online = network_check.NetworkStatus(True, 7, "https://one.test")
+        with (
+            mock.patch.object(network_check, "_probe_endpoint", return_value=offline),
+            mock.patch.object(
+                network_check, "_probe_endpoint_direct", return_value=online
+            ) as direct_probe,
+        ):
+            status = network_check.check_device_online(
+                endpoints=("https://one.test",)
+            )
+
+        self.assertTrue(status.online)
+        self.assertEqual(7, status.latency_ms)
+        direct_probe.assert_called_once_with("https://one.test", 3.0)
 
     def test_all_failed_probes_report_offline(self):
         def probe(endpoint: str, _timeout: float) -> network_check.NetworkStatus:

@@ -154,6 +154,11 @@ def _current_system_proxy_opener() -> urllib.request.OpenerDirector:
     to the old port until the process restarts.
     """
     proxies = urllib.request.getproxies()
+    registry_reader = getattr(urllib.request, "getproxies_registry", None)
+    if callable(registry_reader):
+        registry_proxies = registry_reader()
+        if registry_proxies:
+            proxies = registry_proxies
     return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
 
 

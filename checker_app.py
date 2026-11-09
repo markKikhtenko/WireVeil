@@ -54,15 +54,16 @@ TABLE_COLUMN_POSITIONS = {
 }
 DEFAULT_SORT_COLUMN = "quality"
 DEFAULT_SORT_DESCENDING = False
-UI_EVENT_BATCH_LIMIT = 32
-UI_EVENT_TIME_BUDGET_SECONDS = 0.004
+UI_EVENT_BATCH_LIMIT = 16
+UI_EVENT_TIME_BUDGET_SECONDS = 0.002
 UI_ACTIVE_POLL_MS = 16
 UI_IDLE_POLL_MS = 100
-PENDING_ROW_BATCH_LIMIT = 32
-PENDING_ROW_TIME_BUDGET_SECONDS = 0.003
-LIVE_SORT_DELAY_MS = 50
-RANK_UPDATE_BATCH_LIMIT = 32
-RANK_UPDATE_TIME_BUDGET_SECONDS = 0.003
+PENDING_ROW_BATCH_LIMIT = 16
+PENDING_ROW_TIME_BUDGET_SECONDS = 0.0015
+LIVE_SORT_DELAY_MS = 120
+LIVE_RANK_UPDATE_LIMIT = 128
+RANK_UPDATE_BATCH_LIMIT = 8
+RANK_UPDATE_TIME_BUDGET_SECONDS = 0.001
 
 
 def resource_root() -> Path:
@@ -2347,7 +2348,7 @@ class WireVeilChecker(tk.Tk):
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
         self.summary_var.set("Подготовка конфигураций…")
-        self.status_var.set("Проверяю подключение к сети…")
+        self.status_var.set("Подготавливаю подписку…")
         self._clear_table()
         self._clear_log()
         if self.one_click_mode:
@@ -2361,12 +2362,6 @@ class WireVeilChecker(tk.Tk):
 
         def work() -> None:
             try:
-                network_status = network_check.check_device_online()
-                self.events.put(("network_state", network_status))
-                if not network_status.online:
-                    raise network_check.NetworkUnavailableError(
-                        network_check.OFFLINE_MESSAGE
-                    )
                 imported = local_checker.import_subscription(value)
                 self.events.put(("imported", imported, rounds))
 
@@ -2700,9 +2695,7 @@ class WireVeilChecker(tk.Tk):
         self.service_results.clear()
         self._clear_service_cells()
         self.progress_var.set(0)
-        self.status_var.set(
-            "Проверяю подключение к сети…"
-        )
+        self.status_var.set("Запускаю проверку сайтов…")
         self._set_running_controls(True)
         for target in targets:
             for service_name in service_names:
@@ -2715,13 +2708,6 @@ class WireVeilChecker(tk.Tk):
 
         def work() -> None:
             try:
-                network_status = network_check.check_device_online()
-                self.events.put(("network_state", network_status))
-                if not network_status.online:
-                    raise network_check.NetworkUnavailableError(
-                        network_check.OFFLINE_MESSAGE
-                    )
-
                 def progress(
                     done: int, total: int, result: local_checker.ServiceResult
                 ) -> None:
@@ -2795,7 +2781,7 @@ class WireVeilChecker(tk.Tk):
         self.activity = "watch_speed" if watch_cycle else "speed"
         self.cancel_event = threading.Event()
         self.progress_var.set(0)
-        self.status_var.set("Проверяю подключение к сети…")
+        self.status_var.set("Запускаю тест скорости…")
         self._set_running_controls(True)
         for target in targets:
             self._set_speed_cell(target.index, "ожидание…")
@@ -2807,13 +2793,6 @@ class WireVeilChecker(tk.Tk):
 
         def work() -> None:
             try:
-                network_status = network_check.check_device_online()
-                self.events.put(("network_state", network_status))
-                if not network_status.online:
-                    raise network_check.NetworkUnavailableError(
-                        network_check.OFFLINE_MESSAGE
-                    )
-
                 def progress(
                     done: int, total: int, result: local_checker.SpeedResult
                 ) -> None:
@@ -3721,7 +3700,7 @@ class WireVeilChecker(tk.Tk):
             self.quality_sort_values[item] = value
         return value
 
-    def _ordered_rows(self, items: list[str]) -> list[str]:
+    def _row_order_comparator(self, items: list[str]):
         values = {item: self._row_sort_value(item) for item in items}
         numbers = {
             item: self._column_sort_value("number", self._table_values_for(item))
@@ -3753,15 +3732,41 @@ class WireVeilChecker(tk.Tk):
                 return -1
             return -1 if left_number < right_number else 1
 
+        return compare
+
+    def _ordered_rows(self, items: list[str]) -> list[str]:
+        compare = self._row_order_comparator(items)
         return sorted(items, key=functools.cmp_to_key(compare))
 
-    def _queue_quality_rank_updates(self, items: list[str]) -> list[str]:
-        ranked = sorted(
-            items,
-            key=self._quality_sort_value_for,
+    def _merge_dirty_rows(
+        self, children: list[str], dirty_items: set[str]
+    ) -> list[str]:
+        """Reinsert changed rows without sorting the whole live table."""
+
+        compare = self._row_order_comparator(children)
+        dirty_ordered = sorted(
+            (item for item in children if item in dirty_items),
+            key=functools.cmp_to_key(compare),
         )
+        ordered = [item for item in children if item not in dirty_items]
+        for item in dirty_ordered:
+            low = 0
+            high = len(ordered)
+            while low < high:
+                middle = (low + high) // 2
+                if compare(item, ordered[middle]) < 0:
+                    high = middle
+                else:
+                    low = middle + 1
+            ordered.insert(low, item)
+        return ordered
+
+    def _queue_quality_rank_updates(
+        self, ranked: list[str], *, limit: int | None = None
+    ) -> None:
         quality_position = TABLE_COLUMN_POSITIONS["quality"]
-        for rank, item in enumerate(ranked, start=1):
+        visible_ranks = ranked if limit is None else ranked[:limit]
+        for rank, item in enumerate(visible_ranks, start=1):
             current_values = self._table_values_for(item)
             values = list(current_values)
             if len(values) != len(TABLE_COLUMNS):
@@ -3774,7 +3779,6 @@ class WireVeilChecker(tk.Tk):
             self.pending_rank_items[item] = None
         if self.pending_rank_items and self.rank_job is None and not self.closing:
             self.rank_job = self.after_idle(self._flush_rank_updates)
-        return ranked
 
     def _flush_rank_updates(self) -> None:
         self.rank_job = None
@@ -3798,13 +3802,14 @@ class WireVeilChecker(tk.Tk):
         if not children:
             return
         dirty_items.intersection_update(children)
-        ranked = self._queue_quality_rank_updates(children)
         if not dirty_items:
             return
+        ordered = self._merge_dirty_rows(children, dirty_items)
         if self.sort_column == "quality":
-            ordered = list(reversed(ranked)) if self.sort_descending else ranked
+            ranked = list(reversed(ordered)) if self.sort_descending else ordered
         else:
-            ordered = self._ordered_rows(children)
+            ranked = sorted(children, key=self._quality_sort_value_for)
+        self._queue_quality_rank_updates(ranked, limit=LIVE_RANK_UPDATE_LIMIT)
         if ordered == children:
             return
         dirty_ordered = [item for item in ordered if item in dirty_items]
@@ -3825,7 +3830,8 @@ class WireVeilChecker(tk.Tk):
         if column is None:
             return
         children = list(self.table.get_children(""))
-        ranked = self._queue_quality_rank_updates(children)
+        ranked = sorted(children, key=self._quality_sort_value_for)
+        self._queue_quality_rank_updates(ranked)
         if column == "quality":
             ordered = list(reversed(ranked)) if self.sort_descending else ranked
         else:

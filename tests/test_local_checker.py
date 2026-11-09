@@ -45,6 +45,7 @@ class SubscriptionImportTests(unittest.TestCase):
             mock.patch(
                 "urllib.request.getproxies", side_effect=(first, second)
             ) as getproxies,
+            mock.patch("urllib.request.getproxies_registry", return_value={}),
             mock.patch(
                 "urllib.request.build_opener",
                 side_effect=(mock.Mock(), mock.Mock()),
@@ -56,6 +57,20 @@ class SubscriptionImportTests(unittest.TestCase):
         self.assertEqual(2, getproxies.call_count)
         self.assertEqual(first, build.call_args_list[0].args[0].proxies)
         self.assertEqual(second, build.call_args_list[1].args[0].proxies)
+
+    def test_subscription_requests_prefer_fresh_windows_registry_proxy(self):
+        environment = {"https": "http://127.0.0.1:11080"}
+        registry = {"https": "http://127.0.0.1:12080"}
+        with (
+            mock.patch("urllib.request.getproxies", return_value=environment),
+            mock.patch(
+                "urllib.request.getproxies_registry", return_value=registry
+            ),
+            mock.patch("urllib.request.build_opener", return_value=mock.Mock()) as build,
+        ):
+            local_checker._current_system_proxy_opener()
+
+        self.assertEqual(registry, build.call_args.args[0].proxies)
 
     def test_fetch_subscription_uses_fresh_proxy_opener(self):
         uri = vless(UUID1, "one.example.com")

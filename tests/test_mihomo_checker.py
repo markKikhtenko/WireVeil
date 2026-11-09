@@ -14,7 +14,13 @@ from unittest import mock
 
 import yaml
 
-from mihomo_tab import MihomoCheckerTab, _MultilineDialog, load_ui_settings, save_ui_settings
+from mihomo_tab import (
+    UI_EVENT_BATCH_LIMIT,
+    MihomoCheckerTab,
+    _MultilineDialog,
+    load_ui_settings,
+    save_ui_settings,
+)
 from scripts import mihomo_checker
 
 
@@ -1395,8 +1401,8 @@ class MockUiTests(unittest.TestCase):
         with mock.patch("mihomo_tab.time.perf_counter", return_value=0.0):
             tab._poll_events()
 
-        self.assertEqual(64, tab._append_progress_log.call_count)
-        self.assertEqual(36, tab.events.qsize())
+        self.assertEqual(UI_EVENT_BATCH_LIMIT, tab._append_progress_log.call_count)
+        self.assertEqual(100 - UI_EVENT_BATCH_LIMIT, tab.events.qsize())
         tab._update_kpis.assert_called_once_with(update)
         tab.after.assert_called_once_with(16, tab._poll_events)
 
