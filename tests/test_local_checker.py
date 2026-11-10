@@ -45,7 +45,9 @@ class SubscriptionImportTests(unittest.TestCase):
             mock.patch(
                 "urllib.request.getproxies", side_effect=(first, second)
             ) as getproxies,
-            mock.patch("urllib.request.getproxies_registry", return_value={}),
+            mock.patch(
+                "urllib.request.getproxies_registry", return_value={}, create=True
+            ),
             mock.patch(
                 "urllib.request.build_opener",
                 side_effect=(mock.Mock(), mock.Mock()),
@@ -64,7 +66,9 @@ class SubscriptionImportTests(unittest.TestCase):
         with (
             mock.patch("urllib.request.getproxies", return_value=environment),
             mock.patch(
-                "urllib.request.getproxies_registry", return_value=registry
+                "urllib.request.getproxies_registry",
+                return_value=registry,
+                create=True,
             ),
             mock.patch("urllib.request.build_opener", return_value=mock.Mock()) as build,
         ):
