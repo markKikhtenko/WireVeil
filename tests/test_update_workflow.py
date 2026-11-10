@@ -17,6 +17,27 @@ class UpdateWorkflowTests(unittest.TestCase):
     def test_dependency_changes_trigger_a_fresh_update(self):
         self.assertIn('- "requirements.txt"', self.workflow)
 
+    def test_subscriptions_regenerate_every_six_hours(self):
+        self.assertIn('cron: "23 */6 * * *"', self.workflow)
+        self.assertNotIn('cron: "23 * * * *"', self.workflow)
+
+    def test_external_subscription_steps_retry_transient_failures(self):
+        self.assertIn(
+            "python scripts/build.py --timeout 30 --retries 5", self.workflow
+        )
+        self.assertIn(
+            "Subscription build failed after ${attempt} attempts.", self.workflow
+        )
+        self.assertIn(
+            "Subscription health-check failed after ${attempt} attempts.", self.workflow
+        )
+        self.assertGreaterEqual(self.workflow.count("for attempt in 1 2 3; do"), 3)
+
+    def test_dependency_and_runtime_downloads_have_bounded_retries(self):
+        self.assertIn("--retries 10", self.workflow)
+        self.assertIn("--timeout 60", self.workflow)
+        self.assertEqual(self.workflow.count("--connect-timeout 20 --max-time 180"), 2)
+
     def test_runtime_download_retries_transient_network_failures(self):
         self.assertIn("--retry 8 --retry-delay 10 --retry-all-errors", self.workflow)
         self.assertIn("api.github.com/repos/SagerNet/sing-box/releases/tags", self.workflow)

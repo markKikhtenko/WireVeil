@@ -11,7 +11,8 @@ on:
       - "requirements.txt"
       - "tests/**"
   schedule:
-    - cron: "23 * * * *"
+    # Four times per day, away from the busy start-of-hour window.
+    - cron: "23 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Check out WireVeil
         uses: actions/checkout@v5
@@ -35,13 +36,31 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements.txt
+        run: >-
+          python -m pip install
+          --disable-pip-version-check
+          --retries 10
+          --timeout 60
+          -r requirements.txt
 
       - name: Run offline tests
         run: python -m unittest discover -s tests -v
 
       - name: Build subscriptions
-        run: python scripts/build.py
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if python scripts/build.py --timeout 30 --retries 5; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Subscription build failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            delay=$((attempt * 30))
+            echo "Subscription build attempt ${attempt} failed; retrying in ${delay} seconds..." >&2
+            sleep "$delay"
+          done
 
       - name: Install pinned sing-box health-check runtime
         shell: bash
@@ -55,6 +74,7 @@ jobs:
           asset_name="sing-box-$SING_BOX_VERSION-linux-amd64.tar.gz"
           release_json="$(
             curl --fail --location --silent --show-error \
+              --connect-timeout 20 --max-time 180 \
               --retry 8 --retry-delay 10 --retry-all-errors \
               --header "Authorization: Bearer $GITHUB_TOKEN" \
               --header "Accept: application/vnd.github+json" \
@@ -66,6 +86,7 @@ jobs:
               "$asset_name" <<<"$release_json"
           )"
           curl --fail --location --silent --show-error \
+            --connect-timeout 20 --max-time 180 \
             --retry 8 --retry-delay 10 --retry-all-errors \
             --header "Authorization: Bearer $GITHUB_TOKEN" \
             --header "Accept: application/octet-stream" \
@@ -76,12 +97,24 @@ jobs:
           echo "$runtime" >> "$GITHUB_PATH"
 
       - name: Probe real tunneled HTTPS connections
-        run: >-
-          python scripts/healthcheck.py
-          --sing-box "$(command -v sing-box)"
-          --min-active 10
-          --timeout-ms 8000
-          --workers 64
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if python scripts/healthcheck.py \
+              --sing-box "$(command -v sing-box)" \
+              --min-active 10 \
+              --timeout-ms 8000 \
+              --workers 64; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Subscription health-check failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+            delay=$((attempt * 30))
+            echo "Subscription health-check attempt ${attempt} failed; retrying in ${delay} seconds..." >&2
+            sleep "$delay"
+          done
 
       - name: Commit real output changes
         shell: bash
