@@ -438,24 +438,15 @@ class MihomoCheckerTab(ttk.Frame):
         self.export_menu_button.grid_remove()
 
         controls = ttk.Frame(self, style="Mihomo.TFrame")
-        controls.pack(fill="x", pady=(0, 8))
-        controls.columnconfigure(0, weight=1)
+        controls.pack(fill="x", pady=(0, 7))
         self.controls_frame = controls
+        self.check_panel = controls
 
-        source_panel = ttk.Frame(controls, padding=(14, 11), style="Mihomo.Card.TFrame")
-        source_panel.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
-        self.source_panel = source_panel
-        source_panel.columnconfigure(0, weight=1)
-        source_copy = ttk.Frame(source_panel, style="Mihomo.CardBody.TFrame")
-        source_copy.grid(row=0, column=0, sticky="w")
-        ttk.Label(source_copy, text="Источники", style="Mihomo.Section.TLabel").pack(anchor="w")
-        ttk.Label(
-            source_copy, text="Добавьте подписки или локальные Mihomo / Clash YAML",
-            style="Mihomo.PanelDim.TLabel",
-        ).pack(anchor="w", pady=(2, 0))
-
-        source_actions = ttk.Frame(source_panel, style="Mihomo.CardBody.TFrame")
-        source_actions.grid(row=0, column=1, sticky="e", padx=(12, 0))
+        toolbar = ttk.Frame(controls, padding=(8, 6), style="Mihomo.Panel.TFrame")
+        toolbar.pack(fill="x")
+        self.source_panel = toolbar
+        source_actions = ttk.Frame(toolbar, style="Mihomo.CardBody.TFrame")
+        source_actions.pack(side="left")
         self.add_source_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
             activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
@@ -466,7 +457,7 @@ class MihomoCheckerTab(ttk.Frame):
         ):
             self.add_source_menu.add_command(label=text, command=command)
         self.add_source_button = ttk.Menubutton(
-            source_actions, text="＋ Добавить источник", menu=self.add_source_menu,
+            source_actions, text="＋ Источник", menu=self.add_source_menu,
             style="Mihomo.Accent.TButton",
         )
         self.add_source_button.pack(side="left")
@@ -480,27 +471,13 @@ class MihomoCheckerTab(ttk.Frame):
         self.source_actions_menu.add_separator()
         self.source_actions_menu.add_command(label="Очистить список", command=self._clear_sources)
         self.source_actions_button = ttk.Menubutton(
-            source_actions, text="Действия", menu=self.source_actions_menu,
+            source_actions, text="Управление", menu=self.source_actions_menu,
             state="disabled", style="Mihomo.TButton",
         )
         self.source_actions_button.pack(side="left", padx=(6, 0))
 
-        check_panel = ttk.Frame(controls, padding=(14, 11), style="Mihomo.Card.TFrame")
-        check_panel.grid(row=1, column=0, sticky="nsew")
-        self.check_panel = check_panel
-
-        check_header = ttk.Frame(check_panel, style="Mihomo.CardBody.TFrame")
-        check_header.pack(fill="x")
-        check_copy = ttk.Frame(check_header, style="Mihomo.CardBody.TFrame")
-        check_copy.pack(side="left", fill="x", expand=True)
-        ttk.Label(check_copy, text="Проверка", style="Mihomo.Section.TLabel").pack(anchor="w")
-        ttk.Label(
-            check_copy, text="Запустите полный аудит или проверьте только выбранные источники",
-            style="Mihomo.PanelDim.TLabel",
-        ).pack(anchor="w", pady=(2, 0))
-
-        run_controls = ttk.Frame(check_header, style="Mihomo.CardBody.TFrame")
-        run_controls.pack(side="right", padx=(12, 0))
+        run_controls = ttk.Frame(toolbar, style="Mihomo.CardBody.TFrame")
+        run_controls.pack(side="right")
         self.run_options_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
             activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
@@ -516,42 +493,36 @@ class MihomoCheckerTab(ttk.Frame):
             command=self._open_diagnostics,
             style="Mihomo.TButton",
         )
-        self.diagnostics_button.grid(row=0, column=0, padx=(0, 6))
-        self.start_selected_button.grid(row=0, column=1, padx=(0, 6))
+        self.diagnostics_button.pack(side="left", padx=(0, 6))
+        self.start_selected_button.pack(side="left", padx=(0, 6))
         self.start_all_button = ttk.Button(
             run_controls, text="▶ Проверить всё", command=self._start_all, style="Mihomo.Accent.TButton",
         )
-        self.start_all_button.grid(row=0, column=2)
+        self.start_all_button.pack(side="left")
         self.stop_button = ttk.Button(
             run_controls, text="■ Остановить", command=self.stop, state="disabled", style="Mihomo.TButton",
         )
-        self.stop_button.grid(row=0, column=3, padx=(6, 0))
-        self.stop_button.grid_remove()
+        self.stop_button.pack(side="left", padx=(6, 0))
+        self.stop_button.pack_forget()
 
-        quick_settings = ttk.Frame(check_panel, style="Mihomo.CardBody.TFrame")
-        quick_settings.pack(fill="x", pady=(10, 0))
-        sample_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
-        sample_group.pack(side="left", fill="x", expand=True)
-        ttk.Label(sample_group, text="Сколько узлов", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        quick_settings = ttk.Frame(controls, style="Mihomo.TFrame")
+        quick_settings.pack(fill="x", pady=(6, 0))
+        ttk.Label(quick_settings, text="Выборка", style="Mihomo.Dim.TLabel").pack(side="left", padx=(2, 5))
         self.node_limit = ttk.Combobox(
-            sample_group, textvariable=self.node_limit_var, state="readonly", width=23,
+            quick_settings, textvariable=self.node_limit_var, state="readonly", width=23,
             values=("Репрезентативно: 50", "Репрезентативно: 100", "Репрезентативно: 500", "20 на источник", "100 на источник", "Все узлы"),
             style="Mihomo.TCombobox",
         )
-        self.node_limit.pack(fill="x", pady=(3, 0))
+        self.node_limit.pack(side="left")
 
-        policy_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
-        policy_group.pack(side="left", padx=(8, 0))
-        ttk.Label(policy_group, text="Доступность", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        ttk.Label(quick_settings, text="Правило", style="Mihomo.Dim.TLabel").pack(side="left", padx=(10, 5))
         self.base_policy = ttk.Combobox(
-            policy_group, textvariable=self.base_policy_var, state="readonly", width=16,
+            quick_settings, textvariable=self.base_policy_var, state="readonly", width=16,
             values=("Строго 2/2", "Достаточно 1/2"), style="Mihomo.TCombobox",
         )
-        self.base_policy.pack(fill="x", pady=(3, 0))
+        self.base_policy.pack(side="left")
 
-        service_group = ttk.Frame(quick_settings, style="Mihomo.CardBody.TFrame")
-        service_group.pack(side="left", padx=(8, 0))
-        ttk.Label(service_group, text="Сайты", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        ttk.Label(quick_settings, text="Сайты", style="Mihomo.Dim.TLabel").pack(side="left", padx=(10, 5))
         services_menu = tk.Menu(
             self, tearoff=False, background="#161b22", foreground="#f0f6fc",
             activebackground="#1f6feb", activeforeground="#ffffff", borderwidth=1,
@@ -559,25 +530,25 @@ class MihomoCheckerTab(ttk.Frame):
         for service in mihomo_checker.SERVICE_DEFINITIONS:
             services_menu.add_checkbutton(label=service.name, variable=self.service_vars[service.name])
         self.services_button = ttk.Menubutton(
-            service_group, text="Выбрать сайты", menu=services_menu, style="Mihomo.TButton",
+            quick_settings, text="Выбрать", menu=services_menu, style="Mihomo.TButton",
         )
-        self.services_button.pack(fill="x", pady=(3, 0))
+        self.services_button.pack(side="left")
 
         self.advanced_button = ttk.Button(
-            quick_settings, text="Тонкая настройка", command=self._toggle_advanced_settings,
+            quick_settings, text="Настройки", command=self._toggle_advanced_settings,
             style="Mihomo.TButton",
         )
         self.advanced_button.pack(side="right", padx=(8, 0), anchor="s")
 
-        self.advanced_frame = ttk.Frame(check_panel, padding=(0, 9, 0, 0), style="Mihomo.CardBody.TFrame")
+        self.advanced_frame = ttk.Frame(controls, padding=(2, 7, 2, 0), style="Mihomo.TFrame")
         advanced_fields = (
             ("Повторы", self.attempts_var, 2, 5),
             ("Тайм-аут, сек", self.timeout_var, 1, 60),
         )
         for column, (label, variable, minimum, maximum) in enumerate(advanced_fields):
-            group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
+            group = ttk.Frame(self.advanced_frame, style="Mihomo.TFrame")
             group.grid(row=0, column=column, sticky="w", padx=(0, 12))
-            ttk.Label(group, text=label, style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+            ttk.Label(group, text=label, style="Mihomo.Dim.TLabel").pack(anchor="w")
             spinbox = ttk.Spinbox(
                 group, from_=minimum, to=maximum, width=6, textvariable=variable,
                 style="Mihomo.TSpinbox",
@@ -587,28 +558,26 @@ class MihomoCheckerTab(ttk.Frame):
                 self.attempts_spinbox = spinbox
             else:
                 self.timeout_spinbox = spinbox
-        worker_group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
+        worker_group = ttk.Frame(self.advanced_frame, style="Mihomo.TFrame")
         worker_group.grid(row=0, column=2, sticky="w", padx=(0, 12))
-        ttk.Label(worker_group, text="HTTPS потоков", style="Mihomo.PanelDim.TLabel").pack(anchor="w")
+        ttk.Label(worker_group, text="HTTPS потоков", style="Mihomo.Dim.TLabel").pack(anchor="w")
         self.worker_combo = ttk.Combobox(
             worker_group, width=7, textvariable=self.workers_var,
             values=mihomo_checker.BASE_WORKERS_ALLOWED, state="readonly", style="Mihomo.TCombobox",
         )
         self.worker_combo.pack(anchor="w", pady=(3, 0))
-        seed_group = ttk.Frame(self.advanced_frame, style="Mihomo.CardBody.TFrame")
+        seed_group = ttk.Frame(self.advanced_frame, style="Mihomo.TFrame")
         seed_group.grid(row=0, column=3, sticky="ew")
         seed_group.columnconfigure(0, weight=1)
-        ttk.Label(seed_group, text="Ключ выборки (seed)", style="Mihomo.PanelDim.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(seed_group, text="Ключ выборки (seed)", style="Mihomo.Dim.TLabel").grid(row=0, column=0, sticky="w")
         self.sampling_seed_entry = ttk.Entry(seed_group, textvariable=self.sampling_seed_var, style="Mihomo.TEntry")
         self.sampling_seed_entry.grid(row=1, column=0, sticky="ew", pady=(3, 0))
         self.advanced_frame.columnconfigure(3, weight=1)
         self.advanced_visible = False
 
-        kpi = ttk.Frame(self, style="Mihomo.Panel.TFrame", padding=(4, 3))
-        kpi.pack(fill="x", pady=(0, 6))
-        for column, key in enumerate(("sources", "nodes", "https", "statuses", "checked", "rate", "eta")):
-            ttk.Label(kpi, textvariable=self.kpi_vars[key], style="Mihomo.Kpi.TLabel", anchor="center").grid(row=0, column=column, sticky="ew", padx=1)
-            kpi.columnconfigure(column, weight=1)
+        summary = ttk.Frame(self, style="Mihomo.TFrame")
+        summary.pack(fill="x", pady=(0, 5))
+        ttk.Label(summary, textvariable=self.summary_var, style="Mihomo.Dim.TLabel").pack(side="left", padx=(2, 0))
 
         self.views = ttk.Notebook(self, style="Mihomo.TNotebook")
         self.views.pack(fill="both", expand=True)
@@ -616,28 +585,30 @@ class MihomoCheckerTab(ttk.Frame):
         nodes_page = ttk.Frame(self.views, style="Mihomo.TFrame")
         log_page = ttk.Frame(self.views, style="Mihomo.TFrame")
         self.views.add(sources_page, text="Источники")
-        self.views.add(nodes_page, text="Результаты")
+        self.views.add(nodes_page, text="Узлы")
         self.views.add(log_page, text="Журнал")
         self.log_page = log_page
 
         self.source_tree = ttk.Treeview(sources_page, columns=self.SOURCE_COLUMNS, show="headings", selectmode="extended", style="Mihomo.Treeview", height=4)
         source_headings = {
-            "name": "Имя / provenance", "status": "Загрузка / разбор", "size": "Размер", "protocols": "Протоколы",
-            "total": "Всего", "good": "Good", "partial": "Partial", "failed": "Failed", "unsupported": "Unsupported",
-            "not_tested": "Not tested", "error": "Причина", "checked": "Проверено",
+            "name": "Источник", "status": "Состояние", "size": "Размер", "protocols": "Протоколы",
+            "total": "Узлов", "good": "Рабочих", "partial": "Частично", "failed": "С ошибкой", "unsupported": "Не поддерживается",
+            "not_tested": "Не проверено", "error": "Комментарий", "checked": "Проверено",
         }
-        source_widths = {"name": 190, "status": 120, "size": 70, "protocols": 145, "total": 55, "good": 55, "partial": 60, "failed": 55, "unsupported": 80, "not_tested": 80, "error": 190, "checked": 130}
+        source_widths = {"name": 280, "status": 150, "size": 70, "protocols": 145, "total": 70, "good": 85, "partial": 80, "failed": 90, "unsupported": 110, "not_tested": 100, "error": 330, "checked": 130}
         for column in self.SOURCE_COLUMNS:
             self.source_tree.heading(column, text=source_headings[column], command=lambda selected=column: self._sort_source_tree(selected))
             self.source_tree.column(column, width=source_widths[column], minwidth=55, stretch=column in {"name", "protocols", "error"})
-        self.source_tree.configure(displaycolumns=tuple(column for column in self.SOURCE_COLUMNS if column != "checked"))
+        self.source_tree.configure(displaycolumns=("name", "status", "total", "good", "failed", "error"))
         self.source_tree.bind("<Double-1>", lambda _event: self._show_source_details())
         self.source_tree.bind("<<TreeviewSelect>>", lambda _event: self._update_source_actions())
         source_y = ttk.Scrollbar(sources_page, orient="vertical", command=self.source_tree.yview)
-        source_x = ttk.Scrollbar(sources_page, orient="horizontal", command=self.source_tree.xview)
-        self.source_tree.configure(yscrollcommand=source_y.set, xscrollcommand=source_x.set)
+        self.source_tree.configure(yscrollcommand=source_y.set)
+        self.source_tree.tag_configure("source_ok", foreground="#c9d1d9")
+        self.source_tree.tag_configure("source_warning", foreground="#f2d86f")
+        self.source_tree.tag_configure("source_error", foreground="#ff817a")
         sources_page.columnconfigure(0, weight=1); sources_page.rowconfigure(0, weight=1)
-        self.source_tree.grid(row=0, column=0, sticky="nsew"); source_y.grid(row=0, column=1, sticky="ns"); source_x.grid(row=1, column=0, sticky="ew")
+        self.source_tree.grid(row=0, column=0, sticky="nsew"); source_y.grid(row=0, column=1, sticky="ns")
 
         filters = ttk.Frame(nodes_page, style="Mihomo.Panel.TFrame", padding=(6, 4))
         filters.pack(fill="x")
@@ -724,10 +695,10 @@ class MihomoCheckerTab(ttk.Frame):
         self.advanced_visible = not self.advanced_visible
         if self.advanced_visible:
             self.advanced_frame.pack(fill="x")
-            self.advanced_button.configure(text="Скрыть настройку")
+            self.advanced_button.configure(text="Скрыть настройки")
         else:
             self.advanced_frame.pack_forget()
-            self.advanced_button.configure(text="Тонкая настройка")
+            self.advanced_button.configure(text="Настройки")
 
     def _clear_execution_log(self) -> None:
         self.execution_log_entries.clear()
@@ -1094,6 +1065,30 @@ class MihomoCheckerTab(ttk.Frame):
         except OSError as exc:
             messagebox.showerror("WireVeil Checker", f"Не удалось сохранить локальный список источников: {exc}")
 
+    @staticmethod
+    def _source_status_label(fetch_status: str, parse_status: str) -> str:
+        if fetch_status == "cancelled":
+            return "Остановлено"
+        if fetch_status == "failed":
+            return "Ошибка загрузки"
+        if parse_status == "failed":
+            return "Ошибка разбора"
+        if parse_status == "unsupported":
+            return "Не поддерживается"
+        if parse_status == "partial":
+            return "Готово с замечаниями"
+        if fetch_status == "ok" and parse_status == "ok":
+            return "Готово"
+        return "Ожидает проверки"
+
+    @staticmethod
+    def _source_row_tag(fetch_status: str, parse_status: str) -> str:
+        if fetch_status == "failed" or parse_status in {"failed", "unsupported"}:
+            return "source_error"
+        if parse_status == "partial":
+            return "source_warning"
+        return "source_ok"
+
     def _refresh_source_tree(self) -> None:
         selected = self._selected_source_ids() if hasattr(self, "source_tree") else set()
         self.source_tree.delete(*self.source_tree.get_children())
@@ -1114,14 +1109,22 @@ class MihomoCheckerTab(ttk.Frame):
         for source in self.sources:
             row = report_sources.get(source.source_id)
             live = self.parsed_by_id.get(source.source_id)
+            display_name = (
+                mihomo_checker.source_name_from_url(source.value)
+                if source.kind == "url" and "<redacted-" in source.name
+                else source.name
+            )
+            row_tag = ""
             if row is None and live is None:
-                values = (source.name, "не проверен", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—")
+                values = (display_name, "Ожидает проверки", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—")
             elif row is None:
                 assert live is not None
                 protocols = ", ".join(f"{key}:{value}" for key, value in sorted(live.protocol_counts.items())) or "—"
+                status_label = self._source_status_label(live.fetch_status, live.parse_status)
+                row_tag = self._source_row_tag(live.fetch_status, live.parse_status)
                 values = (
-                    source.name,
-                    f"{live.fetch_status} / {live.parse_status}",
+                    display_name,
+                    status_label,
                     self._format_bytes(live.download_bytes),
                     protocols,
                     live.total_entries,
@@ -1135,9 +1138,11 @@ class MihomoCheckerTab(ttk.Frame):
                     {"good": 0, "partial": 0, "failed": 0, "unsupported": 0, "not_tested": 0},
                 )
                 protocols = ", ".join(f"{key}:{value}" for key, value in sorted(row.protocol_counts.items())) or "—"
+                status_label = self._source_status_label(row.fetch_status, row.parse_status)
+                row_tag = self._source_row_tag(row.fetch_status, row.parse_status)
                 values = (
-                    source.name,
-                    f"{row.fetch_status} / {row.parse_status}",
+                    display_name,
+                    status_label,
                     self._format_bytes(row.download_bytes),
                     protocols,
                     row.total_entries,
@@ -1149,7 +1154,10 @@ class MihomoCheckerTab(ttk.Frame):
                     " · ".join(item for item in (row.error_code, mihomo_checker.sanitize_text(row.error_summary, 100) if row.error_summary else None) if item) or "—",
                     row.checked_at or "—",
                 )
-            self.source_tree.insert("", "end", iid=source.source_id, values=values)
+            self.source_tree.insert(
+                "", "end", iid=source.source_id, values=values,
+                tags=(row_tag,) if row_tag else (),
+            )
         for source_id in selected:
             if self.source_tree.exists(source_id):
                 self.source_tree.selection_add(source_id)
@@ -1164,6 +1172,12 @@ class MihomoCheckerTab(ttk.Frame):
         parsed_rows = list(report_sources.values()) or list(self.parsed_by_id.values())
         source_errors = sum(item.fetch_status == "failed" or item.parse_status in {"failed", "unsupported"} for item in parsed_rows)
         self.kpi_vars["sources"].set(f"Источников {len(parsed_rows) or len(self.sources)} · ошибок {source_errors}")
+        if not self.running and self.report is None:
+            count = len(self.sources)
+            self.summary_var.set(
+                f"Источников: {count} · результатов пока нет"
+                if count else "Источников пока нет · добавьте URL или YAML"
+            )
         self._update_source_actions()
 
     @staticmethod
@@ -1497,6 +1511,20 @@ class MihomoCheckerTab(ttk.Frame):
         elif not self.running:
             self.kpi_vars["rate"].set("Темп —")
             self.kpi_vars["eta"].set("Осталось —")
+        summary_parts = [
+            f"Источников: {len(self.sources)}",
+            f"узлов: {len(results)}",
+            f"проверено: {checked}/{total}",
+            f"рабочих: {statuses.count('good')}",
+            f"частично: {statuses.count('partial')}",
+            f"проблем: {statuses.count('failed') + statuses.count('unsupported')}",
+        ]
+        if progress is not None and progress.rate_per_minute is not None:
+            summary_parts.append(f"{progress.rate_per_minute:.0f}/мин")
+            summary_parts.append(
+                f"ещё {self._format_eta(progress.eta_low_seconds)}–{self._format_eta(progress.eta_high_seconds)}"
+            )
+        self.summary_var.set(" · ".join(summary_parts))
 
     def _poll_events(self) -> None:
         self.poll_job = None
@@ -1599,15 +1627,6 @@ class MihomoCheckerTab(ttk.Frame):
                 self.node_sort_column,
                 self.node_sort_descending,
             )
-        statuses = [result.overall_status for result in report.node_results]
-        totals = {
-            "unique_nodes": len(report.node_results),
-            "good": statuses.count("good"),
-            "partial": statuses.count("partial"),
-            "failed": statuses.count("failed"),
-            "not_tested": statuses.count("not_tested"),
-            "unsupported": statuses.count("unsupported"),
-        }
         cancelled = any(
             result.error_code == "CANCELLED" for result in report.node_results
         ) or any(parsed.fetch_status == "cancelled" for parsed in report.sources)
@@ -1621,9 +1640,6 @@ class MihomoCheckerTab(ttk.Frame):
             self.status_var.set(
                 "Пакетная проверка завершена. Результаты относятся к текущей сети ПК."
             )
-        self.summary_var.set(
-            f"Узлов {totals['unique_nodes']} · good {totals['good']} · partial {totals['partial']} · failed {totals['failed']} · unsupported {totals['unsupported']} · not tested {totals['not_tested']}"  # type: ignore[index]
-        )
 
     def _fail(self, error: object) -> None:
         self.running = False
@@ -1658,9 +1674,9 @@ class MihomoCheckerTab(ttk.Frame):
         self.run_options_menu.entryconfigure(1, state=state)
         self.stop_button.configure(state="normal" if running else "disabled")
         if running:
-            self.stop_button.grid()
+            self.stop_button.pack(side="left", padx=(6, 0))
         else:
-            self.stop_button.grid_remove()
+            self.stop_button.pack_forget()
         self.node_limit.configure(state="disabled" if running else "readonly")
         self.worker_combo.configure(state="disabled" if running else "readonly")
         self.base_policy.configure(state="disabled" if running else "readonly")

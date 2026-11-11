@@ -390,7 +390,12 @@ def source_name_from_url(url: str) -> str:
         return "Подписка"
     host = (parsed.hostname or "Подписка").casefold()
     parts = [urllib.parse.unquote(item) for item in parsed.path.split("/") if item]
-    filename = sanitize_text(parts[-1], 80) if parts else "subscription.yaml"
+    raw_filename = parts[-1] if parts else "subscription.yaml"
+    filename = sanitize_text(raw_filename, 80)
+    filename_was_redacted = "<redacted-" in filename
+    if filename_was_redacted:
+        suffix = Path(raw_filename).suffix.casefold()
+        filename = f"подписка{suffix}" if suffix in {".yaml", ".yml", ".json", ".txt"} else "подписка"
     owner_repo: str | None = None
     if host == "raw.githubusercontent.com" and len(parts) >= 4:
         owner_repo = f"{parts[0]}/{parts[1]}"
@@ -401,8 +406,22 @@ def source_name_from_url(url: str) -> str:
         repo = parts[0] if len(parts) >= 2 else owner + ".github.io"
         owner_repo = f"{owner}/{repo}"
     if owner_repo:
-        return sanitize_text(f"{owner_repo} — {filename}", 160)
-    return sanitize_text(f"{host} — {filename}", 160)
+        github_label = sanitize_text(f"{owner_repo} — {filename}", 160)
+        return f"GitHub · {filename}" if "<redacted-" in github_label else github_label
+
+    safe_host = sanitize_text(host, 100)
+    if "<redacted-" in safe_host:
+        labels = [label for label in host.split(".") if label]
+        public_suffixes = {"co.uk", "com.au", "com.br", "co.jp", "co.nz"}
+        suffix = ".".join(labels[-2:])
+        keep = 3 if suffix in public_suffixes else 2
+        safe_host = sanitize_text(".".join(labels[-keep:]), 100) if labels else "внешний источник"
+        if "<redacted-" in safe_host:
+            safe_host = "внешний источник"
+    if filename_was_redacted:
+        kind = Path(raw_filename).suffix.removeprefix(".").upper() or "URL"
+        return f"Подписка · {safe_host} · {kind}"
+    return f"{safe_host} — {filename}"
 
 
 def _manifest_source_specs(path: Path, text: str) -> list[SourceSpec]:
@@ -3182,5 +3201,8 @@ def load_source_specs(path: Path) -> list[SourceSpec]:
             if isinstance(raw_metadata, dict)
             else {}
         )
-        sources.append(SourceSpec(*values, metadata))
+        source_id, name, kind, value = values
+        if kind == "url" and (not name.strip() or "<redacted-" in name):
+            name = source_name_from_url(value)
+        sources.append(SourceSpec(source_id, name, kind, value, metadata))
     return sources
