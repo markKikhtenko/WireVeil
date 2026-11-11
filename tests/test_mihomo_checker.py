@@ -164,6 +164,23 @@ class ImportTests(unittest.TestCase):
         self.assertEqual("owner/beta — config.yaml", second)
         self.assertNotIn("secret", first)
 
+    def test_secret_shaped_url_gets_a_readable_safe_name(self):
+        label = mihomo_checker.source_name_from_url(
+            "https://abcdefghijklmnopqrstuvwxyz012345.pages.dev/"
+            "0123456789abcdefghijklmnopqrstuvwxyz.yaml?token=private"
+        )
+        self.assertEqual("Подписка · pages.dev · YAML", label)
+        self.assertNotIn("redacted", label.casefold())
+        self.assertNotIn("0123456789abcdefghijklmnopqrstuvwxyz", label)
+
+    def test_secret_shaped_github_repository_gets_a_generic_name(self):
+        label = mihomo_checker.source_name_from_url(
+            "https://raw.githubusercontent.com/owner/"
+            "0123456789abcdefghijklmnopqrstuvwxyz/main/subscription.yaml"
+        )
+        self.assertEqual("GitHub · subscription.yaml", label)
+        self.assertNotIn("redacted", label.casefold())
+
     def test_catalog_age_is_derived_without_losing_original_provenance(self):
         metadata = {"last_repo_push": "2026-10-20T12:00:00+00:00", "tier": "start"}
         self.assertEqual(
@@ -1373,6 +1390,28 @@ class SourceStoreTests(unittest.TestCase):
         self.assertNotIn("results", raw)
         self.assertIn("warning", raw)
 
+    def test_legacy_redacted_url_name_is_repaired_on_load(self):
+        payload = {
+            "version": 1,
+            "sources": [
+                {
+                    "source_id": "src-000000000001",
+                    "name": "<redacted-token> — <redacted-token>.yaml",
+                    "kind": "url",
+                    "value": (
+                        "https://abcdefghijklmnopqrstuvwxyz012345.pages.dev/"
+                        "0123456789abcdefghijklmnopqrstuvwxyz.yaml?token=private"
+                    ),
+                    "metadata": {},
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "sources.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            loaded = mihomo_checker.load_source_specs(path)
+        self.assertEqual("Подписка · pages.dev · YAML", loaded[0].name)
+
 
 class MockUiTests(unittest.TestCase):
     def test_event_poll_yields_with_a_large_progress_backlog(self):
@@ -1515,6 +1554,10 @@ class MihomoUiLayoutTests(unittest.TestCase):
                     self.assertEqual(
                         ("source", "name", "protocol", "status", "base", "chatgpt", "instagram", "spotify", "error"),
                         tuple(tab.node_tree["displaycolumns"]),
+                    )
+                    self.assertEqual(
+                        ("name", "status", "total", "good", "failed", "error"),
+                        tuple(tab.source_tree["displaycolumns"]),
                     )
                     self.assertLessEqual(
                         tab.stop_button.winfo_y() + tab.stop_button.winfo_height(),
