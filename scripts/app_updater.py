@@ -37,12 +37,17 @@ MAX_UPDATE_PACKAGE_BYTES = 768 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 5_000
 MAX_RELEASE_NOTES_CHARS = 20_000
+DOWNLOAD_ATTEMPTS = 3
 _VERSION_RE = re.compile(r"^(?:checker-v)?(\d+)\.(\d+)\.(\d+)$")
 _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\([^\)]+\)")
 
 
 class UpdateError(RuntimeError):
     """The update could not be checked, verified, or started."""
+
+
+class _RetryableDownloadError(UpdateError):
+    """A package download failed in a way that may succeed on retry."""
 
 
 @dataclass(frozen=True)
@@ -255,9 +260,16 @@ def _download_asset(
     except UpdateError:
         raise
     except (OSError, ValueError, urllib.error.URLError) as exc:
-        raise UpdateError(f"Не удалось скачать пакет обновления: {exc}") from exc
+        raise _RetryableDownloadError(
+            f"Не удалось скачать пакет обновления: {exc}"
+        ) from exc
     if downloaded == 0:
-        raise UpdateError("GitHub вернул пустой пакет обновления.")
+        raise _RetryableDownloadError("GitHub вернул пустой пакет обновления.")
+    if total is not None and downloaded != total:
+        raise _RetryableDownloadError(
+            "Пакет обновления скачан не полностью "
+            f"({downloaded} из {total} байт)."
+        )
     return digest.hexdigest()
 
 
@@ -286,18 +298,30 @@ def download_update(
     temporary_root = Path(tempfile.mkdtemp(prefix="WireVeilChecker-update-"))
     package = temporary_root / release.asset_name
     try:
-        actual = _download_asset(
-            release.installer_url,
-            package,
-            timeout=timeout,
-            opener=opener,
-            progress=progress,
-        )
-        if actual != expected:
-            raise UpdateError(
-                "SHA-256 пакета не совпадает с опубликованной контрольной суммой."
-            )
-        return package
+        last_error: UpdateError | None = None
+        for attempt in range(DOWNLOAD_ATTEMPTS):
+            try:
+                actual = _download_asset(
+                    release.installer_url,
+                    package,
+                    timeout=timeout,
+                    opener=opener,
+                    progress=progress,
+                )
+            except _RetryableDownloadError as exc:
+                last_error = exc
+            else:
+                if actual == expected:
+                    return package
+                last_error = UpdateError(
+                    "SHA-256 пакета не совпадает с опубликованной "
+                    "контрольной суммой."
+                )
+            package.unlink(missing_ok=True)
+            if attempt + 1 == DOWNLOAD_ATTEMPTS:
+                assert last_error is not None
+                raise last_error
+        raise AssertionError("download retry loop ended unexpectedly")
     except Exception:
         shutil.rmtree(temporary_root, ignore_errors=True)
         raise

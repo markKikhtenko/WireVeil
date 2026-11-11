@@ -10,10 +10,22 @@ from scripts import app_updater
 
 
 class FakeResponse:
-    def __init__(self, payload: bytes, *, content_length: bool = True) -> None:
+    def __init__(
+        self,
+        payload: bytes,
+        *,
+        content_length: bool = True,
+        declared_length: int | None = None,
+    ) -> None:
         self.stream = io.BytesIO(payload)
         self.headers = (
-            {"Content-Length": str(len(payload))} if content_length else {}
+            {
+                "Content-Length": str(
+                    len(payload) if declared_length is None else declared_length
+                )
+            }
+            if content_length
+            else {}
         )
 
     def __enter__(self):
@@ -150,6 +162,84 @@ class DownloadTests(unittest.TestCase):
             self.assertEqual((0, expected_total), progress[0])
             self.assertEqual((expected_total, expected_total), progress[-1])
 
+    def test_truncated_download_is_retried(self):
+        package_bytes = b"verified installer bytes"
+        checksum = hashlib.sha256(package_bytes).hexdigest()
+        version = "1.8.0"
+        assets = release_assets(version)
+        release = app_updater.ReleaseUpdate(
+            version=version,
+            tag=f"checker-v{version}",
+            page_url=(
+                f"https://github.com/{app_updater.REPOSITORY}/releases/tag/"
+                f"checker-v{version}"
+            ),
+            notes="",
+            installer_url=assets[0]["browser_download_url"],
+            checksum_url=assets[1]["browser_download_url"],
+        )
+        package_requests = 0
+
+        def opener(request, **_kwargs):
+            nonlocal package_requests
+            if request.full_url == release.checksum_url:
+                line = f"{checksum} *{app_updater.INSTALLER_ASSET_NAME}\n"
+                return FakeResponse(line.encode("ascii"))
+            package_requests += 1
+            if package_requests == 1:
+                return FakeResponse(
+                    package_bytes[:8], declared_length=len(package_bytes)
+                )
+            return FakeResponse(package_bytes)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            update_dir = Path(temporary) / "download"
+            update_dir.mkdir()
+            with mock.patch(
+                "scripts.app_updater.tempfile.mkdtemp", return_value=str(update_dir)
+            ):
+                package = app_updater.download_update(release, opener=opener)
+            self.assertEqual(package_bytes, package.read_bytes())
+        self.assertEqual(2, package_requests)
+
+    def test_checksum_mismatch_is_retried(self):
+        package_bytes = b"verified installer bytes"
+        checksum = hashlib.sha256(package_bytes).hexdigest()
+        version = "1.8.0"
+        assets = release_assets(version)
+        release = app_updater.ReleaseUpdate(
+            version=version,
+            tag=f"checker-v{version}",
+            page_url=(
+                f"https://github.com/{app_updater.REPOSITORY}/releases/tag/"
+                f"checker-v{version}"
+            ),
+            notes="",
+            installer_url=assets[0]["browser_download_url"],
+            checksum_url=assets[1]["browser_download_url"],
+        )
+        package_requests = 0
+
+        def opener(request, **_kwargs):
+            nonlocal package_requests
+            if request.full_url == release.checksum_url:
+                line = f"{checksum} *{app_updater.INSTALLER_ASSET_NAME}\n"
+                return FakeResponse(line.encode("ascii"))
+            package_requests += 1
+            if package_requests == 1:
+                return FakeResponse(b"x" * len(package_bytes))
+            return FakeResponse(package_bytes)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            update_dir = Path(temporary) / "download"
+            update_dir.mkdir()
+            with mock.patch(
+                "scripts.app_updater.tempfile.mkdtemp", return_value=str(update_dir)
+            ):
+                package = app_updater.download_update(release, opener=opener)
+            self.assertEqual(package_bytes, package.read_bytes())
+        self.assertEqual(2, package_requests)
+
     def test_checksum_mismatch_removes_download(self):
         version = "1.8.0"
         assets = release_assets(version)
@@ -162,10 +252,14 @@ class DownloadTests(unittest.TestCase):
             checksum_url=assets[1]["browser_download_url"],
         )
 
+        package_requests = 0
+
         def opener(request, **_kwargs):
+            nonlocal package_requests
             if request.full_url == release.checksum_url:
                 line = f"{'0' * 64} *{app_updater.INSTALLER_ASSET_NAME}\n"
                 return FakeResponse(line.encode("ascii"))
+            package_requests += 1
             return FakeResponse(b"tampered")
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -177,6 +271,7 @@ class DownloadTests(unittest.TestCase):
                 with self.assertRaises(app_updater.UpdateError):
                     app_updater.download_update(release, opener=opener)
             self.assertFalse(update_dir.exists())
+        self.assertEqual(app_updater.DOWNLOAD_ATTEMPTS, package_requests)
 
 
 class InstallerDefinitionTests(unittest.TestCase):
@@ -207,8 +302,8 @@ class InstallerDefinitionTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("## Что изменилось", release_notes)
-        self.assertIn("стала компактнее", release_notes)
-        self.assertIn("GitHub · подписка.yaml", release_notes)
+        self.assertIn("автоматически повторяется до трёх раз", release_notes)
+        self.assertIn("никогда не запускает пакет", release_notes)
 
     @mock.patch("scripts.app_updater.subprocess.Popen")
     def test_ui_update_flag_is_passed_to_installer(self, popen):
