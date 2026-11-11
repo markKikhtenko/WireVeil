@@ -15,6 +15,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from mihomo_diagnostics_dialog import MihomoDiagnosticsDialog
 from scripts import mihomo_checker, network_check
 from wireveil_paths import user_data_file
 
@@ -336,6 +337,7 @@ class MihomoCheckerTab(ttk.Frame):
         self.running = False
         self.stop_requested = False
         self.closing = False
+        self.diagnostics_dialog: MihomoDiagnosticsDialog | None = None
         self.execution_log_entries: list[tuple[str, bool, str]] = []
 
         self.attempts_var = tk.IntVar(value=2)
@@ -508,15 +510,22 @@ class MihomoCheckerTab(ttk.Frame):
         self.start_selected_button = ttk.Menubutton(
             run_controls, text="Другой запуск", menu=self.run_options_menu, style="Mihomo.TButton",
         )
-        self.start_selected_button.grid(row=0, column=0, padx=(0, 6))
+        self.diagnostics_button = ttk.Button(
+            run_controls,
+            text="Диагностика Mihomo",
+            command=self._open_diagnostics,
+            style="Mihomo.TButton",
+        )
+        self.diagnostics_button.grid(row=0, column=0, padx=(0, 6))
+        self.start_selected_button.grid(row=0, column=1, padx=(0, 6))
         self.start_all_button = ttk.Button(
             run_controls, text="▶ Проверить всё", command=self._start_all, style="Mihomo.Accent.TButton",
         )
-        self.start_all_button.grid(row=0, column=1)
+        self.start_all_button.grid(row=0, column=2)
         self.stop_button = ttk.Button(
             run_controls, text="■ Остановить", command=self.stop, state="disabled", style="Mihomo.TButton",
         )
-        self.stop_button.grid(row=0, column=2, padx=(6, 0))
+        self.stop_button.grid(row=0, column=3, padx=(6, 0))
         self.stop_button.grid_remove()
 
         quick_settings = ttk.Frame(check_panel, style="Mihomo.CardBody.TFrame")
@@ -1663,6 +1672,26 @@ class MihomoCheckerTab(ttk.Frame):
         self.add_source_button.configure(state=state)
         self._update_source_actions()
 
+    def _open_diagnostics(self) -> None:
+        dialog = self.diagnostics_dialog
+        if dialog is not None:
+            try:
+                if dialog.winfo_exists():
+                    dialog.deiconify()
+                    dialog.lift()
+                    dialog.focus_set()
+                    return
+            except tk.TclError:
+                pass
+        self.diagnostics_dialog = MihomoDiagnosticsDialog(
+            self,
+            find_mihomo,
+            on_closed=self._diagnostics_closed,
+        )
+
+    def _diagnostics_closed(self) -> None:
+        self.diagnostics_dialog = None
+
     def _set_export_buttons(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
         self.export_menu_button.configure(state=state)
@@ -1742,6 +1771,13 @@ class MihomoCheckerTab(ttk.Frame):
 
     def close(self) -> None:
         self.closing = True
+        dialog = self.diagnostics_dialog
+        self.diagnostics_dialog = None
+        if dialog is not None:
+            try:
+                dialog.close()
+            except tk.TclError:
+                pass
         if self.poll_job is not None:
             try:
                 self.after_cancel(self.poll_job)
