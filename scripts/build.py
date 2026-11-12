@@ -34,6 +34,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES_PATH = ROOT / "sources.json"
@@ -480,20 +482,323 @@ def parse_uri(uri: str) -> ParsedURI:
     return parser(uri)
 
 
+def _clash_mapping(value: object) -> Mapping[str, object]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _clash_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _clash_host(server: str) -> str:
+    try:
+        return f"[{server}]" if ipaddress.ip_address(server).version == 6 else server
+    except ValueError:
+        return server
+
+
+def _clash_fragment(proxy: Mapping[str, object]) -> str:
+    name = str(proxy.get("name", "")).strip()
+    return f"#{urllib.parse.quote(name, safe='')}" if name else ""
+
+
+def _clash_authority(
+    username: object,
+    server: object,
+    port: object,
+    *,
+    password: object | None = None,
+) -> str:
+    user = urllib.parse.quote(str(username), safe="")
+    credentials = user
+    if password is not None:
+        credentials += ":" + urllib.parse.quote(str(password), safe="")
+    return f"{credentials}@{_clash_host(str(server).strip())}:{_port(port)}"
+
+
+def _clash_header(options: Mapping[str, object], name: str) -> str:
+    headers = _clash_mapping(options.get("headers"))
+    for key, value in headers.items():
+        if str(key).lower() == name.lower():
+            if isinstance(value, list):
+                return str(value[0]) if value else ""
+            return str(value)
+    return ""
+
+
+def _clash_transport_query(proxy: Mapping[str, object]) -> dict[str, str]:
+    network = str(proxy.get("network") or "tcp").strip().lower()
+    network = NETWORK_ALIASES.get(network, network)
+    query = {"type": network}
+
+    if network == "ws":
+        options = _clash_mapping(proxy.get("ws-opts"))
+        path = options.get("path")
+        host = _clash_header(options, "Host")
+        if path is not None:
+            query["path"] = str(path)
+        if host:
+            query["host"] = host
+    elif network == "grpc":
+        options = _clash_mapping(proxy.get("grpc-opts"))
+        service_name = options.get("grpc-service-name") or options.get("service-name")
+        if service_name is not None:
+            query["serviceName"] = str(service_name)
+        mode = options.get("grpc-mode")
+        if mode is not None:
+            query["mode"] = str(mode)
+    elif network in {"h2", "http"}:
+        options = _clash_mapping(proxy.get(f"{network}-opts"))
+        path = options.get("path")
+        host = options.get("host") or _clash_header(options, "Host")
+        if path is not None:
+            query["path"] = str(path)
+        if isinstance(host, list):
+            host = ",".join(str(item) for item in host)
+        if host:
+            query["host"] = str(host)
+    elif network in {"xhttp", "httpupgrade"}:
+        options = _clash_mapping(proxy.get(f"{network}-opts"))
+        for source_key, target_key in (("path", "path"), ("host", "host"), ("mode", "mode")):
+            value = options.get(source_key)
+            if value is not None:
+                query[target_key] = str(value)
+
+    return query
+
+
+def _clash_tls_query(
+    proxy: Mapping[str, object],
+    *,
+    default_tls: bool = False,
+) -> dict[str, str]:
+    query: dict[str, str] = {}
+    reality = _clash_mapping(proxy.get("reality-opts"))
+    if reality:
+        query["security"] = "reality"
+        public_key = reality.get("public-key") or reality.get("publickey")
+        short_id = reality.get("short-id") or reality.get("shortid")
+        if public_key is not None:
+            query["pbk"] = str(public_key)
+        if short_id is not None:
+            query["sid"] = str(short_id)
+    elif default_tls or _clash_bool(proxy.get("tls")):
+        query["security"] = "tls"
+    else:
+        query["security"] = "none"
+
+    server_name = proxy.get("servername") or proxy.get("sni")
+    if server_name is not None:
+        query["sni"] = str(server_name)
+    fingerprint = proxy.get("client-fingerprint") or proxy.get("fingerprint")
+    if fingerprint is not None:
+        query["fp"] = str(fingerprint)
+    alpn = proxy.get("alpn")
+    if isinstance(alpn, list):
+        query["alpn"] = ",".join(str(item) for item in alpn)
+    elif alpn is not None:
+        query["alpn"] = str(alpn)
+    if _clash_bool(proxy.get("skip-cert-verify")):
+        query["allowInsecure"] = "1"
+    return query
+
+
+def _clash_query_string(query: Mapping[str, str]) -> str:
+    return urllib.parse.urlencode(query, doseq=False, safe="")
+
+
+def _clash_proxy_to_uri(proxy: Mapping[str, object]) -> str | None:
+    protocol = str(proxy.get("type", "")).strip().lower()
+    server = proxy.get("server")
+    port = proxy.get("port")
+    if protocol not in SUPPORTED_SCHEMES or server is None or port is None:
+        return None
+    fragment = _clash_fragment(proxy)
+
+    if protocol in {"vless", "trojan"}:
+        credential = proxy.get("uuid") if protocol == "vless" else proxy.get("password")
+        if credential is None:
+            return None
+        query = _clash_transport_query(proxy)
+        query.update(_clash_tls_query(proxy, default_tls=protocol == "trojan"))
+        flow = proxy.get("flow")
+        if flow is not None:
+            query["flow"] = str(flow)
+        packet_encoding = proxy.get("packet-encoding")
+        if packet_encoding is not None:
+            query["packetEncoding"] = str(packet_encoding)
+        authority = _clash_authority(credential, server, port)
+        return f"{protocol}://{authority}?{_clash_query_string(query)}{fragment}"
+
+    if protocol == "ss":
+        cipher = proxy.get("cipher")
+        password = proxy.get("password")
+        if cipher is None or password is None:
+            return None
+        credentials = base64.urlsafe_b64encode(
+            f"{cipher}:{password}".encode("utf-8")
+        ).decode("ascii").rstrip("=")
+        authority = f"{credentials}@{_clash_host(str(server).strip())}:{_port(port)}"
+        query: dict[str, str] = {}
+        plugin = proxy.get("plugin")
+        if plugin is not None:
+            plugin_value = str(plugin)
+            plugin_options = _clash_mapping(proxy.get("plugin-opts"))
+            for key, value in plugin_options.items():
+                if _clash_bool(value):
+                    plugin_value += f";{key}"
+                elif value not in {False, None, ""}:
+                    plugin_value += f";{key}={value}"
+            query["plugin"] = plugin_value
+        suffix = f"?{_clash_query_string(query)}" if query else ""
+        return f"ss://{authority}{suffix}{fragment}"
+
+    if protocol == "vmess":
+        user = proxy.get("uuid")
+        if user is None:
+            return None
+        network = NETWORK_ALIASES.get(
+            str(proxy.get("network") or "tcp").strip().lower(),
+            str(proxy.get("network") or "tcp").strip().lower(),
+        )
+        data: dict[str, object] = {
+            "v": "2",
+            "ps": str(proxy.get("name", "")),
+            "add": str(server),
+            "port": str(_port(port)),
+            "id": str(user),
+            "aid": str(proxy.get("alterId", proxy.get("alter-id", 0))),
+            "scy": str(proxy.get("cipher", "auto")),
+            "net": network,
+            "type": "none",
+            "host": "",
+            "path": "",
+            "tls": "tls" if _clash_bool(proxy.get("tls")) else "",
+            "sni": str(proxy.get("servername") or proxy.get("sni") or ""),
+        }
+        transport = _clash_transport_query(proxy)
+        data["host"] = transport.get("host", "")
+        data["path"] = transport.get("path") or transport.get("serviceName", "")
+        if network == "grpc":
+            data["type"] = transport.get("mode", "gun")
+        fingerprint = proxy.get("client-fingerprint")
+        if fingerprint is not None:
+            data["fp"] = str(fingerprint)
+        alpn = proxy.get("alpn")
+        if isinstance(alpn, list):
+            data["alpn"] = ",".join(str(item) for item in alpn)
+        elif alpn is not None:
+            data["alpn"] = str(alpn)
+        payload = base64.urlsafe_b64encode(
+            json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        ).decode("ascii").rstrip("=")
+        return f"vmess://{payload}"
+
+    if protocol in {"hysteria", "hysteria2", "hy2"}:
+        auth = (
+            proxy.get("password")
+            or proxy.get("auth-str")
+            or proxy.get("auth_str")
+            or proxy.get("auth")
+        )
+        if auth is None:
+            return None
+        query: dict[str, str] = {}
+        for source_key, target_key in (
+            ("sni", "sni"),
+            ("obfs", "obfs"),
+            ("obfs-password", "obfs-password"),
+            ("up", "upmbps"),
+            ("down", "downmbps"),
+        ):
+            value = proxy.get(source_key)
+            if value is not None:
+                query[target_key] = str(value)
+        alpn = proxy.get("alpn")
+        if isinstance(alpn, list):
+            query["alpn"] = ",".join(str(item) for item in alpn)
+        elif alpn is not None:
+            query["alpn"] = str(alpn)
+        if _clash_bool(proxy.get("skip-cert-verify")):
+            query["insecure"] = "1"
+        scheme = "hysteria2" if protocol in {"hysteria2", "hy2"} else "hysteria"
+        authority = _clash_authority(auth, server, port)
+        suffix = f"?{_clash_query_string(query)}" if query else ""
+        return f"{scheme}://{authority}{suffix}{fragment}"
+
+    if protocol == "tuic":
+        user = proxy.get("uuid")
+        password = proxy.get("password")
+        if user is None or password is None:
+            return None
+        query: dict[str, str] = {}
+        for source_key, target_key in (
+            ("sni", "sni"),
+            ("congestion-controller", "congestion_control"),
+            ("udp-relay-mode", "udp_relay_mode"),
+        ):
+            value = proxy.get(source_key)
+            if value is not None:
+                query[target_key] = str(value)
+        alpn = proxy.get("alpn")
+        if isinstance(alpn, list):
+            query["alpn"] = ",".join(str(item) for item in alpn)
+        elif alpn is not None:
+            query["alpn"] = str(alpn)
+        if _clash_bool(proxy.get("skip-cert-verify")):
+            query["allow_insecure"] = "1"
+        authority = _clash_authority(user, server, port, password=password)
+        suffix = f"?{_clash_query_string(query)}" if query else ""
+        return f"tuic://{authority}{suffix}{fragment}"
+
+    return None
+
+
+def _extract_clash_uris(text: str) -> list[str]:
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(document, Mapping):
+        return []
+    proxies = document.get("proxies")
+    if not isinstance(proxies, list):
+        return []
+    result: list[str] = []
+    for proxy in proxies:
+        if not isinstance(proxy, Mapping):
+            continue
+        try:
+            uri = _clash_proxy_to_uri(proxy)
+        except (TypeError, ValueError, ValidationError):
+            continue
+        if uri:
+            result.append(uri)
+    return result
+
+
 def extract_uris(text: str) -> list[str]:
-    """Extract supported URI candidates, decoding a wrapped source once at most."""
+    """Extract URI candidates from URI lists, one Base64 wrapper, or Clash YAML."""
+    clash = _extract_clash_uris(text)
+    if clash:
+        return clash
     direct = URI_RE.findall(text)
     if direct:
         return direct
     stripped = text.strip()
-    if not stripped or not BASE64_RE.fullmatch(stripped):
+    if not stripped:
         return []
-    try:
-        decoded = _b64decode_text(stripped)
-    except ValidationError:
-        return []
-    # Deliberately do not attempt a second decode.
-    return URI_RE.findall(decoded)
+    if BASE64_RE.fullmatch(stripped):
+        try:
+            decoded = _b64decode_text(stripped)
+        except ValidationError:
+            pass
+        else:
+            # Deliberately do not attempt a second decode.
+            return URI_RE.findall(decoded)
+    return []
 
 
 def fetch_url(

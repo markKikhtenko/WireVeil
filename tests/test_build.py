@@ -8,6 +8,8 @@ from collections import Counter
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 from scripts import build
 
 
@@ -169,6 +171,84 @@ class ExtractionTests(unittest.TestCase):
         first = f"vless://{UUID1}@edge.example.com:443?security=tls#first"
         second = "hy2://secret@hy.example.com:443#second"
         self.assertEqual([first, second], build.extract_uris(first + second))
+
+    def test_clash_yaml_proxies_are_converted_to_supported_uris(self):
+        proxies = [
+            {
+                "name": "vless",
+                "type": "vless",
+                "server": "vless.example.com",
+                "port": 443,
+                "uuid": UUID1,
+                "network": "ws",
+                "tls": True,
+                "servername": "cdn.example.com",
+                "ws-opts": {"path": "/ws", "headers": {"Host": "cdn.example.com"}},
+            },
+            {
+                "name": "trojan",
+                "type": "trojan",
+                "server": "trojan.example.com",
+                "port": 443,
+                "password": "secret",
+            },
+            {
+                "name": "ss",
+                "type": "ss",
+                "server": "ss.example.com",
+                "port": 8388,
+                "cipher": "aes-256-gcm",
+                "password": "secret",
+            },
+            {
+                "name": "vmess",
+                "type": "vmess",
+                "server": "vmess.example.com",
+                "port": 443,
+                "uuid": UUID2,
+                "alterId": 0,
+                "cipher": "auto",
+                "network": "grpc",
+                "tls": True,
+                "grpc-opts": {"grpc-service-name": "service"},
+            },
+            {
+                "name": "hysteria",
+                "type": "hysteria",
+                "server": "hy.example.com",
+                "port": 443,
+                "auth-str": "secret",
+            },
+            {
+                "name": "hysteria2",
+                "type": "hysteria2",
+                "server": "hy2.example.com",
+                "port": 443,
+                "password": "secret",
+                "obfs": "salamander",
+                "obfs-password": "obfs-secret",
+            },
+            {
+                "name": "tuic",
+                "type": "tuic",
+                "server": "tuic.example.com",
+                "port": 443,
+                "uuid": UUID1,
+                "password": "secret",
+                "congestion-controller": "bbr",
+            },
+        ]
+
+        uris = build.extract_uris(yaml.safe_dump({"proxies": proxies}, sort_keys=False))
+        parsed = [build.parse_uri(uri) for uri in uris]
+
+        self.assertEqual(7, len(parsed))
+        self.assertEqual(
+            {"vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"},
+            {item.protocol for item in parsed},
+        )
+        self.assertIn("path=%2Fws", uris[0])
+        self.assertIn("host=cdn.example.com", uris[0])
 
 
 class DeduplicationTests(unittest.TestCase):

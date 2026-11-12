@@ -79,6 +79,66 @@
       "required": true,
       "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
       "note": "Широкий резерв всех актуальных URI-протоколов, используемый после источников для России."
+    },
+    {
+      "id": "wuge0-free-nodes",
+      "name": "wuge0 Free Nodes",
+      "url": "https://raw.githubusercontent.com/wuge0/free-nodes/main/output/github.yaml",
+      "priority": 45,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
+    },
+    {
+      "id": "sakazxc1400-free-vpn-sub",
+      "name": "sakazxc1400 Free VPN Sub",
+      "url": "https://raw.githubusercontent.com/sakazxc1400-creator/free-vpn-sub/data/output/clash.yaml",
+      "priority": 40,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
+    },
+    {
+      "id": "learnli-free-nodes",
+      "name": "learnLi Free Nodes",
+      "url": "https://raw.githubusercontent.com/learnLi/free-nodes/output/list.meta.cn.yml",
+      "priority": 35,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
+    },
+    {
+      "id": "bily1258-beimi",
+      "name": "bily1258 beimi",
+      "url": "https://raw.githubusercontent.com/bily1258-design/beimi/main/output/clash.yaml",
+      "priority": 30,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
+    },
+    {
+      "id": "delta-kronecker-v2ray-config",
+      "name": "Delta-Kronecker V2ray Config",
+      "url": "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/main/config/batches/clash/batch_001.yaml",
+      "priority": 25,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
+    },
+    {
+      "id": "hezhanleiok-freesub",
+      "name": "hezhanleiok freesub",
+      "url": "https://raw.githubusercontent.com/hezhanleiok/freesub/main/output/clash.yaml",
+      "priority": 20,
+      "enabled": true,
+      "required": false,
+      "protocols": ["vless", "trojan", "shadowsocks", "vmess", "hysteria", "hysteria2", "tuic"],
+      "note": "Дополнительный Clash/Mihomo YAML-источник; недоступность источника не останавливает сборку."
     }
   ]
 }
