@@ -26,7 +26,7 @@ hysteria2://2a0fc918-9c61-451b-a9ad-e8f796e70f52@13.143.239.127:443?sni=nl1.obxo
 hysteria2://146d567c-6335-4e63-a8aa-7ec068642440@13.143.239.84:4443?sni=nl1.obxodvpn.us&insecure=0#@V2ray_Collector
 hysteria2://Rgl5QNexXDgv0jClIuGNyzW5@13.229.214.4:20000?insecure=1&sni=sg-transit-1.nebulacloud.win#🇸🇬
 hysteria2://H7mP2xY9kJ4nQ8wR5tF6vB3z@13.36.234.11:443?insecure=1&security=tls&sni=vpn-fr-001.fastervpn.world#🇫🇷
-hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?security=tls&obfs=salamander&obfs-password=rG07s3COMIEvdnQipRyWzx_H_2xygNC3&insecure=0&sni=hy2.aspidnet.xyz#NL
+hysteria2://p7Q76LzlnS4hIzr1W3staBOnUe_WwSkR@130.49.161.70:443?sni=hy2.aspidnet.xyz&insecure=0&obfs=salamander#HK
 hysteria2://307ee0e53ea04dfd86a7f2f9fcd53844@130.49.163.188:443?sni=s5.libertyrunet.store#🇺🇸
 hy2://zhangyang@130.61.50.75:6443/?insecure=1&sni=dash.cloudflare.com#%40nekopingbot_5933
 hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160?insecure=1&sni=132.226.226.189#🇸🇪
