@@ -111,7 +111,7 @@ class TableSortTests(unittest.TestCase):
             WireVeilChecker._smart_sort_value(partial),
         )
 
-    def test_smart_quality_uses_speed_then_ping(self):
+    def test_smart_quality_balances_speed_and_ping(self):
         fast = self.ranked_row(
             number=1,
             passes="2/2",
@@ -136,6 +136,26 @@ class TableSortTests(unittest.TestCase):
         self.assertGreater(
             WireVeilChecker._smart_sort_value(tuple(equally_fast)),
             WireVeilChecker._smart_sort_value(slow),
+        )
+
+    def test_smart_quality_prefers_small_speed_loss_over_much_worse_ping(self):
+        high_ping = self.ranked_row(
+            number=1,
+            passes="2/2",
+            speed="35.14",
+            latency="458 ms",
+            chatgpt="✓ 909",
+        )
+        balanced = self.ranked_row(
+            number=2,
+            passes="2/2",
+            speed="28.21",
+            latency="140 ms",
+            chatgpt="✓ 482",
+        )
+        self.assertLess(
+            WireVeilChecker._smart_sort_value(balanced),
+            WireVeilChecker._smart_sort_value(high_ping),
         )
 
 

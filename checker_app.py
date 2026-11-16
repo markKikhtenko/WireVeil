@@ -67,6 +67,7 @@ LIVE_SORT_DELAY_MS = 120
 LIVE_RANK_UPDATE_LIMIT = 128
 RANK_UPDATE_BATCH_LIMIT = 8
 RANK_UPDATE_TIME_BUDGET_SECONDS = 0.001
+QUALITY_LATENCY_REFERENCE_MS = 100.0
 
 
 def resource_root() -> Path:
@@ -4159,7 +4160,7 @@ class WireVeilChecker(tk.Tk):
 
     @staticmethod
     def _smart_sort_value(values: tuple[str, ...]) -> tuple[object, ...]:
-        """Rank a server by reliability, sites, speed, and latency."""
+        """Rank by reliability, sites, then a latency-adjusted speed score."""
 
         passes_raw = str(values[TABLE_COLUMN_POSITIONS["passes"]]).strip()
         passes_match = re.match(r"^(\d+)\s*/\s*(\d+)$", passes_raw)
@@ -4190,15 +4191,30 @@ class WireVeilChecker(tk.Tk):
         speed = float(speed_value) if speed_value is not None else 0.0
         latency = int(latency_value) if latency_value is not None else sys.maxsize
         number = int(number_value) if number_value is not None else sys.maxsize
+        if speed_value is not None and latency_value is not None:
+            performance_state = 0
+            performance_score = speed / (
+                1.0 + latency / QUALITY_LATENCY_REFERENCE_MS
+            )
+        elif speed_value is not None:
+            performance_state = 1
+            performance_score = speed
+        elif latency_value is not None:
+            performance_state = 2
+            performance_score = 0.0
+        else:
+            performance_state = 3
+            performance_score = 0.0
 
         return (
             0 if passed_checks > 0 else 1,
             -reliability,
             0 if tested_sites else 1,
             -site_ratio,
-            0 if speed_value is not None else 1,
-            -speed,
+            performance_state,
+            -performance_score,
             latency,
+            -speed,
             number,
         )
 
