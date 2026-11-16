@@ -168,7 +168,7 @@ class RouterSubscriptionTab(ttk.Frame):
         ).pack(anchor="w")
         ttk.Label(
             header,
-            text="Объединяет выбранные источники без сетевой проверки и собирает Mihomo-конфиг с группами GLOBAL, AUTO и ALL.",
+            text="Объединяет выбранные источники без сетевой проверки и собирает Mihomo-конфиг с группами AUTO, MANUAL и PROXY.",
             style="Router.Dim.TLabel",
         ).pack(anchor="w")
 
@@ -514,7 +514,7 @@ class RouterSubscriptionTab(ttk.Frame):
         )
         total = len(report.node_results)
         self.progress_var.set(100)
-        self.status_var.set("Конфиг с группами GLOBAL / AUTO / ALL собран без сетевой проверки; локальный сервер запускается.")
+        self.status_var.set("Конфиг с группами AUTO / MANUAL / PROXY собран без сетевой проверки; локальный сервер запускается.")
         self.summary_var.set(f"Готово: добавлено {included} из {total} уникальных узлов")
         self.save_button.configure(state="normal")
         self.server_button.configure(state="normal")

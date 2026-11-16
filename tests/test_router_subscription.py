@@ -67,25 +67,45 @@ class RouterYamlTests(unittest.TestCase):
         proxy_names = [item["name"] for item in document["proxies"]]
         groups = {item["name"]: item for item in document["proxy-groups"]}
         self.assertEqual(["Good"], proxy_names)
-        self.assertEqual({"GLOBAL", "AUTO", "ALL"}, set(groups))
-        self.assertEqual(["AUTO", "ALL", "DIRECT"], groups["GLOBAL"]["proxies"])
+        self.assertEqual(["AUTO", "MANUAL", "PROXY"], list(groups))
         self.assertEqual(proxy_names, groups["AUTO"]["proxies"])
-        self.assertEqual(proxy_names, groups["ALL"]["proxies"])
+        self.assertEqual("url-test", groups["AUTO"]["type"])
         self.assertEqual(AUTO_TEST_URL, groups["AUTO"]["url"])
-        self.assertEqual("MATCH,GLOBAL", document["rules"][-1])
+        self.assertEqual(900, groups["AUTO"]["interval"])
+        self.assertEqual(100, groups["AUTO"]["tolerance"])
+        self.assertIs(True, groups["AUTO"]["lazy"])
+        self.assertEqual(
+            {"name", "type", "proxies", "url", "interval", "tolerance", "lazy"},
+            set(groups["AUTO"]),
+        )
+        self.assertEqual(proxy_names, groups["MANUAL"]["proxies"])
+        self.assertEqual("select", groups["MANUAL"]["type"])
+        self.assertEqual(["AUTO", "MANUAL"], groups["PROXY"]["proxies"])
+        self.assertEqual("select", groups["PROXY"]["type"])
+        self.assertNotIn("GLOBAL", groups)
+        self.assertNotIn("ALL", groups)
+        self.assertNotIn("DIRECT", groups)
+        self.assertEqual("MATCH,PROXY", document["rules"][-1])
         self.assertNotIn("Failed", payload.decode("utf-8"))
+        self.assertNotIn(b"&id", payload)
+        self.assertNotIn(b"*id", payload)
 
     def test_reserved_proxy_names_are_renamed_and_group_references_stay_valid(self):
-        report = sample_report()
-        report.node_results[0].node.proxy["name"] = "AUTO"
-        with tempfile.TemporaryDirectory() as name:
-            payload = build_router_yaml(report, Path(name) / "router.yaml")
-        document = yaml.safe_load(payload)
-        proxy_names = [item["name"] for item in document["proxies"]]
-        groups = {item["name"]: item for item in document["proxy-groups"]}
-        self.assertEqual(["AUTO [2]"], proxy_names)
-        self.assertEqual(proxy_names, groups["AUTO"]["proxies"])
-        self.assertTrue(set(proxy_names).isdisjoint(groups))
+        for reserved_name in ("AUTO", "MANUAL", "PROXY", "DIRECT"):
+            with self.subTest(reserved_name=reserved_name):
+                report = sample_report()
+                report.node_results[0].node.proxy["name"] = reserved_name
+                with tempfile.TemporaryDirectory() as name:
+                    payload = build_router_yaml(report, Path(name) / "router.yaml")
+                document = yaml.safe_load(payload)
+                proxy_names = [item["name"] for item in document["proxies"]]
+                groups = {
+                    item["name"]: item for item in document["proxy-groups"]
+                }
+                self.assertEqual([f"{reserved_name} [2]"], proxy_names)
+                self.assertEqual(proxy_names, groups["AUTO"]["proxies"])
+                self.assertEqual(proxy_names, groups["MANUAL"]["proxies"])
+                self.assertTrue(set(proxy_names).isdisjoint(groups))
 
     def test_failed_build_preserves_previous_subscription(self):
         report = sample_report()

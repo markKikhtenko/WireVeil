@@ -18,12 +18,12 @@ from scripts import mihomo_checker
 
 DEFAULT_PORT = 18080
 TOKEN_BYTES = 16
-GROUP_GLOBAL = "GLOBAL"
 GROUP_AUTO = "AUTO"
-GROUP_ALL = "ALL"
-GROUP_NAMES = (GROUP_GLOBAL, GROUP_AUTO, GROUP_ALL)
+GROUP_MANUAL = "MANUAL"
+GROUP_PROXY = "PROXY"
+GROUP_NAMES = (GROUP_AUTO, GROUP_MANUAL, GROUP_PROXY)
 RESERVED_OUTBOUND_NAMES = {*GROUP_NAMES, "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"}
-AUTO_TEST_URL = "https://www.gstatic.com/generate_204"
+AUTO_TEST_URL = "https://cp.cloudflare.com/generate_204"
 
 
 def new_subscription_token() -> str:
@@ -89,25 +89,23 @@ def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, objec
         "proxies": proxies,
         "proxy-groups": [
             {
-                "name": GROUP_GLOBAL,
-                "type": "select",
-                "proxies": [GROUP_AUTO, GROUP_ALL, "DIRECT"],
-            },
-            {
                 "name": GROUP_AUTO,
                 "type": "url-test",
-                "proxies": proxy_names,
+                "proxies": list(proxy_names),
                 "url": AUTO_TEST_URL,
-                "interval": 300,
-                "timeout": 5000,
-                "tolerance": 50,
+                "interval": 900,
+                "tolerance": 100,
                 "lazy": True,
-                "expected-status": 204,
             },
             {
-                "name": GROUP_ALL,
+                "name": GROUP_MANUAL,
                 "type": "select",
-                "proxies": proxy_names,
+                "proxies": list(proxy_names),
+            },
+            {
+                "name": GROUP_PROXY,
+                "type": "select",
+                "proxies": [GROUP_AUTO, GROUP_MANUAL],
             },
         ],
         "rules": [
@@ -120,7 +118,7 @@ def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, objec
             "IP-CIDR6,::1/128,DIRECT,no-resolve",
             "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
             "IP-CIDR6,fe80::/10,DIRECT,no-resolve",
-            f"MATCH,{GROUP_GLOBAL}",
+            f"MATCH,{GROUP_PROXY}",
         ],
     }
 
