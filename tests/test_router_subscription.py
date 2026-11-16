@@ -117,6 +117,34 @@ class RouterYamlTests(unittest.TestCase):
                 build_router_yaml(report, path)
             self.assertEqual(b"previous\n", path.read_bytes())
 
+    def test_empty_build_explains_source_failures(self):
+        report = sample_report()
+        report.sources[0].fetch_status = "failed"
+        report.sources[0].parse_status = "not_started"
+        report.sources[0].nodes = []
+        report.node_results = []
+
+        with tempfile.TemporaryDirectory() as name:
+            with self.assertRaises(mihomo_checker.MihomoCheckError) as raised:
+                build_router_yaml(report, Path(name) / "router.yaml")
+
+        self.assertIn("не загрузились: 1", str(raised.exception))
+        self.assertIn("Проверьте доступность URL", str(raised.exception))
+
+    def test_empty_build_explains_rejected_nodes(self):
+        report = sample_report()
+        report.node_results[0].overall_status = "not_tested"
+        report.node_results[0].error_category = "invalid_configuration"
+        report.node_results[1].overall_status = "unsupported"
+
+        with tempfile.TemporaryDirectory() as name:
+            with self.assertRaises(mihomo_checker.MihomoCheckError) as raised:
+                build_router_yaml(report, Path(name) / "router.yaml")
+
+        self.assertIn("Ни один из 2 узлов", str(raised.exception))
+        self.assertIn("Mihomo отклонил: 1", str(raised.exception))
+        self.assertIn("неподдерживаемый протокол: 1", str(raised.exception))
+
 
 class RouterServerTests(unittest.TestCase):
     def test_serves_only_tokenized_yaml_route_and_updates_content(self):

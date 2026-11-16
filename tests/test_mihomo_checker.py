@@ -89,6 +89,62 @@ def synthetic_nodes(count: int) -> list[mihomo_checker.NodeRecord]:
 
 
 class ImportTests(unittest.TestCase):
+    def test_source_fetch_retries_a_temporary_failure(self):
+        class Response(io.BytesIO):
+            headers: dict[str, str] = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.side_effect = [
+            urllib.error.URLError("temporary"),
+            Response(b"proxies: []\n"),
+        ]
+        with (
+            mock.patch.object(mihomo_checker, "validate_subscription_url") as validate,
+            mock.patch.object(mihomo_checker.urllib.request, "build_opener", return_value=opener),
+            mock.patch.object(mihomo_checker.time, "sleep") as sleep,
+        ):
+            text = mihomo_checker.fetch_source_url("https://provider.example/sub")
+
+        self.assertEqual("proxies: []\n", text)
+        self.assertEqual(2, opener.open.call_count)
+        self.assertEqual(2, validate.call_count)
+        sleep.assert_called_once_with(1)
+
+    def test_source_fetch_retries_a_temporary_dns_failure(self):
+        class Response(io.BytesIO):
+            headers: dict[str, str] = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(b"proxies: []\n")
+        dns_error = mihomo_checker.MihomoCheckError("DNS_ERROR", "temporary")
+        with (
+            mock.patch.object(
+                mihomo_checker,
+                "validate_subscription_url",
+                side_effect=[dns_error, None],
+            ) as validate,
+            mock.patch.object(mihomo_checker.urllib.request, "build_opener", return_value=opener),
+            mock.patch.object(mihomo_checker.time, "sleep") as sleep,
+        ):
+            text = mihomo_checker.fetch_source_url("https://provider.example/sub")
+
+        self.assertEqual("proxies: []\n", text)
+        self.assertEqual(1, opener.open.call_count)
+        self.assertEqual(2, validate.call_count)
+        sleep.assert_called_once_with(1)
+
     def test_txt_url_list_expands_to_independent_url_sources(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "providers.txt"

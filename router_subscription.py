@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import ipaddress
 import secrets
@@ -52,6 +53,54 @@ def _unique_proxy_name(value: object, used: set[str]) -> str:
     return candidate
 
 
+def _empty_build_summary(report: mihomo_checker.BatchReport) -> str:
+    """Explain an empty router build without exposing source names or URLs."""
+    candidate_count = len(report.node_results)
+    if candidate_count == 0:
+        failed = sum(source.fetch_status == "failed" for source in report.sources)
+        unsupported = sum(source.parse_status == "unsupported" for source in report.sources)
+        parse_failed = sum(source.parse_status == "failed" for source in report.sources)
+        empty = sum(
+            source.fetch_status == "ok" and not source.nodes
+            for source in report.sources
+        )
+        details: list[str] = []
+        if failed:
+            details.append(f"не загрузились: {failed}")
+        if unsupported:
+            details.append(f"формат не поддерживается: {unsupported}")
+        if parse_failed:
+            details.append(f"ошибка разбора: {parse_failed}")
+        if empty and not (unsupported or parse_failed):
+            details.append(f"без распознанных узлов: {empty}")
+        suffix = f" ({'; '.join(details)})" if details else ""
+        return (
+            "В выбранных источниках не найдено узлов для сборки"
+            f"{suffix}. Проверьте доступность URL и формат подписки"
+        )
+
+    statuses = collections.Counter(result.overall_status for result in report.node_results)
+    rejected = sum(
+        result.error_category == "invalid_configuration"
+        for result in report.node_results
+    )
+    unsupported = statuses["unsupported"]
+    unfinished = sum(
+        result.overall_status == "not_tested"
+        and result.error_category != "invalid_configuration"
+        for result in report.node_results
+    )
+    details = []
+    if rejected:
+        details.append(f"Mihomo отклонил: {rejected}")
+    if unsupported:
+        details.append(f"неподдерживаемый протокол: {unsupported}")
+    if unfinished:
+        details.append(f"не удалось проверить: {unfinished}")
+    suffix = f" ({'; '.join(details)})" if details else ""
+    return f"Ни один из {candidate_count} узлов не прошёл проверку конфигурации{suffix}"
+
+
 def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, object]:
     """Build a complete router-ready Mihomo configuration from accepted nodes."""
     used_names = set(RESERVED_OUTBOUND_NAMES)
@@ -69,7 +118,7 @@ def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, objec
     if not proxies:
         raise mihomo_checker.MihomoCheckError(
             "NO_MATCHING_NODES",
-            "В выбранных источниках нет поддерживаемых узлов для сборки",
+            _empty_build_summary(report),
         )
 
     # Preserve simple dialer chains when a referenced node had to be renamed.

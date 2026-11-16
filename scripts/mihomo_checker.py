@@ -46,6 +46,7 @@ CHECKPOINT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 CHECKPOINT_FLUSH_INTERVAL_SECONDS = 2.0
 CHECKPOINT_FLUSH_BATCH = 100
 TRANSIENT_PROBE_RETRIES = 1
+SOURCE_FETCH_ATTEMPTS = 3
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
 MAX_SOURCES = 200
 MAX_NODES = 20_000
@@ -995,24 +996,47 @@ class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 def fetch_source_url(url: str, timeout: float = 15.0) -> str:
-    validate_subscription_url(url)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _SafeRedirectHandler())
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "WireVeilChecker/1.0", "Accept": "application/yaml,text/yaml,text/plain,*/*"},
     )
-    try:
-        host = (urllib.parse.urlsplit(url).hostname or "unknown").casefold()
-        with _endpoint_limiter("source:" + host):
-            with opener.open(request, timeout=timeout) as response:
-                size_header = response.headers.get("Content-Length")
-                if size_header and int(size_header) > MAX_SOURCE_BYTES:
-                    raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
-                raw = response.read(MAX_SOURCE_BYTES + 1)
-    except MihomoCheckError:
-        raise
-    except (OSError, ValueError, urllib.error.URLError) as exc:
-        raise MihomoCheckError("SOURCE_FETCH_FAILED", sanitize_text(exc)) from exc
+    host = (urllib.parse.urlsplit(url).hostname or "unknown").casefold()
+    last_error: BaseException | None = None
+    raw = b""
+    fetched = False
+    for attempt in range(1, SOURCE_FETCH_ATTEMPTS + 1):
+        try:
+            # Resolve the host again before every attempt so a retry cannot
+            # bypass the local-address protection through DNS rebinding.
+            validate_subscription_url(url)
+            with _endpoint_limiter("source:" + host):
+                with opener.open(request, timeout=timeout) as response:
+                    size_header = response.headers.get("Content-Length")
+                    if size_header and int(size_header) > MAX_SOURCE_BYTES:
+                        raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
+                    raw = response.read(MAX_SOURCE_BYTES + 1)
+            fetched = True
+            break
+        except MihomoCheckError as exc:
+            if exc.code != "DNS_ERROR":
+                raise
+            last_error = exc
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            # Authentication and other permanent client errors should be
+            # reported immediately. Rate limits and server errors are often
+            # temporary and benefit from the bounded retry below.
+            if exc.code < 500 and exc.code not in {408, 425, 429}:
+                break
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            last_error = exc
+        if attempt < SOURCE_FETCH_ATTEMPTS:
+            time.sleep(min(2 ** (attempt - 1), 2))
+    if not fetched and isinstance(last_error, MihomoCheckError):
+        raise last_error
+    if not fetched and last_error is not None:
+        raise MihomoCheckError("SOURCE_FETCH_FAILED", sanitize_text(last_error)) from last_error
     if len(raw) > MAX_SOURCE_BYTES:
         raise MihomoCheckError("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ")
     try:
