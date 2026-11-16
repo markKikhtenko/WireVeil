@@ -248,19 +248,26 @@ class RouterSubscriptionServer:
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
 
-            def do_GET(self) -> None:  # noqa: N802
+            def _serve_subscription(self, *, send_body: bool) -> None:
                 if self.path != owner.route:
                     self.send_error(404)
                     return
                 with owner._lock:
                     payload = owner._content
                 self.send_response(200)
-                self.send_header("Content-Type", "application/yaml; charset=utf-8")
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.send_header("Content-Length", str(len(payload)))
                 self.send_header("Cache-Control", "no-store, max-age=0")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()
-                self.wfile.write(payload)
+                if send_body:
+                    self.wfile.write(payload)
+
+            def do_GET(self) -> None:  # noqa: N802
+                self._serve_subscription(send_body=True)
+
+            def do_HEAD(self) -> None:  # noqa: N802
+                self._serve_subscription(send_body=False)
 
             def log_message(self, _format: str, *_args: object) -> None:
                 return

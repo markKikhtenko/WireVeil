@@ -127,8 +127,16 @@ class RouterServerTests(unittest.TestCase):
             server.set_content(b"proxies: []\n")
             url = server.start(0)
             with opener.open(url, timeout=3) as response:
-                self.assertEqual("application/yaml; charset=utf-8", response.headers["Content-Type"])
+                self.assertEqual("text/plain; charset=utf-8", response.headers["Content-Type"])
                 self.assertEqual(b"proxies: []\n", response.read())
+            head_request = urllib.request.Request(url, method="HEAD")
+            with opener.open(head_request, timeout=3) as response:
+                self.assertEqual(200, response.status)
+                self.assertEqual("text/plain; charset=utf-8", response.headers["Content-Type"])
+                self.assertEqual(
+                    str(len(b"proxies: []\n")), response.headers["Content-Length"]
+                )
+                self.assertEqual(b"", response.read())
             server.set_content(b"proxies:\n  - name: updated\n")
             with opener.open(url, timeout=3) as response:
                 self.assertIn(b"updated", response.read())
@@ -151,6 +159,24 @@ class RouterServerTests(unittest.TestCase):
 
 
 class RouterSettingsTests(unittest.TestCase):
+    def test_existing_output_restarts_previously_enabled_server(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "router.yaml"
+            path.write_bytes(b"proxies: []\n")
+            tab = object.__new__(RouterSubscriptionTab)
+            tab.output_path = path
+            tab.server = mock.Mock()
+            tab.summary_var = mock.Mock()
+            tab.save_button = mock.Mock()
+            tab.server_button = mock.Mock()
+            tab.server_enabled = True
+            tab._start_server = mock.Mock()
+
+            tab._load_existing_output()
+
+        tab.server.set_content.assert_called_once_with(b"proxies: []\n")
+        tab._start_server.assert_called_once_with(show_error=False)
+
     def test_round_trip_keeps_stable_url_token_and_selection(self):
         token = "a" * 32
         with tempfile.TemporaryDirectory() as name:
@@ -163,6 +189,7 @@ class RouterSettingsTests(unittest.TestCase):
                     "timeout": 12,
                     "workers": 24,
                     "token": token,
+                    "server_enabled": False,
                     "enabled_source_ids": ["src-000000000001"],
                 },
             )
@@ -170,6 +197,7 @@ class RouterSettingsTests(unittest.TestCase):
             raw = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(19090, loaded["port"])
         self.assertEqual(token, loaded["token"])
+        self.assertIs(False, loaded["server_enabled"])
         self.assertEqual(["src-000000000001"], loaded["enabled_source_ids"])
         self.assertEqual(token, raw["token"])
 

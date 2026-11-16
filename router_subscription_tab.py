@@ -47,6 +47,11 @@ def load_router_settings(path: Path) -> dict[str, object]:
         "timeout": timeout if isinstance(timeout, int) and 1 <= timeout <= 60 else 8,
         "workers": workers if workers in mihomo_checker.BASE_WORKERS_ALLOWED else mihomo_checker.BASE_WORKERS_DEFAULT,
         "token": token if valid_subscription_token(token) else new_subscription_token(),
+        "server_enabled": (
+            raw.get("server_enabled")
+            if isinstance(raw.get("server_enabled"), bool)
+            else True
+        ),
         "enabled_source_ids": (
             [item for item in enabled if isinstance(item, str)]
             if isinstance(enabled, list)
@@ -76,6 +81,7 @@ class RouterSubscriptionTab(ttk.Frame):
             set(saved_enabled) if isinstance(saved_enabled, list)
             else {item.source_id for item in self.sources}
         )
+        self.server_enabled = bool(saved["server_enabled"])
         self.token = str(saved["token"])
         self.server = RouterSubscriptionServer(self.token)
         self.events: queue.Queue[tuple[object, ...]] = queue.Queue()
@@ -543,14 +549,18 @@ class RouterSubscriptionTab(ttk.Frame):
         self.summary_var.set("Найдена ранее собранная локальная подписка")
         self.save_button.configure(state="normal")
         self.server_button.configure(state="normal")
+        if self.server_enabled:
+            self._start_server(show_error=False)
 
     def _toggle_server(self) -> None:
         if self.server.running:
             self.server.stop()
+            self.server_enabled = False
             self.url_var.set("Сервер остановлен")
             self.server_button.configure(text="Запустить сервер")
             self.copy_button.configure(state="disabled")
             self.port_box.configure(state="normal")
+            self._save_settings()
             return
         self._start_server(show_error=True)
 
@@ -570,6 +580,7 @@ class RouterSubscriptionTab(ttk.Frame):
                 self.status_var.set(f"YAML сохранён, но HTTP-сервер не запущен: {exc}")
             return
         self.url_var.set(url)
+        self.server_enabled = True
         self.server_button.configure(text="Остановить сервер", state="normal")
         self.copy_button.configure(state="normal")
         self.port_box.configure(state="disabled")
@@ -613,6 +624,7 @@ class RouterSubscriptionTab(ttk.Frame):
                 {
                     "port": int(self.port_var.get()),
                     "token": self.token,
+                    "server_enabled": self.server_enabled,
                     "enabled_source_ids": sorted(self.enabled_source_ids),
                 },
             )
