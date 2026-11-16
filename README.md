@@ -7,29 +7,29 @@ WireVeil собирает публичные proxy URI, проверяет фо�
 ## Подписки
 
 <!-- WIREVEIL_STATS_START -->
-Последнее успешное обновление: **2026-11-16T10:00:36+03:00** (UTC: 2026-11-16T07:00:36Z).
+Последнее успешное обновление: **2026-11-16T10:46:07+03:00** (UTC: 2026-11-16T07:46:07Z).
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 3433 | 720.2 KiB |
-| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 1589 | 365.8 KiB |
-| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 529 | 83.6 KiB |
-| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 451 | 52.2 KiB |
-| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 344 | 117.2 KiB |
+| Все протоколы | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/subscription.txt) | 3393 | 709.2 KiB |
+| VLESS | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vless.txt) | 1555 | 356.4 KiB |
+| Trojan | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/trojan.txt) | 527 | 83.3 KiB |
+| Shadowsocks | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/shadowsocks.txt) | 453 | 52.1 KiB |
+| VMess | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/vmess.txt) | 341 | 116.3 KiB |
 | Hysteria | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria.txt) | 0 | 0 B |
-| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 265 | 36.5 KiB |
+| Hysteria2 | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/hysteria2.txt) | 262 | 36.2 KiB |
 | TUIC | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/tuic.txt) | 255 | 65.0 KiB |
 <!-- WIREVEIL_STATS_END -->
 
 ### Проверенные подключения
 
 <!-- WIREVEIL_HEALTH_START -->
-Последняя проверка реального подключения: **2026-11-16T10:04:51+03:00** (UTC: 2026-11-16T07:04:51Z). Проверено через `sing-box version 1.14.0`: **1004 из 3433** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **1004**.
+Последняя проверка реального подключения: **2026-11-16T10:50:11+03:00** (UTC: 2026-11-16T07:50:11Z). Проверено через `sing-box version 1.14.0`: **962 из 3393** конфигураций передали HTTPS-трафик; после endpoint-дедупликации опубликовано **962**.
 
 | Подписка | RAW-ссылка | Ключей | Размер |
 |---|---|---:|---:|
-| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 1004 | 187.6 KiB |
-| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 698 | 125.0 KiB |
+| Только активные и проверенные | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/active.txt) | 962 | 179.2 KiB |
+| Рабочие и быстрые (≤ 500 мс) | [RAW](https://raw.githubusercontent.com/markKikhtenko/WireVeil/main/good.txt) | 687 | 124.5 KiB |
 <!-- WIREVEIL_HEALTH_END -->
 
 - `good.txt` — рабочие узлы с задержкой не выше 500 мс; рекомендуемый вариант.
