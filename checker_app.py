@@ -18,10 +18,11 @@ import urllib.parse
 from pathlib import Path
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from mihomo_tab import MihomoCheckerTab
 from scripts import app_updater, build, healthcheck, local_checker, network_check
+import subscription_sources as subscription_source_store
 from wireveil_paths import application_root, user_data_file
 from wireveil_version import APP_VERSION
 
@@ -31,6 +32,7 @@ CONFIG_FILENAME = "WireVeilChecker.config.json"
 CONFIG_VERSION = 2
 RESULTS_FILENAME = "WireVeilChecker.last-results.json"
 RESULTS_VERSION = 1
+SUBSCRIPTION_SOURCES_FILENAME = "WireVeilChecker.sources.json"
 SERVICE_COLUMN_BY_NAME = {
     service.name: f"service_{service.key}"
     for service in local_checker.SERVICE_DEFINITIONS
@@ -77,6 +79,10 @@ def checker_settings_path() -> Path:
 
 def checker_results_path() -> Path:
     return user_data_file(RESULTS_FILENAME)
+
+
+def subscription_sources_path() -> Path:
+    return user_data_file(SUBSCRIPTION_SOURCES_FILENAME)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -379,6 +385,7 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "services": (local_checker.DEFAULT_SERVICE_NAME,),
         "advanced_visible": False,
         "subscription": "",
+        "last_source_mode": "manual",
     }
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -436,6 +443,9 @@ def load_checker_settings(path: Path) -> dict[str, object]:
         "subscription": raw.get("subscription")
         if isinstance(raw.get("subscription"), str)
         else "",
+        "last_source_mode": raw.get("last_source_mode")
+        if raw.get("last_source_mode") in {"manual", "selected"}
+        else "manual",
     }
 
 
@@ -598,6 +608,377 @@ class _UpdateDialog(tk.Toplevel):
         self.destroy()
 
 
+class _SubscriptionSourcesDialog(tk.Toplevel):
+    """Manage and select regular VPN subscriptions for one combined run."""
+
+    COLUMNS = ("selected", "name", "kind", "source")
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        sources: tuple[subscription_source_store.SubscriptionSource, ...],
+        current_source: str,
+    ) -> None:
+        super().__init__(parent)
+        self.sources = list(sources)
+        self.current_source = current_source.strip()
+        self.run_requested = False
+        self.title(f"Подписки для проверки — {APP_TITLE}")
+        self.configure(background="#0d1117")
+        self.transient(parent.winfo_toplevel())
+        self.geometry("920x520")
+        self.minsize(700, 420)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
+
+        header = ttk.Frame(self, padding=(18, 16, 18, 8))
+        header.grid(row=0, column=0, sticky="ew")
+        ttk.Label(
+            header,
+            text="Выберите подписки для общей проверки",
+            style="PageTitle.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            header,
+            text=(
+                "Отмеченные источники будут загружены отдельно, объединены и "
+                "очищены от одинаковых ключей."
+            ),
+            style="PageSubtitle.TLabel",
+        ).pack(anchor="w", pady=(4, 0))
+
+        toolbar = ttk.Frame(self, style="Card.TFrame", padding=(10, 8))
+        toolbar.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 8))
+        ttk.Button(
+            toolbar,
+            text="Добавить URL…",
+            command=self._add_url,
+            style="Accent.TButton",
+        ).pack(side="left")
+        ttk.Button(
+            toolbar,
+            text="Добавить файлы…",
+            command=self._add_files,
+            style="Secondary.TButton",
+        ).pack(side="left", padx=(6, 0))
+        self.add_current_button = ttk.Button(
+            toolbar,
+            text="Добавить из основного поля",
+            command=self._add_current,
+            state="normal" if self.current_source else "disabled",
+            style="Secondary.TButton",
+        )
+        self.add_current_button.pack(side="left", padx=(6, 0))
+        ttk.Button(
+            toolbar,
+            text="Выбрать все",
+            command=lambda: self._set_all_selected(True),
+            style="Secondary.TButton",
+        ).pack(side="right")
+        ttk.Button(
+            toolbar,
+            text="Снять все",
+            command=lambda: self._set_all_selected(False),
+            style="Secondary.TButton",
+        ).pack(side="right", padx=(0, 6))
+
+        table_frame = ttk.Frame(self, style="Card.TFrame", padding=(1, 1))
+        table_frame.grid(row=2, column=0, sticky="nsew", padx=18)
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=self.COLUMNS,
+            show="headings",
+            selectmode="extended",
+        )
+        headings = {
+            "selected": "Проверять",
+            "name": "Название",
+            "kind": "Тип",
+            "source": "Источник",
+        }
+        widths = {"selected": 85, "name": 230, "kind": 75, "source": 480}
+        for column in self.COLUMNS:
+            self.tree.heading(column, text=headings[column])
+            self.tree.column(
+                column,
+                width=widths[column],
+                minwidth=65,
+                anchor="center" if column in {"selected", "kind"} else "w",
+                stretch=column in {"name", "source"},
+            )
+        scroll = ttk.Scrollbar(
+            table_frame, orient="vertical", command=self.tree.yview
+        )
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.tree.bind("<Button-1>", self._toggle_from_click, add="+")
+        self.tree.bind("<space>", self._toggle_selected_rows)
+        self.tree.bind("<<TreeviewSelect>>", self._update_actions)
+
+        footer = ttk.Frame(self, padding=(18, 10, 18, 16))
+        footer.grid(row=3, column=0, sticky="ew")
+        self.summary_var = tk.StringVar()
+        ttk.Label(
+            footer, textvariable=self.summary_var, style="Summary.TLabel"
+        ).pack(side="left")
+        self.delete_button = ttk.Button(
+            footer,
+            text="Удалить",
+            command=self._delete_selected,
+            state="disabled",
+            style="Secondary.TButton",
+        )
+        self.delete_button.pack(side="left", padx=(12, 0))
+        self.rename_button = ttk.Button(
+            footer,
+            text="Переименовать",
+            command=self._rename_selected,
+            state="disabled",
+            style="Secondary.TButton",
+        )
+        self.rename_button.pack(side="left", padx=(6, 0))
+        ttk.Button(
+            footer,
+            text="Закрыть",
+            command=self.destroy,
+            style="Secondary.TButton",
+        ).pack(side="right")
+        self.run_button = ttk.Button(
+            footer,
+            text="▶ Проверить выбранные",
+            command=self._request_run,
+            style="Accent.TButton",
+        )
+        self.run_button.pack(side="right", padx=(0, 6))
+
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self._refresh()
+        self.grab_set()
+        self.focus_set()
+
+    def _refresh(self) -> None:
+        selected_rows = set(self.tree.selection())
+        children = self.tree.get_children("")
+        if children:
+            self.tree.delete(*children)
+        for source in self.sources:
+            self.tree.insert(
+                "",
+                "end",
+                iid=source.source_id,
+                values=(
+                    "☑" if source.selected else "☐",
+                    source.name,
+                    source.kind_label,
+                    source.display,
+                ),
+            )
+        restored = tuple(
+            source_id
+            for source_id in selected_rows
+            if self.tree.exists(source_id)
+        )
+        if restored:
+            self.tree.selection_set(restored)
+        selected_count = sum(source.selected for source in self.sources)
+        self.summary_var.set(
+            f"Выбрано {selected_count} из {len(self.sources)} подписок"
+        )
+        self.run_button.configure(
+            state="normal" if selected_count else "disabled"
+        )
+        self._update_actions()
+
+    def _replace_selected_state(self, source_ids: set[str], selected: bool) -> None:
+        self.sources = [
+            dataclasses.replace(source, selected=selected)
+            if source.source_id in source_ids
+            else source
+            for source in self.sources
+        ]
+        self._refresh()
+
+    def _set_all_selected(self, selected: bool) -> None:
+        self._replace_selected_state(
+            {source.source_id for source in self.sources}, selected
+        )
+
+    def _toggle_source_ids(self, source_ids: set[str]) -> None:
+        self.sources = [
+            dataclasses.replace(source, selected=not source.selected)
+            if source.source_id in source_ids
+            else source
+            for source in self.sources
+        ]
+        self._refresh()
+
+    def _toggle_from_click(self, event: tk.Event) -> None:
+        row = self.tree.identify_row(event.y)
+        column = self.tree.identify_column(event.x)
+        if row and column == "#1":
+            self.after_idle(lambda selected=row: self._toggle_source_ids({selected}))
+
+    def _toggle_selected_rows(self, _event: object | None = None) -> str:
+        source_ids = set(self.tree.selection())
+        if source_ids:
+            self._toggle_source_ids(source_ids)
+        return "break"
+
+    def _append_sources(
+        self, additions: list[subscription_source_store.SubscriptionSource]
+    ) -> None:
+        existing = {(source.kind, source.value) for source in self.sources}
+        accepted: list[subscription_source_store.SubscriptionSource] = []
+        for source in additions:
+            key = (source.kind, source.value)
+            if key in existing:
+                continue
+            existing.add(key)
+            accepted.append(source)
+        if not accepted:
+            messagebox.showinfo(
+                APP_TITLE, "Такие источники уже есть в списке.", parent=self
+            )
+            return
+        if len(self.sources) + len(accepted) > subscription_source_store.MAX_SOURCES:
+            messagebox.showerror(
+                APP_TITLE,
+                f"Можно сохранить не более {subscription_source_store.MAX_SOURCES} источников.",
+                parent=self,
+            )
+            return
+        self.sources.extend(accepted)
+        self._refresh()
+
+    def _add_url(self) -> None:
+        value = simpledialog.askstring(
+            "Добавить подписку",
+            "Введите HTTP(S) URL обычной VPN-подписки:",
+            parent=self,
+        )
+        if not value:
+            return
+        url = subscription_source_store.validate_subscription_url(value)
+        if url is None:
+            messagebox.showerror(
+                APP_TITLE, "Нужен корректный HTTP(S) URL подписки.", parent=self
+            )
+            return
+        self._append_sources(
+            [
+                subscription_source_store.SubscriptionSource(
+                    subscription_source_store.new_source_id(),
+                    subscription_source_store.source_name_from_url(url),
+                    "url",
+                    url,
+                )
+            ]
+        )
+
+    def _add_files(self) -> None:
+        names = filedialog.askopenfilenames(
+            parent=self,
+            title="Добавить файлы подписок",
+            filetypes=(
+                ("Подписки", "*.txt *.conf *.json *.yaml *.yml"),
+                ("Все файлы", "*.*"),
+            ),
+        )
+        additions = [
+            subscription_source_store.SubscriptionSource(
+                subscription_source_store.new_source_id(),
+                Path(name).name,
+                "file",
+                str(Path(name).resolve()),
+            )
+            for name in names
+        ]
+        if additions:
+            self._append_sources(additions)
+
+    def _add_current(self) -> None:
+        if not self.current_source:
+            return
+        name = simpledialog.askstring(
+            "Название подписки",
+            "Как назвать источник из основного поля?",
+            initialvalue="Ручная подписка",
+            parent=self,
+        )
+        if not name or not name.strip():
+            return
+        url = subscription_source_store.validate_subscription_url(
+            self.current_source
+        )
+        kind = "url" if url is not None and "\n" not in self.current_source else "text"
+        self._append_sources(
+            [
+                subscription_source_store.SubscriptionSource(
+                    subscription_source_store.new_source_id(),
+                    name.strip()[:160],
+                    kind,
+                    url if kind == "url" and url is not None else self.current_source,
+                )
+            ]
+        )
+
+    def _update_actions(self, _event: object | None = None) -> None:
+        count = len(self.tree.selection())
+        self.delete_button.configure(state="normal" if count else "disabled")
+        self.rename_button.configure(state="normal" if count == 1 else "disabled")
+
+    def _rename_selected(self) -> None:
+        selected = self.tree.selection()
+        if len(selected) != 1:
+            return
+        source_id = selected[0]
+        source = next(
+            (item for item in self.sources if item.source_id == source_id), None
+        )
+        if source is None:
+            return
+        name = simpledialog.askstring(
+            "Переименовать подписку",
+            "Новое название:",
+            initialvalue=source.name,
+            parent=self,
+        )
+        if not name or not name.strip():
+            return
+        self.sources = [
+            dataclasses.replace(item, name=name.strip()[:160])
+            if item.source_id == source_id
+            else item
+            for item in self.sources
+        ]
+        self._refresh()
+
+    def _delete_selected(self) -> None:
+        selected = set(self.tree.selection())
+        if not selected:
+            return
+        if not messagebox.askyesno(
+            "Удалить подписки",
+            f"Удалить выбранные источники из списка: {len(selected)}? Исходные файлы не удаляются.",
+            parent=self,
+        ):
+            return
+        self.sources = [
+            source for source in self.sources if source.source_id not in selected
+        ]
+        self._refresh()
+
+    def _request_run(self) -> None:
+        if not any(source.selected for source in self.sources):
+            return
+        self.run_requested = True
+        self.destroy()
+
+
 class WireVeilChecker(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -621,9 +1002,28 @@ class WireVeilChecker(tk.Tk):
 
         self.settings_path = checker_settings_path()
         self.results_path = checker_results_path()
+        self.subscription_sources_path = subscription_sources_path()
         saved_settings = load_checker_settings(self.settings_path)
         restore_advanced = bool(saved_settings["advanced_visible"])
         restore_subscription = str(saved_settings["subscription"])
+        self.subscription_sources = (
+            subscription_source_store.load_subscription_sources(
+                self.subscription_sources_path
+            )
+        )
+        self.last_source_mode = str(saved_settings["last_source_mode"])
+        if self.last_source_mode == "selected" and not any(
+            source.selected for source in self.subscription_sources
+        ):
+            self.last_source_mode = "manual"
+        restore_result_source = (
+            subscription_source_store.selected_sources_identity(
+                self.subscription_sources
+            )
+            if self.last_source_mode == "selected"
+            else restore_subscription
+        )
+        self.result_source = restore_result_source
         self.settings_save_job: str | None = None
         self.settings_save_error_reported = False
         self.results_save_error_reported = False
@@ -718,7 +1118,7 @@ class WireVeilChecker(tk.Tk):
             self._toggle_advanced_settings(persist=False)
         self._watch_settings()
         self._log(f"Настройки: {self.settings_path}")
-        self._restore_last_results(restore_subscription)
+        self._restore_last_results(restore_result_source)
         if self.auto_enabled_var.get():
             self._log("Полный автоцикл сохранён и продолжит работу после первого запуска.")
         if self.watch_enabled_var.get():
@@ -981,11 +1381,13 @@ class WireVeilChecker(tk.Tk):
         source_copy = ttk.Frame(source_header, style="CardBody.TFrame")
         source_copy.pack(side="left")
         ttk.Label(
-            source_copy, text="1. Добавьте подписку", style="CardTitle.TLabel"
+            source_copy,
+            text="1. Добавьте одну или несколько подписок",
+            style="CardTitle.TLabel",
         ).pack(anchor="w")
         ttk.Label(
             source_copy,
-            text="Вставьте ссылку, содержимое подписки или выберите файл",
+            text="Ручной ввод ниже или отдельное окно с выбором источников",
             style="CardBody.TLabel",
         ).pack(anchor="w")
         self.clear_source_button = ttk.Button(
@@ -1009,6 +1411,13 @@ class WireVeilChecker(tk.Tk):
             style="Secondary.TButton",
         )
         self.paste_button.pack(side="right", padx=(0, 5))
+        self.subscription_sources_button = ttk.Button(
+            source_header,
+            command=self._open_subscription_sources,
+            style="Accent.TButton",
+        )
+        self.subscription_sources_button.pack(side="right", padx=(0, 5))
+        self._refresh_subscription_sources_button()
         self.source = tk.Text(
             source_card,
             height=1,
@@ -1764,6 +2173,7 @@ class WireVeilChecker(tk.Tk):
             "services": list(self._selected_service_names()),
             "advanced_visible": self.advanced_visible,
             "subscription": self.source.get("1.0", "end-1c"),
+            "last_source_mode": self.last_source_mode,
         }
         try:
             write_checker_settings(self.settings_path, settings)
@@ -1779,7 +2189,7 @@ class WireVeilChecker(tk.Tk):
         try:
             write_checker_results(
                 self.results_path,
-                self.source.get("1.0", "end-1c"),
+                self.result_source,
                 self.report,
                 self.speed_results,
                 self.service_results,
@@ -2159,6 +2569,43 @@ class WireVeilChecker(tk.Tk):
         self.source.delete("1.0", "end")
         self.source.insert("1.0", value)
 
+    def _refresh_subscription_sources_button(self) -> None:
+        selected = sum(source.selected for source in self.subscription_sources)
+        total = len(self.subscription_sources)
+        label = (
+            f"Подписки…  {selected}/{total}"
+            if total
+            else "Выбрать подписки…"
+        )
+        self.subscription_sources_button.configure(text=label)
+
+    def _save_subscription_sources(self) -> None:
+        try:
+            subscription_source_store.save_subscription_sources(
+                self.subscription_sources_path, self.subscription_sources
+            )
+        except OSError as exc:
+            messagebox.showerror(
+                APP_TITLE,
+                f"Не удалось сохранить список подписок: {exc}",
+                parent=self,
+            )
+
+    def _open_subscription_sources(self) -> None:
+        if self.running:
+            return
+        dialog = _SubscriptionSourcesDialog(
+            self,
+            tuple(self.subscription_sources),
+            self.source.get("1.0", "end-1c"),
+        )
+        self.wait_window(dialog)
+        self.subscription_sources = list(dialog.sources)
+        self._save_subscription_sources()
+        self._refresh_subscription_sources_button()
+        if dialog.run_requested:
+            self._start_selected_sources()
+
     def _clear_source(self) -> None:
         if self.running:
             return
@@ -2320,15 +2767,43 @@ class WireVeilChecker(tk.Tk):
         if not self.running:
             self.one_click_mode = False
 
-    def _start(self) -> None:
+    def _start_selected_sources(self) -> None:
+        if self.running:
+            return
+        selected = tuple(
+            source for source in self.subscription_sources if source.selected
+        )
+        if not selected:
+            messagebox.showerror(
+                APP_TITLE,
+                "В окне подписок выберите хотя бы один источник.",
+                parent=self,
+            )
+            return
+        for variable in self.service_vars.values():
+            variable.set(True)
+        self._service_selection_changed()
+        self.one_click_mode = True
+        self._start(sources=selected)
+        if not self.running:
+            self.one_click_mode = False
+
+    def _start(
+        self,
+        *,
+        sources: tuple[subscription_source_store.SubscriptionSource, ...] | None = None,
+    ) -> None:
         if self.running:
             return
         settings = self._settings()
         if settings is None:
             return
         value = self.source.get("1.0", "end").strip()
-        if not value:
+        if sources is None and not value:
             messagebox.showerror(APP_TITLE, "Вставьте ссылку или содержимое подписки.")
+            return
+        if sources is not None and not sources:
+            messagebox.showerror(APP_TITLE, "Выберите хотя бы одну подписку.")
             return
         binary = find_sing_box()
         if binary is None:
@@ -2351,6 +2826,15 @@ class WireVeilChecker(tk.Tk):
         self.status_var.set("Подготавливаю подписку…")
         self._clear_table()
         self._clear_log()
+        if sources is None:
+            self.last_source_mode = "manual"
+            self.result_source = value
+        else:
+            self.last_source_mode = "selected"
+            self.result_source = subscription_source_store.selected_sources_identity(
+                sources
+            )
+        self._queue_settings_save()
         if self.one_click_mode:
             steps = "ping → скорость → все сайты"
             if self.auto_copy_results_var.get():
@@ -2358,12 +2842,27 @@ class WireVeilChecker(tk.Tk):
             self._log(f"Режим «Сделать заебись»: {steps}.")
         else:
             self._log("Запуск проверки из текущей сети.")
+        if sources is not None:
+            names = ", ".join(source.name for source in sources[:5])
+            if len(sources) > 5:
+                names += f" и ещё {len(sources) - 5}"
+            self._log(
+                f"Выбранные подписки: {len(sources)}. Источники: {names}."
+            )
         self._set_running_controls(True)
 
         def work() -> None:
             try:
-                imported = local_checker.import_subscription(value)
-                self.events.put(("imported", imported, rounds))
+                if sources is None:
+                    imported = local_checker.import_subscription(value)
+                    source_failures: tuple[tuple[str, str], ...] = ()
+                else:
+                    imported, source_failures = (
+                        subscription_source_store.import_subscription_sources(sources)
+                    )
+                self.events.put(
+                    ("imported", imported, rounds, source_failures)
+                )
 
                 def progress(done: int, total: int, result: healthcheck.ProbeResult) -> None:
                     self.events.put(("progress", done, total, result, rounds))
@@ -3177,6 +3676,15 @@ class WireVeilChecker(tk.Tk):
                         f"Импортировано: {len(self.imported.lines)}; "
                         f"дубликатов: {self.imported.duplicates}; отклонено: {self.imported.rejected}."
                     )
+                    source_failures = event[3] if len(event) > 3 else ()
+                    for source_name, detail in source_failures:
+                        self._log(
+                            f"Источник «{source_name}» пропущен: {detail}"
+                        )
+                    if source_failures:
+                        self._log(
+                            f"Продолжаю по загруженным источникам; ошибок подписок: {len(source_failures)}."
+                        )
                 elif kind == "progress":
                     done, total, result, rounds = event[1], event[2], event[3], event[4]
                     latest_progress = (
@@ -3345,6 +3853,9 @@ class WireVeilChecker(tk.Tk):
         self.file_button.configure(state="disabled" if running else "normal")
         self.paste_button.configure(state="disabled" if running else "normal")
         self.clear_source_button.configure(state="disabled" if running else "normal")
+        self.subscription_sources_button.configure(
+            state="disabled" if running else "normal"
+        )
         self.service_menu_button.configure(state="disabled" if running else "normal")
         self.magic_button.configure(state="disabled" if running else "normal")
         if running:
@@ -4085,7 +4596,13 @@ class WireVeilChecker(tk.Tk):
             self._schedule_auto_check()
             return
         self._log("Запуск полного автоматического цикла.")
-        self._start_one_click()
+        sources = self.__dict__.get("subscription_sources", ())
+        if self.__dict__.get("last_source_mode", "manual") == "selected" and any(
+            source.selected for source in sources
+        ):
+            self._start_selected_sources()
+        else:
+            self._start_one_click()
 
     def _schedule_watch_check(self) -> None:
         self._cancel_watch_timer()

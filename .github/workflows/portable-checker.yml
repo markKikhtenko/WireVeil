@@ -7,6 +7,7 @@ on:
       - "checker-v*"
     paths:
       - "checker_app.py"
+      - "subscription_sources.py"
       - "wireveil_version.py"
       - "mihomo_tab.py"
       - "mihomo_diagnostics_dialog.py"
@@ -32,6 +33,7 @@ on:
     branches: [main, codex/mihomo-checker]
     paths:
       - "checker_app.py"
+      - "subscription_sources.py"
       - "wireveil_version.py"
       - "mihomo_tab.py"
       - "mihomo_diagnostics_dialog.py"

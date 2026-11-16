@@ -16,6 +16,7 @@ from checker_app import (
     TABLE_COLUMN_POSITIONS,
     TABLE_COLUMNS,
     UI_EVENT_BATCH_LIMIT,
+    _SubscriptionSourcesDialog,
     _UpdateDialog,
     WireVeilChecker,
     find_app_icon,
@@ -25,6 +26,7 @@ from checker_app import (
     write_checker_settings,
 )
 from scripts import app_updater, healthcheck, local_checker, network_check
+from subscription_sources import SubscriptionSource
 from wireveil_version import APP_VERSION
 
 
@@ -296,6 +298,61 @@ class AppIconTests(unittest.TestCase):
 
 
 class MainUiLayoutTests(unittest.TestCase):
+    def test_regular_subscription_window_selects_sources_for_combined_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch(
+                    "checker_app.checker_settings_path",
+                    return_value=root / "settings.json",
+                ),
+                mock.patch(
+                    "checker_app.checker_results_path",
+                    return_value=root / "results.json",
+                ),
+                mock.patch(
+                    "checker_app.subscription_sources_path",
+                    return_value=root / "sources.json",
+                ),
+                mock.patch.object(
+                    WireVeilChecker, "_refresh_network_status", return_value=None
+                ),
+            ):
+                try:
+                    checker = WireVeilChecker()
+                except tk.TclError as exc:
+                    self.skipTest(f"Tk is unavailable: {exc}")
+                dialog = None
+                try:
+                    dialog = _SubscriptionSourcesDialog(
+                        checker,
+                        (
+                            SubscriptionSource(
+                                "one", "One", "url", "https://one.test/sub"
+                            ),
+                            SubscriptionSource(
+                                "two",
+                                "Two",
+                                "url",
+                                "https://two.test/sub",
+                                selected=False,
+                            ),
+                        ),
+                        "",
+                    )
+                    dialog.update()
+
+                    self.assertEqual(2, len(dialog.tree.get_children("")))
+                    self.assertEqual("Выбрано 1 из 2 подписок", dialog.summary_var.get())
+                    dialog._toggle_source_ids({"two"})
+                    self.assertEqual("Выбрано 2 из 2 подписок", dialog.summary_var.get())
+                    dialog._request_run()
+                    self.assertTrue(dialog.run_requested)
+                finally:
+                    if dialog is not None and dialog.winfo_exists():
+                        dialog.destroy()
+                    checker._on_close()
+
     def test_magic_tooltip_closes_when_switching_to_mihomo(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1068,6 +1125,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             "services": ["ChatGPT", "GitHub", "YouTube"],
             "advanced_visible": True,
             "subscription": "https://example.com/subscription",
+            "last_source_mode": "selected",
         }
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "WireVeilChecker.config.json"
@@ -1093,6 +1151,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual(
                 "https://example.com/subscription", loaded["subscription"]
             )
+            self.assertEqual("selected", loaded["last_source_mode"])
             self.assertEqual(2, json.loads(path.read_text(encoding="utf-8"))["version"])
 
     def test_invalid_settings_fall_back_to_safe_defaults(self):
@@ -1114,6 +1173,7 @@ class SettingsPersistenceTests(unittest.TestCase):
                         "services": ["Unknown"],
                         "advanced_visible": "yes",
                         "subscription": 123,
+                        "last_source_mode": "broken",
                     }
                 ),
                 encoding="utf-8",
@@ -1134,6 +1194,7 @@ class SettingsPersistenceTests(unittest.TestCase):
             self.assertEqual((), loaded["services"])
             self.assertFalse(loaded["advanced_visible"])
             self.assertEqual("", loaded["subscription"])
+            self.assertEqual("manual", loaded["last_source_mode"])
 
 
 class ResultsPersistenceTests(unittest.TestCase):
