@@ -9,12 +9,21 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Mapping
+
+import yaml
 
 from scripts import mihomo_checker
 
 
 DEFAULT_PORT = 18080
 TOKEN_BYTES = 16
+GROUP_GLOBAL = "GLOBAL"
+GROUP_AUTO = "AUTO"
+GROUP_ALL = "ALL"
+GROUP_NAMES = (GROUP_GLOBAL, GROUP_AUTO, GROUP_ALL)
+RESERVED_OUTBOUND_NAMES = {*GROUP_NAMES, "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"}
+AUTO_TEST_URL = "https://www.gstatic.com/generate_204"
 
 
 def new_subscription_token() -> str:
@@ -32,13 +41,108 @@ def valid_subscription_token(value: object) -> bool:
     return True
 
 
+def _unique_proxy_name(value: object, used: set[str]) -> str:
+    base = str(value or "WireVeil node").strip() or "WireVeil node"
+    candidate = base
+    suffix = 2
+    while candidate in used:
+        candidate = f"{base} [{suffix}]"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
+def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, object]:
+    """Build a complete router-ready Mihomo configuration from good nodes."""
+    used_names = set(RESERVED_OUTBOUND_NAMES)
+    proxies: list[dict[str, object]] = []
+    original_to_exported: dict[str, list[str]] = {}
+    for result in report.node_results:
+        if result.overall_status != "good":
+            continue
+        proxy = dict(result.node.proxy)
+        original_name = str(proxy.get("name") or "WireVeil node")
+        exported_name = _unique_proxy_name(original_name, used_names)
+        proxy["name"] = exported_name
+        proxies.append(proxy)
+        original_to_exported.setdefault(original_name, []).append(exported_name)
+    if not proxies:
+        raise mihomo_checker.MihomoCheckError(
+            "NO_MATCHING_NODES", "Нет полностью рабочих узлов для сборки роутерной подписки"
+        )
+
+    # Preserve simple dialer chains when a referenced node had to be renamed.
+    for proxy in proxies:
+        dialer = proxy.get("dialer-proxy")
+        if isinstance(dialer, str) and dialer in original_to_exported:
+            proxy["dialer-proxy"] = original_to_exported[dialer][0]
+
+    proxy_names = [str(proxy["name"]) for proxy in proxies]
+    return {
+        "mode": "rule",
+        "log-level": "warning",
+        "ipv6": True,
+        "unified-delay": True,
+        "tcp-concurrent": True,
+        "find-process-mode": "off",
+        "proxies": proxies,
+        "proxy-groups": [
+            {
+                "name": GROUP_GLOBAL,
+                "type": "select",
+                "proxies": [GROUP_AUTO, GROUP_ALL, "DIRECT"],
+            },
+            {
+                "name": GROUP_AUTO,
+                "type": "url-test",
+                "proxies": proxy_names,
+                "url": AUTO_TEST_URL,
+                "interval": 300,
+                "timeout": 5000,
+                "tolerance": 50,
+                "lazy": True,
+                "expected-status": 204,
+            },
+            {
+                "name": GROUP_ALL,
+                "type": "select",
+                "proxies": proxy_names,
+            },
+        ],
+        "rules": [
+            "DOMAIN-SUFFIX,lan,DIRECT",
+            "DOMAIN-SUFFIX,local,DIRECT",
+            "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+            "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+            "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+            "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+            "IP-CIDR6,::1/128,DIRECT,no-resolve",
+            "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
+            "IP-CIDR6,fe80::/10,DIRECT,no-resolve",
+            f"MATCH,{GROUP_GLOBAL}",
+        ],
+    }
+
+
+def _write_private_yaml(path: Path, payload: Mapping[str, object]) -> None:
+    path.write_text(
+        yaml.safe_dump(dict(payload), allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+        newline="\n",
+    )
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
 def build_router_yaml(report: mihomo_checker.BatchReport, path: Path) -> bytes:
-    """Export only fully working nodes and return the exact private payload."""
+    """Atomically export a complete router-ready config with only good nodes."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     try:
-        mihomo_checker.export_private_yaml(report, temporary, statuses=("good",))
+        _write_private_yaml(temporary, router_config_payload(report))
         payload = temporary.read_bytes()
         temporary.replace(path)
         return payload

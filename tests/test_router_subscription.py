@@ -7,7 +7,10 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 from router_subscription import (
+    AUTO_TEST_URL,
     RouterSubscriptionServer,
     build_router_yaml,
     new_subscription_token,
@@ -56,14 +59,33 @@ def sample_report() -> mihomo_checker.BatchReport:
 
 
 class RouterYamlTests(unittest.TestCase):
-    def test_build_includes_only_fully_working_nodes(self):
+    def test_build_includes_only_good_nodes_and_router_groups(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "router.yaml"
             payload = build_router_yaml(sample_report(), path)
-        text = payload.decode("utf-8")
-        self.assertIn("Good", text)
-        self.assertNotIn("Failed", text)
-        self.assertIn("proxies:", text)
+        document = yaml.safe_load(payload)
+        proxy_names = [item["name"] for item in document["proxies"]]
+        groups = {item["name"]: item for item in document["proxy-groups"]}
+        self.assertEqual(["Good"], proxy_names)
+        self.assertEqual({"GLOBAL", "AUTO", "ALL"}, set(groups))
+        self.assertEqual(["AUTO", "ALL", "DIRECT"], groups["GLOBAL"]["proxies"])
+        self.assertEqual(proxy_names, groups["AUTO"]["proxies"])
+        self.assertEqual(proxy_names, groups["ALL"]["proxies"])
+        self.assertEqual(AUTO_TEST_URL, groups["AUTO"]["url"])
+        self.assertEqual("MATCH,GLOBAL", document["rules"][-1])
+        self.assertNotIn("Failed", payload.decode("utf-8"))
+
+    def test_reserved_proxy_names_are_renamed_and_group_references_stay_valid(self):
+        report = sample_report()
+        report.node_results[0].node.proxy["name"] = "AUTO"
+        with tempfile.TemporaryDirectory() as name:
+            payload = build_router_yaml(report, Path(name) / "router.yaml")
+        document = yaml.safe_load(payload)
+        proxy_names = [item["name"] for item in document["proxies"]]
+        groups = {item["name"]: item for item in document["proxy-groups"]}
+        self.assertEqual(["AUTO [2]"], proxy_names)
+        self.assertEqual(proxy_names, groups["AUTO"]["proxies"])
+        self.assertTrue(set(proxy_names).isdisjoint(groups))
 
     def test_failed_build_preserves_previous_subscription(self):
         report = sample_report()

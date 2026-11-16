@@ -171,7 +171,7 @@ class RouterSubscriptionTab(ttk.Frame):
         ).pack(anchor="w")
         ttk.Label(
             header,
-            text="Скачивает выбранные источники, проверяет все узлы через Mihomo и оставляет только прошедшие строгий HTTPS-тест.",
+            text="Проверяет выбранные источники и собирает готовый Mihomo-конфиг с группами GLOBAL, AUTO и ALL.",
             style="Router.Dim.TLabel",
         ).pack(anchor="w")
 
@@ -530,7 +530,7 @@ class RouterSubscriptionTab(ttk.Frame):
         good = sum(item.overall_status == "good" for item in report.node_results)
         total = len(report.node_results)
         self.progress_var.set(100)
-        self.status_var.set("Подписка собрана. Файл сохранён; локальный сервер запускается.")
+        self.status_var.set("Конфиг с группами GLOBAL / AUTO / ALL собран; локальный сервер запускается.")
         self.summary_var.set(f"Готово: {good} рабочих из {total} уникальных узлов")
         self.save_button.configure(state="normal")
         self.server_button.configure(state="normal")
