@@ -371,6 +371,28 @@ class MainUiLayoutTests(unittest.TestCase):
                     self.assertEqual("Выбрано 2 из 2 подписок", dialog.summary_var.get())
                     dialog._request_run()
                     self.assertTrue(dialog.run_requested)
+
+                    checker.subscription_sources = list(dialog.sources)
+                    checker.last_source_mode = "selected"
+                    checker._refresh_source_mode_ui()
+                    checker.update_idletasks()
+
+                    self.assertEqual("", checker.source.winfo_manager())
+                    self.assertEqual(
+                        "Ручной ввод", checker.clear_source_button.cget("text")
+                    )
+                    self.assertIn(
+                        "Основная проверка объединит",
+                        checker.source_hint_var.get(),
+                    )
+
+                    checker._activate_manual_source_mode()
+                    checker.update_idletasks()
+
+                    self.assertEqual("pack", checker.source.winfo_manager())
+                    self.assertEqual(
+                        "Очистить", checker.clear_source_button.cget("text")
+                    )
                 finally:
                     if dialog is not None and dialog.winfo_exists():
                         dialog.destroy()
@@ -1094,6 +1116,29 @@ class AutoCheckTests(unittest.TestCase):
 
 
 class SourceInputTests(unittest.TestCase):
+    def test_one_click_uses_selected_subscriptions_in_multisource_mode(self):
+        checker = object.__new__(WireVeilChecker)
+        checker.running = False
+        checker.one_click_mode = False
+        checker.last_source_mode = "selected"
+        checker.subscription_sources = [
+            SubscriptionSource("one", "One", "url", "https://one.test/sub"),
+            SubscriptionSource(
+                "two", "Two", "url", "https://two.test/sub", selected=False
+            ),
+        ]
+        service_var = mock.Mock()
+        checker.service_vars = {"ChatGPT": service_var}
+        checker._service_selection_changed = mock.Mock()
+        checker._start = mock.Mock()
+
+        checker._start_one_click()
+
+        service_var.set.assert_called_once_with(True)
+        checker._start.assert_called_once_with(
+            sources=(checker.subscription_sources[0],)
+        )
+
     def test_shortcuts_work_by_windows_keycode_with_any_layout(self):
         expected = {65: "select_all", 67: "copy", 86: "paste", 88: "cut"}
         for keycode, action in expected.items():

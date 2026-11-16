@@ -1434,9 +1434,10 @@ class WireVeilChecker(tk.Tk):
             text="1. Добавьте одну или несколько подписок",
             style="CardTitle.TLabel",
         ).pack(anchor="w")
+        self.source_hint_var = tk.StringVar()
         ttk.Label(
             source_copy,
-            text="Ручной ввод ниже или отдельное окно с выбором источников",
+            textvariable=self.source_hint_var,
             style="CardBody.TLabel",
         ).pack(anchor="w")
         self.clear_source_button = ttk.Button(
@@ -1487,6 +1488,7 @@ class WireVeilChecker(tk.Tk):
         self.source.bind("<Control-KeyPress>", self._source_keyboard_shortcut)
         self.source.bind("<Control-Insert>", self._source_copy_event)
         self.source.bind("<Shift-Insert>", self._source_paste_event)
+        self._refresh_source_mode_ui()
 
         command_bar = ttk.Frame(outer, style="Hero.TFrame", padding=(14, 11))
         command_bar.pack(fill="x", pady=(0, 12))
@@ -2617,8 +2619,10 @@ class WireVeilChecker(tk.Tk):
         except tk.TclError:
             messagebox.showinfo(APP_TITLE, "Буфер обмена пуст.")
             return
+        self._activate_manual_source_mode()
         self.source.delete("1.0", "end")
         self.source.insert("1.0", value)
+        self.status_var.set("Подписка вставлена. Активен ручной режим.")
 
     def _refresh_subscription_sources_button(self) -> None:
         selected = sum(source.selected for source in self.subscription_sources)
@@ -2629,6 +2633,40 @@ class WireVeilChecker(tk.Tk):
             else "Выбрать подписки…"
         )
         self.subscription_sources_button.configure(text=label)
+
+    def _refresh_source_mode_ui(self) -> None:
+        selected = sum(source.selected for source in self.subscription_sources)
+        if self.last_source_mode == "selected" and not selected:
+            self.last_source_mode = "manual"
+        if self.last_source_mode == "selected":
+            if self.source.winfo_manager():
+                self.source.pack_forget()
+            self.source_hint_var.set(
+                f"Выбрано источников: {selected}. Основная проверка объединит их."
+            )
+            self.clear_source_button.configure(
+                text="Ручной ввод",
+                command=self._activate_manual_source_mode,
+            )
+            return
+        if not self.source.winfo_manager():
+            self.source.pack(fill="x")
+        self.source_hint_var.set(
+            "Ручной ввод ниже или отдельное окно с выбором источников"
+        )
+        self.clear_source_button.configure(
+            text="Очистить",
+            command=self._clear_source,
+        )
+
+    def _activate_manual_source_mode(self) -> None:
+        if self.running:
+            return
+        self.last_source_mode = "manual"
+        self._refresh_source_mode_ui()
+        self.source.focus_set()
+        self.status_var.set("Ручной режим: вставьте ссылку или содержимое подписки.")
+        self._queue_settings_save()
 
     def _save_subscription_sources(self) -> None:
         try:
@@ -2654,12 +2692,20 @@ class WireVeilChecker(tk.Tk):
         self.subscription_sources = list(dialog.sources)
         self._save_subscription_sources()
         self._refresh_subscription_sources_button()
+        self.last_source_mode = (
+            "selected"
+            if any(source.selected for source in self.subscription_sources)
+            else "manual"
+        )
+        self._refresh_source_mode_ui()
+        self._queue_settings_save()
         if dialog.run_requested:
             self._start_selected_sources()
 
     def _clear_source(self) -> None:
         if self.running:
             return
+        self.last_source_mode = "manual"
         self.source.delete("1.0", "end")
         self.imported = None
         self.status_var.set("Поле подписки и сохранённое значение очищены.")
@@ -2789,6 +2835,7 @@ class WireVeilChecker(tk.Tk):
             messagebox.showerror(APP_TITLE, str(exc))
             return
         self.imported = imported
+        self._activate_manual_source_mode()
         self.source.delete("1.0", "end")
         self.source.insert("1.0", "\n".join(imported.lines))
         self.status_var.set(f"Загружено ключей: {len(imported.lines)}")
@@ -2814,7 +2861,14 @@ class WireVeilChecker(tk.Tk):
             variable.set(True)
         self._service_selection_changed()
         self.one_click_mode = True
-        self._start()
+        selected = tuple(
+            source for source in self.subscription_sources if source.selected
+        )
+        self._start(
+            sources=selected
+            if self.last_source_mode == "selected" and selected
+            else None
+        )
         if not self.running:
             self.one_click_mode = False
 
