@@ -21,6 +21,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from mihomo_tab import MihomoCheckerTab
+from router_subscription_tab import RouterSubscriptionTab
 from scripts import app_updater, build, healthcheck, local_checker, network_check
 import subscription_sources as subscription_source_store
 from wireveil_paths import application_root, user_data_file
@@ -1327,6 +1328,7 @@ class WireVeilChecker(tk.Tk):
         for key, title in (
             ("legacy", "Проверка подписки"),
             ("mihomo", "Mihomo / OpenClash"),
+            ("router", "Сборка для роутера"),
         ):
             nav_item = tk.Frame(nav_bar, background="#0d1117")
             nav_item.pack(side="left", padx=(0, 6))
@@ -1357,9 +1359,11 @@ class WireVeilChecker(tk.Tk):
         self.engine_content.columnconfigure(0, weight=1)
         legacy_page = ttk.Frame(self.engine_content)
         mihomo_page = ttk.Frame(self.engine_content)
+        router_page = ttk.Frame(self.engine_content)
         legacy_page.grid(row=0, column=0, sticky="nsew")
         mihomo_page.grid(row=0, column=0, sticky="nsew")
-        self.engine_pages = {"legacy": legacy_page, "mihomo": mihomo_page}
+        router_page.grid(row=0, column=0, sticky="nsew")
+        self.engine_pages = {"legacy": legacy_page, "mihomo": mihomo_page, "router": router_page}
 
         outer = ttk.Frame(legacy_page, padding=(20, 14, 20, 14))
         outer.pack(fill="both", expand=True)
@@ -1886,6 +1890,8 @@ class WireVeilChecker(tk.Tk):
             network_callback=lambda status: self.events.put(("network_state", status)),
         )
         self.mihomo_tab.pack(fill="both", expand=True)
+        self.router_subscription_tab = RouterSubscriptionTab(router_page)
+        self.router_subscription_tab.pack(fill="both", expand=True)
         self._show_engine_page("legacy")
 
     def _show_engine_page(self, page: str) -> None:
@@ -4656,6 +4662,7 @@ class WireVeilChecker(tk.Tk):
         self.closing = True
         self._close_rkn_easter_egg()
         self.mihomo_tab.close()
+        self.router_subscription_tab.close()
         self._cancel_background_timers()
         for job_name in (
             "countdown_job",

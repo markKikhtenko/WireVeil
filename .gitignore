@@ -27,6 +27,11 @@ Thumbs.db
 /WireVeilChecker.mihomo-ui.json.tmp
 /WireVeilChecker.mihomo-checkpoint.json
 /WireVeilChecker.mihomo-checkpoint.json.tmp
+/WireVeilChecker.router-sources.json
+/WireVeilChecker.router-sources.json.tmp
+/WireVeilChecker.router-ui.json
+/WireVeilChecker.router-ui.json.tmp
+/WireVeilChecker.router-subscription.yaml
 /WireVeil-Mihomo-Report-*.zip
 /*-private.yaml
 /WireVeilChecker.mihomo-sources.json
