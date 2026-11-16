@@ -48,6 +48,7 @@ CHECKPOINT_FLUSH_BATCH = 100
 TRANSIENT_PROBE_RETRIES = 1
 SOURCE_FETCH_ATTEMPTS = 3
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
+MIHOMO_FAKE_IP_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 MAX_SOURCES = 200
 MAX_NODES = 20_000
 MAX_VALIDATION_CHECKS = 128
@@ -966,6 +967,29 @@ def _is_public_ip(address: str) -> bool:
     )
 
 
+def _is_ip_literal(hostname: str) -> bool:
+    """Recognise canonical and legacy numeric IP host representations."""
+    hostname = hostname.rstrip(".")
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        pass
+    try:
+        # inet_aton also recognises legacy IPv4 forms such as 2130706433.
+        socket.inet_aton(hostname)
+        return True
+    except OSError:
+        return False
+
+
+def _is_safe_subscription_address(address: str, *, allow_fake_ip: bool) -> bool:
+    ip = ipaddress.ip_address(address)
+    if allow_fake_ip and ip in MIHOMO_FAKE_IP_NETWORK:
+        return True
+    return _is_public_ip(address)
+
+
 def validate_subscription_url(url: str) -> None:
     try:
         parsed = urllib.parse.urlsplit(url)
@@ -982,7 +1006,15 @@ def validate_subscription_url(url: str) -> None:
         raise MihomoCheckError("UNSAFE_SOURCE_URL", "Некорректный порт URL источника") from exc
     except OSError as exc:
         raise MihomoCheckError("DNS_ERROR", "Не удалось разрешить адрес источника") from exc
-    if not addresses or any(not _is_public_ip(item[4][0]) for item in addresses):
+    # Mihomo/OpenClash Fake-IP DNS deliberately returns an address from
+    # 198.18.0.0/15 for a domain and transparently maps the connection back to
+    # that domain.  Permit that DNS result, but never permit a URL that names a
+    # Fake-IP address directly.  All other local/reserved results stay blocked.
+    allow_fake_ip = not _is_ip_literal(parsed.hostname)
+    if not addresses or any(
+        not _is_safe_subscription_address(item[4][0], allow_fake_ip=allow_fake_ip)
+        for item in addresses
+    ):
         raise MihomoCheckError(
             "UNSAFE_SOURCE_URL",
             "Источник разрешается в локальный, служебный или небезопасный адрес",
@@ -996,7 +1028,10 @@ class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 def fetch_source_url(url: str, timeout: float = 15.0) -> str:
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _SafeRedirectHandler())
+    # An empty mapping disables proxies.  With no explicit mapping,
+    # ProxyHandler uses the operating system HTTP(S) proxy configuration while
+    # the URL and every redirect are still validated independently below.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler(), _SafeRedirectHandler())
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "WireVeilChecker/1.0", "Accept": "application/yaml,text/yaml,text/plain,*/*"},

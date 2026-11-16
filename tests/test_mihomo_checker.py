@@ -89,6 +89,12 @@ def synthetic_nodes(count: int) -> list[mihomo_checker.NodeRecord]:
 
 
 class ImportTests(unittest.TestCase):
+    @staticmethod
+    def _dns_result(address: str, port: int = 443):
+        family = mihomo_checker.socket.AF_INET6 if ":" in address else mihomo_checker.socket.AF_INET
+        sockaddr = (address, port, 0, 0) if family == mihomo_checker.socket.AF_INET6 else (address, port)
+        return [(family, mihomo_checker.socket.SOCK_STREAM, 6, "", sockaddr)]
+
     def test_source_fetch_retries_a_temporary_failure(self):
         class Response(io.BytesIO):
             headers: dict[str, str] = {}
@@ -144,6 +150,62 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(1, opener.open.call_count)
         self.assertEqual(2, validate.call_count)
         sleep.assert_called_once_with(1)
+
+    def test_source_fetch_uses_system_proxy_configuration(self):
+        class Response(io.BytesIO):
+            headers: dict[str, str] = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(b"proxies: []\n")
+        system_proxies = {"https": "http://127.0.0.1:7890"}
+        with (
+            mock.patch.object(mihomo_checker, "validate_subscription_url"),
+            mock.patch.object(
+                mihomo_checker.urllib.request,
+                "getproxies",
+                return_value=system_proxies,
+            ) as getproxies,
+            mock.patch.object(
+                mihomo_checker.urllib.request,
+                "build_opener",
+                return_value=opener,
+            ),
+        ):
+            text = mihomo_checker.fetch_source_url("https://provider.example/sub")
+
+        self.assertEqual("proxies: []\n", text)
+        getproxies.assert_called_once_with()
+
+    def test_source_fetch_accepts_mihomo_fake_ip_dns_result(self):
+        class Response(io.BytesIO):
+            headers: dict[str, str] = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        opener = mock.Mock()
+        opener.open.return_value = Response(b"proxies: []\n")
+        with (
+            mock.patch.object(
+                mihomo_checker.socket,
+                "getaddrinfo",
+                return_value=self._dns_result("198.18.10.20"),
+            ),
+            mock.patch.object(mihomo_checker.urllib.request, "build_opener", return_value=opener),
+        ):
+            text = mihomo_checker.fetch_source_url("https://provider.example/sub")
+
+        self.assertEqual("proxies: []\n", text)
+        opener.open.assert_called_once()
 
     def test_txt_url_list_expands_to_independent_url_sources(self):
         with tempfile.TemporaryDirectory() as name:
@@ -328,13 +390,57 @@ class ImportTests(unittest.TestCase):
         self.assertEqual("failed", parsed.parse_status)
         self.assertEqual("PARSE_ERROR", parsed.error_code)
 
-    def test_subscription_url_rejects_private_and_invalid_ports(self):
-        with mock.patch(
-            "socket.getaddrinfo",
-            return_value=[(2, 1, 6, "", ("127.0.0.1", 443))],
+    def test_subscription_url_accepts_public_dns_result(self):
+        with mock.patch.object(
+            mihomo_checker.socket,
+            "getaddrinfo",
+            return_value=self._dns_result("93.184.216.34"),
         ):
-            with self.assertRaisesRegex(mihomo_checker.MihomoCheckError, "локальный"):
+            mihomo_checker.validate_subscription_url("https://provider.example/sub")
+
+    def test_subscription_url_accepts_fake_ip_only_for_domain_dns(self):
+        with mock.patch.object(
+            mihomo_checker.socket,
+            "getaddrinfo",
+            return_value=self._dns_result("198.19.255.254"),
+        ):
+            mihomo_checker.validate_subscription_url("https://provider.example/sub")
+            for url in ("https://198.18.0.1/sub", "https://198.18.0.1./sub"):
+                with self.subTest(url=url), self.assertRaisesRegex(
+                    mihomo_checker.MihomoCheckError,
+                    "небезопасный",
+                ):
+                    mihomo_checker.validate_subscription_url(url)
+
+    def test_subscription_url_rejects_local_dns_results(self):
+        for address in ("127.0.0.1", "10.0.0.7", "192.168.1.2", "169.254.1.1", "::1"):
+            with self.subTest(address=address), mock.patch.object(
+                mihomo_checker.socket,
+                "getaddrinfo",
+                return_value=self._dns_result(address),
+            ):
+                with self.assertRaisesRegex(mihomo_checker.MihomoCheckError, "локальный"):
+                    mihomo_checker.validate_subscription_url("https://provider.example/sub")
+
+    def test_subscription_url_rejects_mixed_fake_ip_and_local_results(self):
+        addresses = self._dns_result("198.18.0.10") + self._dns_result("127.0.0.1")
+        with mock.patch.object(mihomo_checker.socket, "getaddrinfo", return_value=addresses):
+            with self.assertRaisesRegex(mihomo_checker.MihomoCheckError, "небезопасный"):
                 mihomo_checker.validate_subscription_url("https://provider.example/sub")
+
+    def test_redirect_handler_rejects_local_target(self):
+        with mock.patch.object(
+            mihomo_checker.socket,
+            "getaddrinfo",
+            return_value=self._dns_result("127.0.0.1"),
+        ):
+            with self.assertRaises(mihomo_checker.MihomoCheckError) as raised:
+                mihomo_checker._SafeRedirectHandler().redirect_request(
+                    mock.Mock(), None, 302, "Found", {}, "http://local.example/admin"
+                )
+        self.assertEqual("UNSAFE_SOURCE_URL", raised.exception.code)
+
+    def test_subscription_url_rejects_invalid_ports(self):
         with self.assertRaises(mihomo_checker.MihomoCheckError) as raised:
             mihomo_checker.validate_subscription_url("https://provider.example:99999/sub")
         self.assertEqual("UNSAFE_SOURCE_URL", raised.exception.code)

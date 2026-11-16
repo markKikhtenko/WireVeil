@@ -14,6 +14,7 @@ from router_subscription import (
     RouterSubscriptionServer,
     build_router_yaml,
     new_subscription_token,
+    source_diagnostic,
     valid_subscription_token,
 )
 from router_subscription_tab import RouterSubscriptionTab, load_router_settings, save_router_settings
@@ -59,6 +60,28 @@ def sample_report() -> mihomo_checker.BatchReport:
 
 
 class RouterYamlTests(unittest.TestCase):
+    def test_source_diagnostic_shows_safe_specific_failure(self):
+        url = "https://secret.example/private/path?token=super-secret-value"
+        spec = mihomo_checker.SourceSpec("src-url", "Provider", "url", url)
+        parsed = mihomo_checker.ParsedSource(
+            spec,
+            fetch_status="failed",
+            issues=[
+                mihomo_checker.SourceIssue(
+                    "SOURCE_FETCH_FAILED",
+                    f"HTTP Error 403: Forbidden from {url}",
+                )
+            ],
+        )
+
+        status, reason = source_diagnostic(parsed)
+
+        self.assertEqual("Ошибка загрузки", status)
+        self.assertIn("SOURCE_FETCH_FAILED", reason)
+        self.assertIn("HTTP Error 403: Forbidden", reason)
+        self.assertNotIn("private/path", reason)
+        self.assertNotIn("super-secret-value", reason)
+
     def test_build_includes_accepted_nodes_without_network_results(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "router.yaml"
@@ -119,9 +142,21 @@ class RouterYamlTests(unittest.TestCase):
 
     def test_empty_build_explains_source_failures(self):
         report = sample_report()
-        report.sources[0].fetch_status = "failed"
-        report.sources[0].parse_status = "not_started"
-        report.sources[0].nodes = []
+        url = "https://secret.example/private/path?token=super-secret-value"
+        spec = mihomo_checker.SourceSpec("src-url", "Основная подписка", "url", url)
+        report.sources = [
+            mihomo_checker.ParsedSource(
+                spec,
+                fetch_status="failed",
+                parse_status="not_started",
+                issues=[
+                    mihomo_checker.SourceIssue(
+                        "SOURCE_FETCH_FAILED",
+                        f"HTTP Error 403: Forbidden from {url}",
+                    )
+                ],
+            )
+        ]
         report.node_results = []
 
         with tempfile.TemporaryDirectory() as name:
@@ -130,6 +165,11 @@ class RouterYamlTests(unittest.TestCase):
 
         self.assertIn("не загрузились: 1", str(raised.exception))
         self.assertIn("Проверьте доступность URL", str(raised.exception))
+        self.assertIn("Основная подписка", str(raised.exception))
+        self.assertIn("HTTP Error 403: Forbidden", str(raised.exception))
+        self.assertIn("SOURCE_FETCH_FAILED", str(raised.exception))
+        self.assertNotIn("private/path", str(raised.exception))
+        self.assertNotIn("super-secret-value", str(raised.exception))
 
     def test_empty_build_explains_rejected_nodes(self):
         report = sample_report()
