@@ -15,6 +15,7 @@ from scripts import local_checker
 
 SOURCES_VERSION = 1
 MAX_SOURCES = 200
+MAX_URL_LIST_BYTES = 1024 * 1024
 VALID_SOURCE_KINDS = {"url", "file", "text"}
 
 
@@ -72,6 +73,64 @@ def validate_subscription_url(value: str) -> str | None:
     if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
         return None
     return url
+
+
+def subscription_urls_from_text(value: str) -> tuple[str, ...] | None:
+    """Parse a plain TXT manifest containing only HTTP(S) subscription URLs."""
+    urls: list[str] = []
+    seen: set[str] = set()
+    for line in value.removeprefix("\ufeff").splitlines():
+        candidate = line.strip()
+        if not candidate or candidate.startswith("#"):
+            continue
+        url = validate_subscription_url(candidate)
+        if url is None:
+            return None
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return tuple(urls) if urls else None
+
+
+def subscription_url_list_text(sources: Iterable[SubscriptionSource]) -> str:
+    """Return the unique URL sources as a portable one-URL-per-line TXT."""
+    urls: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        if source.kind != "url":
+            continue
+        url = validate_subscription_url(source.value)
+        if url is None or url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return "".join(f"{url}\n" for url in urls)
+
+
+def subscription_sources_from_file(path: Path) -> list[SubscriptionSource]:
+    """Expand a portable TXT URL list, otherwise keep the file as one source."""
+    resolved = Path(path).resolve()
+    file_source = SubscriptionSource(
+        new_source_id(), resolved.name, "file", str(resolved)
+    )
+    if resolved.suffix.casefold() != ".txt":
+        return [file_source]
+    try:
+        if resolved.stat().st_size > MAX_URL_LIST_BYTES:
+            return [file_source]
+        text = resolved.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeError):
+        return [file_source]
+    urls = subscription_urls_from_text(text)
+    if urls is None:
+        return [file_source]
+    return [
+        SubscriptionSource(
+            new_source_id(), source_name_from_url(url), "url", url
+        )
+        for url in urls
+    ]
 
 
 def load_subscription_sources(path: Path) -> list[SubscriptionSource]:

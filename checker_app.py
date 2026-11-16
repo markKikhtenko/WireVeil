@@ -671,6 +671,13 @@ class _SubscriptionSourcesDialog(tk.Toplevel):
             style="Secondary.TButton",
         )
         self.add_current_button.pack(side="left", padx=(6, 0))
+        self.export_urls_button = ttk.Button(
+            toolbar,
+            text="Скачать TXT",
+            command=self._export_urls,
+            style="Secondary.TButton",
+        )
+        self.export_urls_button.pack(side="left", padx=(6, 0))
         ttk.Button(
             toolbar,
             text="Выбрать все",
@@ -793,6 +800,11 @@ class _SubscriptionSourcesDialog(tk.Toplevel):
         self.run_button.configure(
             state="normal" if selected_count else "disabled"
         )
+        self.export_urls_button.configure(
+            state="normal"
+            if any(source.kind == "url" for source in self.sources)
+            else "disabled"
+        )
         self._update_actions()
 
     def _replace_selected_state(self, source_ids: set[str], selected: bool) -> None:
@@ -891,16 +903,48 @@ class _SubscriptionSourcesDialog(tk.Toplevel):
             ),
         )
         additions = [
-            subscription_source_store.SubscriptionSource(
-                subscription_source_store.new_source_id(),
-                Path(name).name,
-                "file",
-                str(Path(name).resolve()),
-            )
+            source
             for name in names
+            for source in subscription_source_store.subscription_sources_from_file(
+                Path(name)
+            )
         ]
         if additions:
             self._append_sources(additions)
+
+    def _export_urls(self) -> None:
+        content = subscription_source_store.subscription_url_list_text(self.sources)
+        if not content:
+            messagebox.showinfo(
+                APP_TITLE,
+                "В списке пока нет URL-подписок для сохранения.",
+                parent=self,
+            )
+            return
+        name = filedialog.asksaveasfilename(
+            parent=self,
+            title="Скачать URL-подписки в TXT",
+            defaultextension=".txt",
+            initialfile="WireVeil-subscriptions.txt",
+            filetypes=(("Текстовый файл", "*.txt"), ("Все файлы", "*.*")),
+        )
+        if not name:
+            return
+        try:
+            Path(name).write_text(content, encoding="utf-8")
+        except OSError as exc:
+            messagebox.showerror(
+                APP_TITLE,
+                f"Не удалось сохранить TXT: {exc}",
+                parent=self,
+            )
+            return
+        messagebox.showinfo(
+            APP_TITLE,
+            f"Сохранено URL-подписок: {len(content.splitlines())}.\n\n"
+            "Файл содержит приватные адреса подписок — не публикуйте его.",
+            parent=self,
+        )
 
     def _add_current(self) -> None:
         if not self.current_source:

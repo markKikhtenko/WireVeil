@@ -364,6 +364,9 @@ class MainUiLayoutTests(unittest.TestCase):
 
                     self.assertEqual(2, len(dialog.tree.get_children("")))
                     self.assertEqual("Выбрано 1 из 2 подписок", dialog.summary_var.get())
+                    self.assertEqual(
+                        "normal", str(dialog.export_urls_button.cget("state"))
+                    )
                     dialog._toggle_source_ids({"two"})
                     self.assertEqual("Выбрано 2 из 2 подписок", dialog.summary_var.get())
                     dialog._request_run()

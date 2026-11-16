@@ -9,6 +9,8 @@ from subscription_sources import (
     load_subscription_sources,
     save_subscription_sources,
     selected_sources_identity,
+    subscription_sources_from_file,
+    subscription_url_list_text,
 )
 
 
@@ -53,6 +55,48 @@ class SubscriptionSourcePersistenceTests(unittest.TestCase):
             selected_sources_identity([first]),
             selected_sources_identity([first, ignored]),
         )
+
+    def test_url_list_export_contains_only_unique_url_sources(self):
+        sources = (
+            SubscriptionSource("one", "One", "url", "https://one.test/sub"),
+            SubscriptionSource("file", "File", "file", "C:/vpn/keys.txt"),
+            SubscriptionSource("copy", "Copy", "url", "https://one.test/sub"),
+            SubscriptionSource("two", "Two", "url", "https://two.test/sub"),
+        )
+
+        self.assertEqual(
+            "https://one.test/sub\nhttps://two.test/sub\n",
+            subscription_url_list_text(sources),
+        )
+
+    def test_exported_txt_expands_back_to_individual_url_sources(self):
+        content = subscription_url_list_text(
+            (
+                SubscriptionSource("one", "One", "url", "https://one.test/sub"),
+                SubscriptionSource("two", "Two", "url", "https://two.test/sub"),
+            )
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "WireVeil-subscriptions.txt"
+            path.write_text(content, encoding="utf-8")
+
+            imported = subscription_sources_from_file(path)
+
+        self.assertEqual(["url", "url"], [source.kind for source in imported])
+        self.assertEqual(
+            ["https://one.test/sub", "https://two.test/sub"],
+            [source.value for source in imported],
+        )
+
+    def test_regular_subscription_txt_stays_a_file_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "keys.txt"
+            path.write_text(vless_uri("one.example.com") + "\n", encoding="utf-8")
+
+            imported = subscription_sources_from_file(path)
+
+        self.assertEqual(1, len(imported))
+        self.assertEqual("file", imported[0].kind)
 
 
 class SubscriptionSourceImportTests(unittest.TestCase):
