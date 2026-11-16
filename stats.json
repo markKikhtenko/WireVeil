@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "built_at": {
-    "utc": "2026-11-16T07:46:07Z",
-    "msk": "2026-11-16T10:46:07+03:00"
+    "utc": "2026-11-16T07:56:02Z",
+    "msk": "2026-11-16T10:56:02+03:00"
   },
   "sources": [
     {
@@ -71,11 +71,11 @@
       "priority": 70,
       "enabled": true,
       "status": "ok",
-      "lines": 1175,
-      "recognized": 1166,
-      "valid": 1160,
-      "rejected": 6,
-      "selected": 781
+      "lines": 1201,
+      "recognized": 1192,
+      "valid": 1185,
+      "rejected": 7,
+      "selected": 796
     },
     {
       "id": "morpheus-tuic",
@@ -99,7 +99,7 @@
       "recognized": 2565,
       "valid": 2554,
       "rejected": 11,
-      "selected": 796
+      "selected": 794
     },
     {
       "id": "wuge0-free-nodes",
@@ -124,7 +124,7 @@
       "recognized": 200,
       "valid": 199,
       "rejected": 1,
-      "selected": 35
+      "selected": 37
     },
     {
       "id": "learnli-free-nodes",
@@ -136,7 +136,7 @@
       "recognized": 221,
       "valid": 221,
       "rejected": 0,
-      "selected": 143
+      "selected": 144
     },
     {
       "id": "bily1258-beimi",
@@ -148,7 +148,7 @@
       "recognized": 675,
       "valid": 671,
       "rejected": 4,
-      "selected": 558
+      "selected": 560
     },
     {
       "id": "delta-kronecker-v2ray-config",
@@ -160,7 +160,7 @@
       "recognized": 500,
       "valid": 499,
       "rejected": 1,
-      "selected": 208
+      "selected": 206
     },
     {
       "id": "hezhanleiok-freesub",
@@ -172,22 +172,22 @@
       "recognized": 594,
       "valid": 591,
       "rejected": 3,
-      "selected": 369
+      "selected": 371
     }
   ],
-  "recognized_keys": 6852,
-  "valid_keys_before_deduplication": 6822,
-  "rejected_keys": 30,
-  "duplicates_removed": 3331,
-  "semantic_duplicates_removed": 1487,
-  "endpoint_duplicates_removed": 1844,
-  "eligible_keys_before_mix": 3393,
+  "recognized_keys": 6878,
+  "valid_keys_before_deduplication": 6847,
+  "rejected_keys": 31,
+  "duplicates_removed": 3341,
+  "semantic_duplicates_removed": 1477,
+  "endpoint_duplicates_removed": 1864,
+  "eligible_keys_before_mix": 3411,
   "mix_target": null,
-  "total_keys": 3393,
+  "total_keys": 3411,
   "keys_by_protocol": {
-    "vless": 1555,
-    "trojan": 527,
-    "shadowsocks": 453,
+    "vless": 1572,
+    "trojan": 526,
+    "shadowsocks": 455,
     "vmess": 341,
     "hysteria": 0,
     "hysteria2": 262,
@@ -199,41 +199,41 @@
     "wlunlocker-blacklist-vpn1": 38,
     "flat447-blacklist-lte": 26,
     "wlunlocker-blacklist-vpn2": 101,
-    "radikal-verified": 781,
+    "radikal-verified": 796,
     "morpheus-tuic": 255,
-    "argh94-all-config": 796,
+    "argh94-all-config": 794,
     "wuge0-free-nodes": 0,
-    "sakazxc1400-free-vpn-sub": 35,
-    "learnli-free-nodes": 143,
-    "bily1258-beimi": 558,
-    "delta-kronecker-v2ray-config": 208,
-    "hezhanleiok-freesub": 369
+    "sakazxc1400-free-vpn-sub": 37,
+    "learnli-free-nodes": 144,
+    "bily1258-beimi": 560,
+    "delta-kronecker-v2ray-config": 206,
+    "hezhanleiok-freesub": 371
   },
   "change": {
-    "added": 331,
-    "removed": 371,
-    "net": -40
+    "added": 270,
+    "removed": 252,
+    "net": 18
   },
   "changes_by_protocol": {
     "vless": {
-      "added": 197,
-      "removed": 231,
-      "net": -34
+      "added": 169,
+      "removed": 152,
+      "net": 17
     },
     "trojan": {
-      "added": 53,
-      "removed": 55,
-      "net": -2
+      "added": 45,
+      "removed": 46,
+      "net": -1
     },
     "shadowsocks": {
-      "added": 21,
-      "removed": 19,
+      "added": 23,
+      "removed": 21,
       "net": 2
     },
     "vmess": {
-      "added": 45,
-      "removed": 48,
-      "net": -3
+      "added": 31,
+      "removed": 31,
+      "net": 0
     },
     "hysteria": {
       "added": 0,
@@ -241,9 +241,9 @@
       "net": 0
     },
     "hysteria2": {
-      "added": 15,
-      "removed": 18,
-      "net": -3
+      "added": 2,
+      "removed": 2,
+      "net": 0
     },
     "tuic": {
       "added": 0,
@@ -252,36 +252,36 @@
     }
   },
   "geography": {
-    "ru_excluded": 98,
-    "unknown_kept": 1609,
-    "non_ru_kept": 1784
+    "ru_excluded": 95,
+    "unknown_kept": 1610,
+    "non_ru_kept": 1801
   },
   "preserved_protocol_files": [],
   "output_files": {
     "subscription.txt": {
-      "keys": 3393,
-      "bytes": 726253,
-      "sha256": "7b2707fc8889569b5737c2f13d6e5ce8dec0a847b9c9fc54bd79b63482c291fc"
+      "keys": 3411,
+      "bytes": 730324,
+      "sha256": "1be145925baca552ab15da3857646d49575ced372ffbf240a113c18e2d62677c"
     },
     "vless.txt": {
-      "keys": 1555,
-      "bytes": 364998,
-      "sha256": "2f06f011c5267d8e21931fa3a321d54989b63d5f9c67111d12115462df3d378f"
+      "keys": 1572,
+      "bytes": 368809,
+      "sha256": "1f95a44f03caff6248815af284d1c599e2b9d0b00791d3db16b4b5ec625c37cb"
     },
     "trojan.txt": {
-      "keys": 527,
-      "bytes": 85269,
-      "sha256": "acfcc60d4de88286723ac6cde90f499386ebfe3c5e211ebcf50989964796389b"
+      "keys": 526,
+      "bytes": 85104,
+      "sha256": "58d501e603ea3a3ff0a2f205dfbad2e3054167e8cde0e8f4330c7f550517b6a8"
     },
     "shadowsocks.txt": {
-      "keys": 453,
-      "bytes": 53328,
-      "sha256": "e3ef7681c66ec2d051bd1e88a0b01beac94d43ee14ffb5be1a67dadaeb38b4b6"
+      "keys": 455,
+      "bytes": 53796,
+      "sha256": "e9891d6538de730c5b6cbece6ae6c38e97ccbc83a23e1a3aab39e34ff40a7a4a"
     },
     "vmess.txt": {
       "keys": 341,
-      "bytes": 119096,
-      "sha256": "6ed8ea26649e09873047d2deff910aa9217fb570b98e797d43d80a493a47e628"
+      "bytes": 118865,
+      "sha256": "030e69e8924550d02f2e4b72e22b48ec2d37d627d78c705a55c08ef0c3dc135b"
     },
     "hysteria.txt": {
       "keys": 0,
@@ -290,8 +290,8 @@
     },
     "hysteria2.txt": {
       "keys": 262,
-      "bytes": 37035,
-      "sha256": "6e8d9ffaefbb6747ca378dea634f779d8d4b4987131e186e7e2ea70ed4cf5820"
+      "bytes": 37223,
+      "sha256": "8fb9962fa031a7047b28d7e707aa5abde3826cf0a3294cc5ead5200498bab197"
     },
     "tuic.txt": {
       "keys": 255,
