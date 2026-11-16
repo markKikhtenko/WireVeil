@@ -27,6 +27,42 @@ RESERVED_OUTBOUND_NAMES = {*GROUP_NAMES, "DIRECT", "REJECT", "REJECT-DROP", "PAS
 AUTO_TEST_URL = "https://cp.cloudflare.com/generate_204"
 
 
+def source_diagnostic(source: mihomo_checker.ParsedSource | None) -> tuple[str, str]:
+    """Return compact, credential-safe status text for the router source table."""
+    if source is None:
+        return "Не проверен", "—"
+    if source.fetch_status == "failed":
+        status = "Ошибка загрузки"
+    elif source.parse_status in {"failed", "unsupported"}:
+        status = "Ошибка формата"
+    elif source.fetch_status == "ok" and not source.nodes:
+        status = "Без узлов"
+    elif source.parse_status == "partial":
+        status = "Частично"
+    elif source.fetch_status == "ok":
+        status = "Готов"
+    else:
+        status = mihomo_checker.sanitize_text(source.fetch_status, 40) or "Не проверен"
+
+    parts = [
+        item
+        for item in (
+            source.error_code,
+            mihomo_checker.sanitize_text(source.error_summary, 180)
+            if source.error_summary
+            else None,
+        )
+        if item
+    ]
+    if parts:
+        reason = " · ".join(parts)
+    elif source.fetch_status == "ok" and not source.nodes:
+        reason = "Не найдено распознанных узлов"
+    else:
+        reason = "—"
+    return status, reason
+
+
 def new_subscription_token() -> str:
     """Return an unguessable URL component that is safe to persist locally."""
     return secrets.token_hex(TOKEN_BYTES)
@@ -54,7 +90,7 @@ def _unique_proxy_name(value: object, used: set[str]) -> str:
 
 
 def _empty_build_summary(report: mihomo_checker.BatchReport) -> str:
-    """Explain an empty router build without exposing source names or URLs."""
+    """Explain an empty router build without exposing source URLs or secrets."""
     candidate_count = len(report.node_results)
     if candidate_count == 0:
         failed = sum(source.fetch_status == "failed" for source in report.sources)
@@ -74,10 +110,29 @@ def _empty_build_summary(report: mihomo_checker.BatchReport) -> str:
         if empty and not (unsupported or parse_failed):
             details.append(f"без распознанных узлов: {empty}")
         suffix = f" ({'; '.join(details)})" if details else ""
-        return (
+        summary = (
             "В выбранных источниках не найдено узлов для сборки"
             f"{suffix}. Проверьте доступность URL и формат подписки"
         )
+        url_failures: list[str] = []
+        for source in report.sources:
+            if source.spec.kind != "url":
+                continue
+            if source.error_summary:
+                reason = mihomo_checker.sanitize_text(source.error_summary, 180)
+            elif source.fetch_status == "ok" and not source.nodes:
+                reason = "не найдено распознанных узлов"
+            else:
+                continue
+            label = mihomo_checker.sanitize_text(source.spec.name, 80) or "URL-источник"
+            code = f" [{source.error_code}]" if source.error_code else ""
+            url_failures.append(f"• {label}: {reason}{code}")
+        if url_failures:
+            visible = url_failures[:8]
+            if len(url_failures) > len(visible):
+                visible.append(f"• Ещё источников с ошибками: {len(url_failures) - len(visible)}")
+            summary += "\nПричины по URL-источникам:\n" + "\n".join(visible)
+        return summary
 
     statuses = collections.Counter(result.overall_status for result in report.node_results)
     rejected = sum(

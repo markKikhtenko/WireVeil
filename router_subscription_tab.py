@@ -16,6 +16,7 @@ from router_subscription import (
     RouterSubscriptionServer,
     build_router_yaml,
     new_subscription_token,
+    source_diagnostic,
     valid_subscription_token,
 )
 from scripts import mihomo_checker
@@ -204,17 +205,19 @@ class RouterSubscriptionTab(ttk.Frame):
         tree_frame = ttk.Frame(source_panel, style="Router.PanelBody.TFrame")
         tree_frame.pack(fill="both", expand=True)
         self.source_tree = ttk.Treeview(
-            tree_frame, columns=("enabled", "name", "kind", "source"), show="headings",
+            tree_frame, columns=("enabled", "name", "kind", "source", "status", "error"), show="headings",
             height=2, selectmode="extended", style="Router.Treeview",
         )
         for column, text, width, anchor in (
             ("enabled", "В сборку", 80, "center"),
-            ("name", "Название", 250, "w"),
-            ("kind", "Тип", 80, "center"),
-            ("source", "Источник", 520, "w"),
+            ("name", "Название", 220, "w"),
+            ("kind", "Тип", 70, "center"),
+            ("source", "Источник", 300, "w"),
+            ("status", "Статус", 120, "w"),
+            ("error", "Причина", 360, "w"),
         ):
             self.source_tree.heading(column, text=text)
-            self.source_tree.column(column, width=width, minwidth=60, anchor=anchor, stretch=column in {"name", "source"})
+            self.source_tree.column(column, width=width, minwidth=60, anchor=anchor, stretch=column in {"name", "source", "error"})
         source_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.source_tree.yview)
         self.source_tree.configure(yscrollcommand=source_scroll.set)
         self.source_tree.pack(side="left", fill="both", expand=True)
@@ -409,10 +412,22 @@ class RouterSubscriptionTab(ttk.Frame):
         self.source_tree.delete(*self.source_tree.get_children())
         valid_ids = {item.source_id for item in self.sources}
         self.enabled_source_ids.intersection_update(valid_ids)
+        report_sources = {
+            item.spec.source_id: item
+            for item in self.report.sources
+        } if self.report is not None else {}
         for source in self.sources:
+            status, error = source_diagnostic(report_sources.get(source.source_id))
             self.source_tree.insert(
                 "", "end", iid=source.source_id,
-                values=("✓" if source.source_id in self.enabled_source_ids else "—", source.name, source.kind.upper(), source.display),
+                values=(
+                    "✓" if source.source_id in self.enabled_source_ids else "—",
+                    source.name,
+                    source.kind.upper(),
+                    source.display,
+                    status,
+                    error,
+                ),
             )
         for source_id in selected:
             if self.source_tree.exists(source_id):
@@ -445,6 +460,7 @@ class RouterSubscriptionTab(ttk.Frame):
         self.running = True
         self.stop_requested = False
         self.report = None
+        self._refresh_sources()
         self.progress_var.set(0)
         self.status_var.set("Загружаю и объединяю выбранные источники…")
         self.summary_var.set(f"Источников в сборке: {len(sources)} · сетевая проверка отключена")
@@ -500,6 +516,7 @@ class RouterSubscriptionTab(ttk.Frame):
         self.running = False
         self.runner = None
         self.report = report
+        self._refresh_sources()
         if self.stop_requested:
             self.status_var.set("Проверка остановлена. Предыдущая подписка не изменена.")
             self.summary_var.set("Сборка отменена")
