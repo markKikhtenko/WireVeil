@@ -53,12 +53,12 @@ def _unique_proxy_name(value: object, used: set[str]) -> str:
 
 
 def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, object]:
-    """Build a complete router-ready Mihomo configuration from good nodes."""
+    """Build a complete router-ready Mihomo configuration from accepted nodes."""
     used_names = set(RESERVED_OUTBOUND_NAMES)
     proxies: list[dict[str, object]] = []
     original_to_exported: dict[str, list[str]] = {}
     for result in report.node_results:
-        if result.overall_status != "good":
+        if result.overall_status not in {"good", "ready"}:
             continue
         proxy = dict(result.node.proxy)
         original_name = str(proxy.get("name") or "WireVeil node")
@@ -68,7 +68,8 @@ def router_config_payload(report: mihomo_checker.BatchReport) -> dict[str, objec
         original_to_exported.setdefault(original_name, []).append(exported_name)
     if not proxies:
         raise mihomo_checker.MihomoCheckError(
-            "NO_MATCHING_NODES", "Нет полностью рабочих узлов для сборки роутерной подписки"
+            "NO_MATCHING_NODES",
+            "В выбранных источниках нет поддерживаемых узлов для сборки",
         )
 
     # Preserve simple dialer chains when a referenced node had to be renamed.
@@ -137,7 +138,7 @@ def _write_private_yaml(path: Path, payload: Mapping[str, object]) -> None:
 
 
 def build_router_yaml(report: mihomo_checker.BatchReport, path: Path) -> bytes:
-    """Atomically export a complete router-ready config with only good nodes."""
+    """Atomically export a complete router-ready config with accepted nodes."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")

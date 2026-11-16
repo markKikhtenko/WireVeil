@@ -62,7 +62,7 @@ def save_router_settings(path: Path, settings: dict[str, object]) -> None:
 
 
 class RouterSubscriptionTab(ttk.Frame):
-    """Build and serve a strict, fully checked Mihomo YAML subscription."""
+    """Build and serve a merged Mihomo YAML subscription without network probes."""
 
     def __init__(self, parent: tk.Misc) -> None:
         super().__init__(parent, padding=6)
@@ -86,9 +86,6 @@ class RouterSubscriptionTab(ttk.Frame):
         self.closing = False
         self.poll_job: str | None = None
 
-        self.attempts_var = tk.IntVar(value=int(saved["attempts"]))
-        self.timeout_var = tk.IntVar(value=int(saved["timeout"]))
-        self.workers_var = tk.IntVar(value=int(saved["workers"]))
         self.port_var = tk.IntVar(value=int(saved["port"]))
         self.progress_var = tk.DoubleVar(value=0)
         self.status_var = tk.StringVar(value="Выберите источники и соберите локальную подписку.")
@@ -171,7 +168,7 @@ class RouterSubscriptionTab(ttk.Frame):
         ).pack(anchor="w")
         ttk.Label(
             header,
-            text="Проверяет выбранные источники и собирает готовый Mihomo-конфиг с группами GLOBAL, AUTO и ALL.",
+            text="Объединяет выбранные источники без сетевой проверки и собирает Mihomo-конфиг с группами GLOBAL, AUTO и ALL.",
             style="Router.Dim.TLabel",
         ).pack(anchor="w")
 
@@ -227,20 +224,14 @@ class RouterSubscriptionTab(ttk.Frame):
 
         run_panel = ttk.Frame(self, style="Router.Panel.TFrame", padding=(9, 7))
         run_panel.pack(fill="x", pady=(0, 6))
-        ttk.Label(run_panel, text="2. Проверка и сборка", style="Router.Section.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(run_panel, text="2. Подготовка и сборка", style="Router.Section.TLabel").grid(row=0, column=0, sticky="w")
         settings = ttk.Frame(run_panel, style="Router.PanelBody.TFrame")
         settings.grid(row=1, column=0, sticky="ew", pady=(6, 0))
-        for label, variable, values in (
-            ("HTTPS-прогонов", self.attempts_var, (2, 3, 4, 5)),
-            ("Тайм-аут, сек", self.timeout_var, tuple(range(1, 61))),
-            ("Параллельность", self.workers_var, mihomo_checker.BASE_WORKERS_ALLOWED),
-        ):
-            ttk.Label(settings, text=label, style="Router.Panel.TLabel").pack(side="left", padx=(0, 5))
-            box = ttk.Combobox(
-                settings, textvariable=variable, values=values, state="readonly",
-                width=5, style="Router.TCombobox",
-            )
-            box.pack(side="left", padx=(0, 14))
+        ttk.Label(
+            settings,
+            text="Без сетевой проверки · доступность узлов определит AUTO на роутере",
+            style="Router.PanelDim.TLabel",
+        ).pack(side="left")
         self.stop_button = ttk.Button(settings, text="Остановить", command=self.stop, state="disabled", style="Router.TButton")
         self.stop_button.pack(side="right")
         self.build_button = ttk.Button(settings, text="Собрать подписку", command=self._start_build, style="Router.Accent.TButton")
@@ -443,21 +434,14 @@ class RouterSubscriptionTab(ttk.Frame):
                 "WireVeil Checker", "Не найден mihomo.exe. В сборке он должен находиться рядом с приложением.", parent=self,
             )
             return
-        try:
-            attempts = int(self.attempts_var.get())
-            timeout = int(self.timeout_var.get())
-            workers = int(self.workers_var.get())
-        except (ValueError, tk.TclError):
-            messagebox.showerror("WireVeil Checker", "Проверьте параметры проверки.", parent=self)
-            return
         self._save_settings()
         self.runner = mihomo_checker.BatchRunner()
         self.running = True
         self.stop_requested = False
         self.report = None
         self.progress_var.set(0)
-        self.status_var.set("Загружаю выбранные источники…")
-        self.summary_var.set(f"Источников в сборке: {len(sources)} · проверяются все узлы")
+        self.status_var.set("Загружаю и объединяю выбранные источники…")
+        self.summary_var.set(f"Источников в сборке: {len(sources)} · сетевая проверка отключена")
         self._update_controls()
 
         def work() -> None:
@@ -467,12 +451,9 @@ class RouterSubscriptionTab(ttk.Frame):
                     binary=binary,
                     source_specs=sources,
                     selected_services=(),
-                    attempts=attempts,
-                    timeout_ms=timeout * 1000,
-                    workers=workers,
                     node_limit=None,
                     per_source_limit=None,
-                    base_policy="strict",
+                    check_connectivity=False,
                     progress_callback=lambda update: self.events.put(("progress", update)),
                 )
                 self.events.put(("done", report))
@@ -527,11 +508,14 @@ class RouterSubscriptionTab(ttk.Frame):
             messagebox.showerror("WireVeil Checker", f"Не удалось собрать подписку: {exc}", parent=self)
             return
         self.server.set_content(payload)
-        good = sum(item.overall_status == "good" for item in report.node_results)
+        included = sum(
+            item.overall_status in {"good", "ready"}
+            for item in report.node_results
+        )
         total = len(report.node_results)
         self.progress_var.set(100)
-        self.status_var.set("Конфиг с группами GLOBAL / AUTO / ALL собран; локальный сервер запускается.")
-        self.summary_var.set(f"Готово: {good} рабочих из {total} уникальных узлов")
+        self.status_var.set("Конфиг с группами GLOBAL / AUTO / ALL собран без сетевой проверки; локальный сервер запускается.")
+        self.summary_var.set(f"Готово: добавлено {included} из {total} уникальных узлов")
         self.save_button.configure(state="normal")
         self.server_button.configure(state="normal")
         self._start_server(show_error=False)
@@ -628,9 +612,6 @@ class RouterSubscriptionTab(ttk.Frame):
                 self.settings_path,
                 {
                     "port": int(self.port_var.get()),
-                    "attempts": int(self.attempts_var.get()),
-                    "timeout": int(self.timeout_var.get()),
-                    "workers": int(self.workers_var.get()),
                     "token": self.token,
                     "enabled_source_ids": sorted(self.enabled_source_ids),
                 },

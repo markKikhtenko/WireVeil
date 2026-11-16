@@ -52,14 +52,14 @@ def sample_report() -> mihomo_checker.BatchReport:
         timeout_ms=8000,
         sources=[parsed],
         node_results=[
-            mihomo_checker.NodeResult(good_node, overall_status="good"),
+            mihomo_checker.NodeResult(good_node, overall_status="ready"),
             mihomo_checker.NodeResult(failed_node, overall_status="failed"),
         ],
     )
 
 
 class RouterYamlTests(unittest.TestCase):
-    def test_build_includes_only_good_nodes_and_router_groups(self):
+    def test_build_includes_accepted_nodes_without_network_results(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "router.yaml"
             payload = build_router_yaml(sample_report(), path)

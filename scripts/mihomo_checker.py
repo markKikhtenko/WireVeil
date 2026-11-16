@@ -36,6 +36,8 @@ from typing import Callable, Iterable, Mapping, Sequence
 
 import yaml
 
+from scripts import build, healthcheck
+
 
 SCHEMA_VERSION = 2
 SOURCE_STORE_VERSION = 1
@@ -630,6 +632,238 @@ def _node_from_proxy(proxy: Mapping[str, object], spec: SourceSpec, index: int) 
     )
 
 
+def _uri_query(uri: str) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for key, value in urllib.parse.parse_qsl(
+        urllib.parse.urlsplit(uri).query, keep_blank_values=True
+    ):
+        result.setdefault(key.casefold(), []).append(value)
+    return result
+
+
+def _query_first(values: Mapping[str, Sequence[str]], *keys: str) -> str:
+    for key in keys:
+        candidates = values.get(key.casefold())
+        if candidates:
+            return str(candidates[0])
+    return ""
+
+
+def _apply_uri_tls(
+    proxy: dict[str, object],
+    query: Mapping[str, Sequence[str]],
+    *,
+    enabled: bool,
+) -> None:
+    if not enabled:
+        return
+    proxy["tls"] = True
+    server_name = _query_first(query, "sni", "server_name", "servername", "peer")
+    if server_name:
+        proxy["servername"] = server_name
+    if _query_first(query, "allowinsecure", "allow_insecure", "insecure").casefold() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        proxy["skip-cert-verify"] = True
+    fingerprint = _query_first(query, "fp", "fingerprint")
+    if fingerprint:
+        proxy["client-fingerprint"] = fingerprint
+    alpn = [item for item in re.split(r"[,\s]+", _query_first(query, "alpn")) if item]
+    if alpn:
+        proxy["alpn"] = alpn
+    public_key = _query_first(query, "pbk", "publickey")
+    if public_key:
+        reality: dict[str, object] = {"public-key": public_key}
+        short_id = _query_first(query, "sid", "shortid")
+        if short_id:
+            reality["short-id"] = short_id
+        proxy["reality-opts"] = reality
+
+
+def _apply_uri_transport(
+    proxy: dict[str, object], query: Mapping[str, Sequence[str]]
+) -> None:
+    network = (_query_first(query, "type", "network") or "tcp").casefold()
+    network = {"raw": "tcp", "websocket": "ws", "splithttp": "xhttp"}.get(
+        network, network
+    )
+    proxy["network"] = network
+    path = _query_first(query, "path")
+    host = _query_first(query, "host")
+    if network == "ws":
+        options: dict[str, object] = {}
+        if path:
+            options["path"] = path
+        if host:
+            options["headers"] = {"Host": host}
+        if options:
+            proxy["ws-opts"] = options
+    elif network == "grpc":
+        service_name = _query_first(
+            query, "servicename", "service_name", "service-name", "path"
+        ).lstrip("/")
+        if service_name:
+            proxy["grpc-opts"] = {"grpc-service-name": service_name}
+    elif network in {"http", "h2"}:
+        options = {}
+        if host:
+            options["host"] = [item for item in host.split(",") if item]
+        if path:
+            options["path"] = path
+        if options:
+            proxy["h2-opts"] = options
+    elif network == "httpupgrade":
+        options = {}
+        if host:
+            options["host"] = host
+        if path:
+            options["path"] = path
+        if options:
+            proxy["httpupgrade-opts"] = options
+    elif network == "xhttp":
+        options = {}
+        if host:
+            options["host"] = host
+        if path:
+            options["path"] = path
+        mode = _query_first(query, "mode")
+        if mode:
+            options["mode"] = mode
+        if options:
+            proxy["xhttp-opts"] = options
+
+
+def _url_share_proxy(uri: str, protocol: str, name: str) -> dict[str, object]:
+    parsed = urllib.parse.urlsplit(uri)
+    query = _uri_query(uri)
+    proxy: dict[str, object] = {
+        "name": name,
+        "type": protocol,
+        "server": parsed.hostname or "",
+        "port": parsed.port or 0,
+        "udp": True,
+    }
+    credential = urllib.parse.unquote(parsed.username or "")
+    if protocol == "vless":
+        proxy["uuid"] = credential
+        flow = _query_first(query, "flow")
+        if flow:
+            proxy["flow"] = flow.removesuffix("-udp443")
+    else:
+        proxy["password"] = credential
+    security = (_query_first(query, "security") or ("tls" if protocol == "trojan" else "none")).casefold()
+    _apply_uri_tls(proxy, query, enabled=security in {"tls", "reality", "xtls"})
+    _apply_uri_transport(proxy, query)
+    return proxy
+
+
+def _sing_box_share_proxy(uri: str, name: str) -> dict[str, object]:
+    protocol, outbound = healthcheck.uri_to_outbound(uri, "wireveil-import")
+    output_type = "ss" if protocol == "shadowsocks" else protocol
+    proxy: dict[str, object] = {
+        "name": name,
+        "type": output_type,
+        "server": outbound.get("server", ""),
+        "port": outbound.get("server_port", 0),
+        "udp": True,
+    }
+    field_map = {
+        "uuid": "uuid",
+        "password": "password",
+        "method": "cipher",
+        "security": "cipher",
+        "alter_id": "alterId",
+        "congestion_control": "congestion-controller",
+        "udp_relay_mode": "udp-relay-mode",
+        "zero_rtt_handshake": "reduce-rtt",
+    }
+    for source_key, target_key in field_map.items():
+        value = outbound.get(source_key)
+        if value not in (None, "", [], {}):
+            proxy[target_key] = value
+    tls = outbound.get("tls")
+    if isinstance(tls, Mapping):
+        query: dict[str, list[str]] = {}
+        for source_key, target_key in (
+            ("server_name", "sni"),
+            ("insecure", "insecure"),
+        ):
+            value = tls.get(source_key)
+            if value not in (None, ""):
+                query[target_key] = [str(value)]
+        alpn = tls.get("alpn")
+        if isinstance(alpn, list):
+            query["alpn"] = [",".join(str(item) for item in alpn)]
+        _apply_uri_tls(proxy, query, enabled=True)
+    obfs = outbound.get("obfs")
+    if isinstance(obfs, Mapping):
+        if obfs.get("type"):
+            proxy["obfs"] = obfs["type"]
+        if obfs.get("password"):
+            proxy["obfs-password"] = obfs["password"]
+    for source_key, target_key in (("up_mbps", "up"), ("down_mbps", "down")):
+        if outbound.get(source_key) is not None:
+            proxy[target_key] = outbound[source_key]
+    plugin = outbound.get("plugin")
+    if plugin:
+        proxy["plugin"] = plugin
+        raw_options = str(outbound.get("plugin_opts") or "")
+        options: dict[str, object] = {}
+        for item in raw_options.split(";"):
+            key, separator, value = item.partition("=")
+            if not key:
+                continue
+            options[key] = value if separator else True
+        if options:
+            proxy["plugin-opts"] = options
+    transport = outbound.get("transport")
+    if isinstance(transport, Mapping):
+        transport_type = str(transport.get("type") or "tcp")
+        query = {"type": [transport_type]}
+        for key in ("path", "host", "service_name"):
+            value = transport.get(key)
+            if isinstance(value, list):
+                query[key] = [",".join(str(item) for item in value)]
+            elif value not in (None, ""):
+                query[key] = [str(value)]
+        headers = transport.get("headers")
+        if isinstance(headers, Mapping) and headers.get("Host"):
+            query["host"] = [str(headers["Host"])]
+        _apply_uri_transport(proxy, query)
+    return proxy
+
+
+def _share_uri_proxies(text: str) -> tuple[list[dict[str, object]], list[SourceIssue]] | None:
+    uris = build.extract_uris(text)
+    if not uris:
+        return None
+    proxies: list[dict[str, object]] = []
+    issues: list[SourceIssue] = []
+    for index, uri in enumerate(uris):
+        try:
+            parsed = build.parse_uri(uri)
+            endpoint = f"{parsed.server}:{parsed.port}"
+            fragment = urllib.parse.unquote(urllib.parse.urlsplit(uri).fragment).strip()
+            name = fragment or f"{parsed.protocol.upper()} · {endpoint}"
+            if parsed.protocol in {"vless", "trojan"}:
+                proxy = _url_share_proxy(uri, parsed.protocol, name)
+            else:
+                proxy = _sing_box_share_proxy(uri, name)
+        except (build.ValidationError, healthcheck.HealthCheckError, ValueError, TypeError, KeyError):
+            issues.append(
+                SourceIssue(
+                    "UNSUPPORTED_SHARE_URI",
+                    "Share-ссылка не поддерживается сборщиком Mihomo",
+                    index,
+                )
+            )
+            continue
+        proxies.append(proxy)
+    return proxies, issues
+
+
 def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
     result = ParsedSource(spec=spec, fetch_status="ok")
     result.download_bytes = len(text.encode("utf-8", errors="ignore"))
@@ -641,11 +875,23 @@ def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
         result.parse_status = "failed"
         result.issues.append(SourceIssue("SOURCE_TOO_LARGE", "Источник превышает лимит 5 МБ"))
         return result
+    document: object = None
+    yaml_error: yaml.YAMLError | None = None
     try:
         document = yaml.safe_load(text)
     except yaml.YAMLError as exc:
+        yaml_error = exc
+    share_result = None
+    if not (isinstance(document, dict) and isinstance(document.get("proxies"), list)):
+        share_result = _share_uri_proxies(text)
+    if share_result is not None:
+        proxies, issues = share_result
+        result.original_document = {"proxies": proxies}
+        result.total_entries = len(proxies) + len(issues)
+        result.issues.extend(issues)
+    elif yaml_error is not None:
         result.parse_status = "failed"
-        mark = getattr(exc, "problem_mark", None)
+        mark = getattr(yaml_error, "problem_mark", None)
         location = (
             f" (строка {int(mark.line) + 1}, столбец {int(mark.column) + 1})"
             if mark is not None
@@ -653,18 +899,19 @@ def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
         )
         result.issues.append(SourceIssue("PARSE_ERROR", f"Некорректный YAML{location}"))
         return result
-    result.original_document = document
-    if not isinstance(document, dict):
+    elif not isinstance(document, dict):
         result.parse_status = "unsupported"
         result.issues.append(
             SourceIssue(
                 "UNSUPPORTED_FORMAT",
-                "Требуется Mihomo/Clash YAML с корневым списком proxies",
+                "Требуется Mihomo/Clash YAML или список share-ссылок",
             )
         )
         return result
-    proxies = document.get("proxies")
-    if proxies is None and document.get("proxy-providers"):
+    else:
+        result.original_document = document
+        proxies = document.get("proxies")
+    if share_result is None and proxies is None and document.get("proxy-providers"):
         result.parse_status = "unsupported"
         result.issues.append(
             SourceIssue(
@@ -686,7 +933,8 @@ def parse_source_text(spec: SourceSpec, text: str) -> ParsedSource:
         result.parse_status = "failed"
         result.issues.append(SourceIssue("TOO_MANY_NODES", "Источник содержит более 20000 узлов"))
         return result
-    result.total_entries = len(proxies)
+    if not result.total_entries:
+        result.total_entries = len(proxies)
     for index, proxy in enumerate(proxies):
         if not isinstance(proxy, dict):
             result.issues.append(SourceIssue("INVALID_NODE", "Запись прокси не является объектом", index))
@@ -2201,6 +2449,7 @@ class BatchRunner:
         per_source_limit: int | None = None,
         sampling_seed: str = "wireveil-default",
         base_policy: str = "strict",
+        check_connectivity: bool = True,
         checkpoint_path: Path | None = None,
         resume: bool = False,
         checkpoint_max_age_seconds: int = CHECKPOINT_MAX_AGE_SECONDS,
@@ -2499,7 +2748,39 @@ class BatchRunner:
             force=True,
         )
 
-        if supported and not self.cancel_event.is_set():
+        if supported and not self.cancel_event.is_set() and not check_connectivity:
+            checked_at = datetime.now().astimezone().isoformat(timespec="seconds")
+            for node in supported:
+                add_result(
+                    NodeResult(
+                        node,
+                        overall_status="ready",
+                        checked_at=checked_at,
+                        check_state="complete",
+                    )
+                )
+            reporter.emit(
+                "runtime",
+                1,
+                1,
+                "Сетевая проверка пропущена: доступность определит роутер",
+                force=True,
+            )
+            reporter.emit(
+                "https",
+                1,
+                1,
+                "HTTPS-прогоны не запускались",
+                force=True,
+            )
+            reporter.emit(
+                "services",
+                1,
+                1,
+                "Проверки сервисов не запускались",
+                force=True,
+            )
+        elif supported and not self.cancel_event.is_set():
             reporter.emit(
                 "runtime", 0, 1, f"Запуск локального Mihomo с {len(supported)} узлами", force=True
             )
@@ -2752,6 +3033,7 @@ class BatchRunner:
             sampling={
                 **sampling,
                 "base_policy": base_policy,
+                "connectivity_check": check_connectivity,
                 "checkpoint_status": checkpoint.status if checkpoint is not None else "disabled",
                 "resumed_nodes": len(resumed_results),
             },

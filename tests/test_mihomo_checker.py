@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import queue
@@ -223,12 +224,36 @@ class ImportTests(unittest.TestCase):
         self.assertEqual("unsupported", parsed.parse_status)
         self.assertEqual("EXTERNAL_PROVIDER_NOT_EXPANDED", parsed.error_code)
 
-    def test_share_uri_list_is_not_silently_converted(self):
+    def test_share_uri_list_is_converted_for_mihomo_builds(self):
         parsed = mihomo_checker.parse_source_text(
-            source("src-uri"), f"vless://{UUID_A}@edge.example.com:443"
+            source("src-uri"),
+            f"vless://{UUID_A}@edge.example.com:443?security=reality&"
+            "sni=cdn.example.com&fp=chrome&"
+            "pbk=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE&sid=abcd#Fast%20node",
         )
-        self.assertEqual("unsupported", parsed.parse_status)
-        self.assertEqual("UNSUPPORTED_FORMAT", parsed.error_code)
+        self.assertEqual("ok", parsed.parse_status)
+        self.assertEqual(1, len(parsed.nodes))
+        proxy = parsed.nodes[0].proxy
+        self.assertEqual("vless", proxy["type"])
+        self.assertEqual("Fast node", proxy["name"])
+        self.assertEqual(
+            "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE",
+            proxy["reality-opts"]["public-key"],
+        )
+        self.assertEqual("chrome", proxy["client-fingerprint"])
+
+    def test_base64_wrapped_share_uri_list_is_converted(self):
+        encoded = base64.b64encode(
+            (
+                f"trojan://password@one.example.com:443?sni=one.example.com#One\n"
+                f"vless://{UUID_A}@two.example.com:443?security=tls#Two\n"
+            ).encode("utf-8")
+        ).decode("ascii")
+
+        parsed = mihomo_checker.parse_source_text(source("src-base64"), encoded)
+
+        self.assertEqual("ok", parsed.parse_status)
+        self.assertEqual(["trojan", "vless"], [node.protocol for node in parsed.nodes])
 
     def test_partial_source_keeps_supported_and_unsupported_entries(self):
         parsed = parsed_source(
@@ -417,6 +442,34 @@ class RepresentativeSamplingTests(unittest.TestCase):
 
 
 class BatchRunnerTests(unittest.TestCase):
+    def test_prepare_only_mode_skips_all_connectivity_checks(self):
+        spec = source("src-router")
+        with (
+            mock.patch(
+                "scripts.mihomo_checker.read_source_text",
+                return_value=source_yaml([vless_proxy()]),
+            ),
+            mock.patch(
+                "scripts.mihomo_checker.validate_runtime_nodes",
+                side_effect=lambda _binary, nodes, **_kwargs: (list(nodes), []),
+            ),
+            mock.patch("scripts.mihomo_checker.MihomoRuntime") as runtime,
+            mock.patch("scripts.mihomo_checker._direct_baseline") as baseline,
+            mock.patch("scripts.mihomo_checker.api_delay") as delay,
+        ):
+            report = mihomo_checker.BatchRunner().run(
+                binary=Path("mihomo.exe"),
+                source_specs=(spec,),
+                selected_services=(),
+                check_connectivity=False,
+            )
+
+        runtime.assert_not_called()
+        baseline.assert_not_called()
+        delay.assert_not_called()
+        self.assertEqual("ready", report.node_results[0].overall_status)
+        self.assertFalse(report.sampling["connectivity_check"])
+
     def test_28_sources_are_preflighted_independently_and_deduplicated(self):
         specs = tuple(source(f"src-{index:012x}", f"Provider {index}") for index in range(28))
 
